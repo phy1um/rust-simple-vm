@@ -56,6 +56,7 @@ fn parse_instruction(ins: u16) -> Result<Op, String> {
         },
         x if x == Op::PopRegister(Register::A).value() => {
             let reg = (ins&0xf00) >> 8;
+            // TODO: ok_or
             if let Some(r) = Register::from_u8(reg as u8) {
                 Ok(Op::PopRegister(r))
             } else {
