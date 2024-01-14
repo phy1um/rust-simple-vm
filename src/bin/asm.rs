@@ -38,6 +38,7 @@ fn assert_length(parts: &Vec<&str>, n: usize) -> Result<(), String> {
 fn handle_line(parts: Vec<&str>) -> Result<Instruction, String> {
     let opcode = OpCode::from_str(parts[0]).ok_or(format!("unknown opcode: {}", parts[0]))?;
     match opcode {
+        OpCode::Nop => Ok(Instruction::Nop),
         OpCode::Push => {
             assert_length(&parts, 2)?;
             Ok(Instruction::Push(parse_numeric(parts[1])?))
@@ -46,15 +47,25 @@ fn handle_line(parts: Vec<&str>) -> Result<Instruction, String> {
             assert_length(&parts, 1)?;
             Ok(Instruction::AddStack)
         },
+        OpCode::AddRegister => {
+            assert_length(&parts, 3)?;
+            Ok(Instruction::AddRegister(
+                    parse_register(parts[1])?,
+                    parse_register(parts[2])?
+                ))
+        }
         OpCode::PopRegister => {
             assert_length(&parts, 2)?;
             Ok(Instruction::PopRegister(parse_register(parts[1])?))
+        },
+        OpCode::PushRegister => {
+            assert_length(&parts, 2)?;
+            Ok(Instruction::PushRegister(parse_register(parts[1])?))
         },
         OpCode::Signal => {
             assert_length(&parts, 2)?;
             Ok(Instruction::Signal(parse_numeric(parts[1])?))
         },
-        _ => Err(format!("unimplemented opcode: {:?}", opcode))
     }
 }
 
