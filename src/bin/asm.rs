@@ -4,6 +4,7 @@ use std::io;
 use std::fs::File;
 use std::io::{BufReader, BufRead, Write};
 use std::path::Path;
+use std::str::FromStr;
 
 use simplevm::{Instruction, OpCode, Register};
 
@@ -36,7 +37,7 @@ fn assert_length(parts: &Vec<&str>, n: usize) -> Result<(), String> {
 }
 
 fn handle_line(parts: Vec<&str>) -> Result<Instruction, String> {
-    let opcode = OpCode::from_str(parts[0]).ok_or(format!("unknown opcode: {}", parts[0]))?;
+    let opcode = OpCode::from_str(parts[0])?;
     match opcode {
         OpCode::Nop => Ok(Instruction::Nop),
         OpCode::Push => {
