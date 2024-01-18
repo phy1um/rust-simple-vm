@@ -28,36 +28,6 @@ pub enum Instruction {
     Signal(u8),
 }
 
-impl Instruction {
-    fn encode_r1(r: Register) -> u16 {
-        (r as u16)&0xf << 8
-    }
-
-    fn encode_r2(r: Register) -> u16 {
-        (r as u16)&0xf << 12
-    }
-
-    fn encode_num(u: u8) -> u16 {
-        (u as u16) << 8
-    }
-
-    fn encode_rs(r1: Register, r2: Register) -> u16 {
-        Self::encode_r1(r1) | Self::encode_r2(r2)
-    }
-
-    pub fn encode_u16(&self) -> u16 {
-        match self {
-            Self::Nop => OpCode::Nop as u16,
-            Self::Push(x) => OpCode::Push as u16 | Self::encode_num(*x),
-            Self::PopRegister(r) => OpCode::PopRegister as u16 | Self::encode_r1(*r),
-            Self::PushRegister(r) => OpCode::PushRegister as u16 | Self::encode_r1(*r),
-            Self::AddStack => OpCode::AddStack as u16,
-            Self::AddRegister(r1, r2) => OpCode::AddRegister as u16 | Self::encode_rs(*r1,*r2),
-            Self::Signal(x) => OpCode::Signal as u16 | Self::encode_num(*x),
-        }
-    }
-}
-
 fn parse_instruction_arg(ins: u16) -> u8 {
     ((ins & 0xff00) >> 8) as u8
 }
