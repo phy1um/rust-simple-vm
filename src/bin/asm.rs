@@ -71,7 +71,7 @@ fn handle_line(parts: Vec<&str>) -> Result<Instruction, String> {
 }
 
 fn main() -> Result<(), String> {
-    // ./asm file.asm 
+    // ./asm file.asm
 
     let args: Vec<_> = env::args().collect();
     if args.len() != 2 {
@@ -100,7 +100,7 @@ fn main() -> Result<(), String> {
         if parts.is_empty() {
             continue;
         }
-        let instruction = handle_line(parts)?; 
+        let instruction = handle_line(parts)?;
         let raw_instruction: u16 = instruction.encode_u16();
         // assumption: >>8 needs to mask for u16
         output.push((raw_instruction&0xff) as u8);
@@ -109,4 +109,4 @@ fn main() -> Result<(), String> {
     let mut stdout = io::stdout().lock();
     stdout.write_all(&output).map_err(|x| format!("{}", x))?;
     Ok(())
-} 
+}

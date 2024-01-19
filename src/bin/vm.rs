@@ -6,7 +6,7 @@ use std::fs::File;
 use simplevm::{Machine, Register};
 
 fn signal_halt(vm: &mut Machine) -> Result<(), String> {
-    vm.halt = true; 
+    vm.halt = true;
     Ok(())
 }
 

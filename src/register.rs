@@ -2,7 +2,7 @@
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum Register {
-    A, B, C, M, SP, PC, BP, FLAGS, 
+    A, B, C, M, SP, PC, BP, FLAGS,
 }
 
 impl Register {
