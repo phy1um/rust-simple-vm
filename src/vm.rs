@@ -13,6 +13,12 @@ pub struct Machine {
     pub memory: Box<dyn Addressable>,
 }
 
+impl Default for Machine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Machine {
     pub fn new() -> Self {
         Self {
@@ -26,7 +32,7 @@ impl Machine {
     pub fn state(&self) -> String {
         format!("A: {} | B: {} | C: {} | M: {}
 SP: {} | PC: {} | BP: {}
-FLAGS: {:X}", 
+FLAGS: {:X}",
             self.get_register(Register::A),
             self.get_register(Register::B),
             self.get_register(Register::C),
@@ -40,7 +46,7 @@ FLAGS: {:X}",
     pub fn get_register(&self, r: Register) -> u16 {
         self.registers[r as usize]
     }
-    
+
     pub fn set_register(&mut self, r: Register, v: u16) {
         self.registers[r as usize] = v;
     }

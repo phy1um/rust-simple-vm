@@ -9,16 +9,16 @@ use std::str::FromStr;
 use simplevm::{Instruction, OpCode, Register};
 
 fn parse_numeric(s: &str) -> Result<u8, String> {
-    if s.len() == 0 {
+    if s.is_empty() {
         return Err("string has no length".to_string());
     }
-    let fst = s.chars().nth(0).unwrap();
+    let fst = s.chars().next().unwrap();
     let (num, radix) = match fst {
         '$' => (&s[1..], 16),
         '%' => (&s[1..], 2),
         _ => (s, 10)
     };
-    u8::from_str_radix(num, radix).map_err(|x| format!("{}", x))  
+    u8::from_str_radix(num, radix).map_err(|x| format!("{}", x))
 }
 
 fn parse_register(s: &str) -> Result<Register, String> {
@@ -90,14 +90,14 @@ fn main() -> Result<(), String> {
      */
     for line in BufReader::new(file).lines() {
         let line_inner = line.map_err(|_x| "foo")?;
-        if line_inner.len() == 0 {
+        if line_inner.is_empty() {
             continue;
         }
-        if line_inner.chars().nth(0).unwrap() == ';' {
+        if line_inner.starts_with(';') {
             continue;
         }
-        let parts: Vec<_> = line_inner.split(" ").filter(|x| x.len() > 0).collect();
-        if parts.len() == 0 {
+        let parts: Vec<_> = line_inner.split(' ').filter(|x| !x.is_empty()).collect();
+        if parts.is_empty() {
             continue;
         }
         let instruction = handle_line(parts)?; 

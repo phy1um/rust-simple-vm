@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use macros::{VmInstruction};
+use macros::VmInstruction;
 use crate::register::Register;
 
 /**
@@ -23,7 +23,7 @@ pub enum Instruction {
     #[opcode(0x20)]
     AddStack,
     #[opcode(0x21)]
-    AddRegister(Register, Register), 
+    AddRegister(Register, Register),
     #[opcode(0xF0)]
     Signal(u8),
 }
@@ -65,7 +65,7 @@ fn parse_instruction_arg(ins: u16) -> u8 {
 impl TryFrom<u16> for Instruction {
     type Error = String;
     fn try_from(ins: u16) -> Result<Self, Self::Error> {
-        let op = (ins & 0xff) as u8; 
+        let op = (ins & 0xff) as u8;
         match OpCode::try_from(op)? {
             OpCode::Nop => Ok(Instruction::Nop),
             OpCode::Push => {
@@ -76,13 +76,13 @@ impl TryFrom<u16> for Instruction {
                 let reg = (ins&0xf00) >> 8;
                 Register::from_u8(reg as u8)
                     .ok_or(format!("unknown register 0x{:X}", reg))
-                    .map(|r| Instruction::PopRegister(r))
+                    .map(Instruction::PopRegister)
             },
             OpCode::PushRegister => {
                 let reg = (ins&0xf00) >> 8;
                 Register::from_u8(reg as u8)
                     .ok_or(format!("unknown register 0x{:X}", reg))
-                    .map(|r| Instruction::PushRegister(r))
+                    .map(Instruction::PushRegister)
             }
             OpCode::AddStack => {
                 Ok(Instruction::AddStack)
