@@ -1,9 +1,8 @@
-
-pub mod vm;
 pub mod memory;
-pub mod register;
 pub mod op;
+pub mod register;
+pub mod vm;
 
-pub use crate::vm::*;
-pub use crate::register::*;
 pub use crate::op::*;
+pub use crate::register::*;
+pub use crate::vm::*;

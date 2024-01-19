@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use macros::VmInstruction;
 use crate::register::Register;
+use macros::VmInstruction;
 
 /**
  * instruction = [ 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 ]
@@ -30,11 +30,11 @@ pub enum Instruction {
 
 impl Instruction {
     fn encode_r1(r: Register) -> u16 {
-        (r as u16)&0xf << 8
+        (r as u16) & 0xf << 8
     }
 
     fn encode_r2(r: Register) -> u16 {
-        (r as u16)&0xf << 12
+        (r as u16) & 0xf << 12
     }
 
     fn encode_num(u: u8) -> u16 {
@@ -52,7 +52,7 @@ impl Instruction {
             Self::PopRegister(r) => OpCode::PopRegister as u16 | Self::encode_r1(*r),
             Self::PushRegister(r) => OpCode::PushRegister as u16 | Self::encode_r1(*r),
             Self::AddStack => OpCode::AddStack as u16,
-            Self::AddRegister(r1, r2) => OpCode::AddRegister as u16 | Self::encode_rs(*r1,*r2),
+            Self::AddRegister(r1, r2) => OpCode::AddRegister as u16 | Self::encode_rs(*r1, *r2),
             Self::Signal(x) => OpCode::Signal as u16 | Self::encode_num(*x),
         }
     }
@@ -71,25 +71,23 @@ impl TryFrom<u16> for Instruction {
             OpCode::Push => {
                 let arg = parse_instruction_arg(ins);
                 Ok(Instruction::Push(arg))
-            },
+            }
             OpCode::PopRegister => {
-                let reg = (ins&0xf00) >> 8;
+                let reg = (ins & 0xf00) >> 8;
                 Register::from_u8(reg as u8)
                     .ok_or(format!("unknown register 0x{:X}", reg))
                     .map(Instruction::PopRegister)
-            },
+            }
             OpCode::PushRegister => {
-                let reg = (ins&0xf00) >> 8;
+                let reg = (ins & 0xf00) >> 8;
                 Register::from_u8(reg as u8)
                     .ok_or(format!("unknown register 0x{:X}", reg))
                     .map(Instruction::PushRegister)
             }
-            OpCode::AddStack => {
-                Ok(Instruction::AddStack)
-            },
+            OpCode::AddStack => Ok(Instruction::AddStack),
             OpCode::AddRegister => {
-                let reg1_raw = (ins&0xf00)>>8;
-                let reg2_raw = (ins&0xf000)>>12;
+                let reg1_raw = (ins & 0xf00) >> 8;
+                let reg2_raw = (ins & 0xf000) >> 12;
                 let reg1 = Register::from_u8(reg1_raw as u8)
                     .ok_or(format!("unknown register 0x{:X}", reg1_raw))?;
                 let reg2 = Register::from_u8(reg2_raw as u8)
@@ -99,9 +97,7 @@ impl TryFrom<u16> for Instruction {
             OpCode::Signal => {
                 let arg = parse_instruction_arg(ins);
                 Ok(Instruction::Signal(arg))
-            },
+            }
         }
     }
 }
-
-

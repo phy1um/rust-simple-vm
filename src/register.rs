@@ -1,5 +1,5 @@
-
 #[derive(Debug, Clone, Copy)]
+#[rustfmt::skip]
 #[repr(u8)]
 pub enum Register {
     A, B, C, M, SP, PC, BP, FLAGS,
@@ -20,4 +20,3 @@ impl Register {
         }
     }
 }
-

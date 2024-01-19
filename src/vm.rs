@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::memory::{LinearMemory, Addressable};
+use crate::memory::{Addressable, LinearMemory};
 use crate::op::Instruction;
 use crate::register::Register;
 
@@ -25,12 +25,13 @@ impl Machine {
             registers: [0; 8],
             signal_handlers: HashMap::new(),
             halt: false,
-            memory: Box::new(LinearMemory::new(8*1024)),
+            memory: Box::new(LinearMemory::new(8 * 1024)),
         }
     }
 
     pub fn state(&self) -> String {
-        format!("A: {} | B: {} | C: {} | M: {}
+        format!(
+            "A: {} | B: {} | C: {} | M: {}
 SP: {} | PC: {} | BP: {}
 FLAGS: {:X}",
             self.get_register(Register::A),
@@ -40,7 +41,8 @@ FLAGS: {:X}",
             self.get_register(Register::SP),
             self.get_register(Register::PC),
             self.get_register(Register::BP),
-            self.get_register(Register::FLAGS))
+            self.get_register(Register::FLAGS)
+        )
     }
 
     pub fn get_register(&self, r: Register) -> u16 {
@@ -76,19 +78,20 @@ FLAGS: {:X}",
 
     pub fn step(&mut self) -> Result<(), String> {
         let pc = self.registers[Register::PC as usize];
-        let instruction = self.memory.read2(pc).ok_or(format!("pc read fail @ 0x{:X}", pc))?;
+        let instruction = self
+            .memory
+            .read2(pc)
+            .ok_or(format!("pc read fail @ 0x{:X}", pc))?;
         self.registers[Register::PC as usize] = pc + 2;
         let op = Instruction::try_from(instruction)?;
         match op {
             Instruction::Nop => Ok(()),
-            Instruction::Push(v) => {
-                self.push(v.into())
-            },
+            Instruction::Push(v) => self.push(v.into()),
             Instruction::PopRegister(r) => {
                 let value = self.pop()?;
                 self.registers[r as usize] = value;
                 Ok(())
-            },
+            }
             Instruction::PushRegister(r) => {
                 self.push(self.registers[r as usize])?;
                 Ok(())
@@ -97,17 +100,18 @@ FLAGS: {:X}",
                 let a = self.pop()?;
                 let b = self.pop()?;
                 self.push(a + b)
-            },
+            }
             Instruction::AddRegister(r1, r2) => {
                 self.registers[r1 as usize] += self.registers[r2 as usize];
                 Ok(())
-            },
+            }
             Instruction::Signal(signal) => {
-                let sig_fn = self.signal_handlers.get(&signal)
+                let sig_fn = self
+                    .signal_handlers
+                    .get(&signal)
                     .ok_or(format!("unknown signal: 0x{:X}", signal))?;
                 sig_fn(self)
-            },
+            }
         }
     }
 }
-
