@@ -39,29 +39,25 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
             }
         }
         if let syn::Fields::Unnamed(fields) = &x.fields {
-            let types: Vec<_> = fields.unnamed.iter().map(|x| &x.ty).collect();
-            if types.len() == 1 && get_type_name(&types[0]) == "u8" {
-                quote!{
-                    Self::#name(u) => OpCode::#name as u16 | ((*u as u16) << 8)
-                }
-            } else if types.len() == 1 && get_type_name(&types[0]) == "Register" {
-                quote!{
-                    Self::#name(r) => OpCode::#name as u16 | ((*r as u16)&0xf << 8)
-                }
-            } else if types.len() == 2 && get_type_name(&types[0]) == "Register" 
-                    && get_type_name(&types[1]) == "Register" {
-                quote!{
-                    Self::#name(r1, r2) => OpCode::#name as u16 | ((*r1 as u16)&0xf << 8) 
-                        | ((*r2 as u16)&0xf << 12)
-                }
-            } else {
-                panic!("uh oh")
+            let types: Vec<_> = fields.unnamed.iter().map(|x| get_type_name(&x.ty)).collect();
+            let types_str: Vec<_> = types.iter().map(AsRef::as_ref).collect();
+            match &types_str[..] {
+                ["u8"] => quote!{
+                            Self::#name(u) => OpCode::#name as u16 | ((*u as u16) << 8)
+                },
+                ["Register"] => quote!{
+                            Self::#name(r) => OpCode::#name as u16 | ((*r as u16)&0xf << 8)
+                },
+                ["Register", "Register"] => quote!{
+                            Self::#name(r1, r2) => OpCode::#name as u16 | ((*r1 as u16)&0xf << 8) 
+                                | ((*r2 as u16)&0xf << 12)
+                },
+                _ => panic!("invalid types: {:?}", types)
             }
         } else {
             panic!("fields must be unnamed in variant: {}", name)
         }
     }).collect();
-
 
     quote!{
         #[repr(u8)]
