@@ -30,6 +30,10 @@ pub enum Instruction {
     AddStack,
     #[opcode(0x21)]
     AddRegister(Register, Register), 
+    #[opcode(0x22)]
+    SubStack,
+    #[opcode(0x23)]
+    SubRegister(Register, Register),
     #[opcode(0xF0)]
     Signal(u8),
 }
