@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::fmt;
+use std::str::FromStr;
 
 use macros::{VmInstruction};
 use crate::register::Register;
@@ -10,6 +10,11 @@ use crate::register::Register;
  *                                 | 8 bit literal
  *                                 | REG1  | REG2
 */
+
+pub enum InstructionParseError {
+    NoContent,
+    Fail(String),
+}
 
 #[derive(Debug, VmInstruction)]
 pub enum Instruction {

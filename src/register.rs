@@ -1,4 +1,5 @@
 use std::fmt;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -33,6 +34,23 @@ impl fmt::Display for Register {
             Self::BP => write!(f, "BP"),
             Self::PC => write!(f, "PC"),
             Self::FLAGS => write!(f, "FLAGS"),
+        }
+    }
+}
+
+impl FromStr for Register {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+         match s {
+            "A" => Ok(Register::A),
+            "B" => Ok(Register::B),
+            "C" => Ok(Register::C),
+            "M" => Ok(Register::M),
+            "SP" => Ok(Register::SP),
+            "BP" => Ok(Register::BP),
+            "PC" => Ok(Register::PC),
+            "FLAGS" => Ok(Register::FLAGS),
+            _ => Err(format!("unknown register {}", s)),
         }
     }
 }
