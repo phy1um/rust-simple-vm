@@ -73,6 +73,7 @@ FLAGS: {:X}",
         let instruction = self.memory.read2(pc).ok_or(format!("pc read fail @ 0x{:X}", pc))?;
         self.registers[Register::PC as usize] = pc + 2;
         let op = Instruction::try_from(instruction)?;
+        println!("running {}", op);
         match op {
             Instruction::Nop => Ok(()),
             Instruction::Push(v) => {

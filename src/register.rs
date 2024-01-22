@@ -1,3 +1,4 @@
+use std::fmt;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -17,6 +18,21 @@ impl Register {
             x if x == Register::BP as u8 => Some(Register::BP),
             x if x == Register::FLAGS as u8 => Some(Register::FLAGS),
             _ => None,
+        }
+    }
+}
+
+impl fmt::Display for Register {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::A => write!(f, "A"),
+            Self::B => write!(f, "B"),
+            Self::C => write!(f, "C"),
+            Self::M => write!(f, "M"),
+            Self::SP => write!(f, "SP"),
+            Self::BP => write!(f, "BP"),
+            Self::PC => write!(f, "PC"),
+            Self::FLAGS => write!(f, "FLAGS"),
         }
     }
 }
