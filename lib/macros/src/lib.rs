@@ -1,18 +1,20 @@
-
 use proc_macro::TokenStream;
 use quote::quote;
 use syn;
 
-
 #[proc_macro_derive(VmInstruction, attributes(opcode))]
 pub fn generate_vm_instruction_impl(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();
-    impl_opcode_struct(&ast)     
+    impl_opcode_struct(&ast)
 }
 
 fn get_type_name(ty: &syn::Type) -> String {
     if let syn::Type::Path(x) = ty {
-        x.path.segments.iter().map(|x| x.ident.to_string()).collect()
+        x.path
+            .segments
+            .iter()
+            .map(|x| x.ident.to_string())
+            .collect()
     } else {
         panic!("don't know how to handle this type")
     }
@@ -37,16 +39,16 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
         let name = &x.ident;
         let opcode_value = variant_opcode_value(&x);
         if let syn::Fields::Unit = &x.fields {
-            field_u16_encodings.push(quote!{
+            field_u16_encodings.push(quote! {
                 Self::#name => #opcode_value as u16
             });
-            field_u16_decodings.push(quote!{
+            field_u16_decodings.push(quote! {
                 #opcode_value => Ok(Self::#name)
             });
-            field_to_string.push(quote!{
+            field_to_string.push(quote! {
                 Self::#name => write!(f, stringify!(#name))
             });
-            field_from_str.push(quote!{
+            field_from_str.push(quote! {
                 stringify!(#name) => {
                     assert_length(&parts, 1).map_err(|x| Self::Err::Fail(x))?;
                     Ok(Self::#name)
@@ -55,32 +57,36 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
             continue;
         }
         if let syn::Fields::Unnamed(fields) = &x.fields {
-            let types: Vec<_> = fields.unnamed.iter().map(|x| get_type_name(&x.ty)).collect();
+            let types: Vec<_> = fields
+                .unnamed
+                .iter()
+                .map(|x| get_type_name(&x.ty))
+                .collect();
             let types_str: Vec<_> = types.iter().map(AsRef::as_ref).collect();
             match &types_str[..] {
                 ["u8"] => {
-                    field_u16_encodings.push(quote!{
+                    field_u16_encodings.push(quote! {
                         Self::#name(u) => #opcode_value as u16 | ((*u as u16) << 8)
                     });
-                    field_u16_decodings.push(quote!{
+                    field_u16_decodings.push(quote! {
                         #opcode_value => Ok(Self::#name(((ins&0xff00)>>8) as u8))
                     });
-                    field_to_string.push(quote!{
+                    field_to_string.push(quote! {
                         Self::#name(b) => write!(f, "{} {}", stringify!(#name), b)
                     });
-                    field_from_str.push(quote!{
+                    field_from_str.push(quote! {
                         stringify!(#name) => {
                             assert_length(&parts, 2).map_err(|x| Self::Err::Fail(x))?;
                             Ok(Self::#name(Self::parse_numeric(parts[1])
                                             .map_err(|x| Self::Err::Fail(x))?))
                         }
                     });
-                },
+                }
                 ["Register"] => {
-                    field_u16_encodings.push(quote!{
+                    field_u16_encodings.push(quote! {
                             Self::#name(r) => #opcode_value as u16 | ((*r as u16)&0xf << 8)
                     });
-                    field_u16_decodings.push(quote!{
+                    field_u16_decodings.push(quote! {
                         #opcode_value => {
                             let reg = (ins&0xf00)>>8;
                             Register::from_u8(reg as u8)
@@ -88,24 +94,24 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                                 .map(|r| Self::#name(r))
                         }
                     });
-                    field_to_string.push(quote!{
+                    field_to_string.push(quote! {
                         Self::#name(r) => write!(f, "{} {}", stringify!(#name), r)
                     });
-                    field_from_str.push(quote!{
+                    field_from_str.push(quote! {
                         stringify!(#name) => {
                             assert_length(&parts, 2).map_err(|x| Self::Err::Fail(x))?;
                             Ok(Self::#name(Register::from_str(parts[1])
                                            .map_err(|x| Self::Err::Fail(x))?))
                         }
                     });
-                },
+                }
                 ["Register", "Register"] => {
-                    field_u16_encodings.push(quote!{
-                            Self::#name(r1, r2) => #opcode_value as u16 | ((*r1 as u16)&0xf << 8) 
+                    field_u16_encodings.push(quote! {
+                            Self::#name(r1, r2) => #opcode_value as u16 | ((*r1 as u16)&0xf << 8)
                                 | ((*r2 as u16)&0xf << 12)
                     });
-                    field_u16_decodings.push(quote!{
-                            #opcode_value => { 
+                    field_u16_decodings.push(quote! {
+                            #opcode_value => {
                                 let reg1_value = (ins&0xf00)>>8;
                                 let reg2_value = (ins&0xf000)>>12;
                                 let reg1 = Register::from_u8(reg1_value as u8)
@@ -117,26 +123,26 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                                 Ok(Self::#name(reg1, reg2))
                             }
                     });
-                    field_to_string.push(quote!{
+                    field_to_string.push(quote! {
                         Self::#name(r1, r2) => write!(f, "{} {} {}", stringify!(#name), r1, r2)
                     });
-                    field_from_str.push(quote!{
+                    field_from_str.push(quote! {
                         stringify!(#name) => {
                             assert_length(&parts, 3).map_err(|x| Self::Err::Fail(x))?;
                             Ok(Self::#name(
-                                    Register::from_str(parts[1]).map_err(|x| Self::Err::Fail(x))?, 
+                                    Register::from_str(parts[1]).map_err(|x| Self::Err::Fail(x))?,
                                     Register::from_str(parts[2]).map_err(|x| Self::Err::Fail(x))?))
                         }
                     });
-                },
-                _ => panic!("invalid types: {:?}", types)
+                }
+                _ => panic!("invalid types: {:?}", types),
             }
         } else {
             panic!("fields must be unnamed in variant: {}", name)
         }
     }
 
-    quote!{
+    quote! {
         impl Instruction {
             pub fn encode_u16(&self) -> u16 {
                 match self {
@@ -154,7 +160,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     '%' => (&s[1..], 2),
                     _ => (s, 10)
                 };
-                u8::from_str_radix(num, radix).map_err(|x| format!("{}", x))  
+                u8::from_str_radix(num, radix).map_err(|x| format!("{}", x))
             }
         }
 
@@ -172,7 +178,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
         impl fmt::Display for Instruction {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 match self {
-                    #(#field_to_string,)* 
+                    #(#field_to_string,)*
                 }
             }
         }
@@ -193,12 +199,11 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     return Err(Self::Err::NoContent);
                 }
                 match parts[0] {
-                    #(#field_from_str,)* 
+                    #(#field_from_str,)*
                     _ => Err(Self::Err::Fail(format!("unknown op {}", parts[0]))),
                 }
             }
         }
-    }.into()
+    }
+    .into()
 }
-
-

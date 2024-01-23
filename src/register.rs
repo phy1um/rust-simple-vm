@@ -4,7 +4,14 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum Register {
-    A, B, C, M, SP, PC, BP, FLAGS, 
+    A,
+    B,
+    C,
+    M,
+    SP,
+    PC,
+    BP,
+    FLAGS,
 }
 
 impl Register {
@@ -41,7 +48,7 @@ impl fmt::Display for Register {
 impl FromStr for Register {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-         match s {
+        match s {
             "A" => Ok(Register::A),
             "B" => Ok(Register::B),
             "C" => Ok(Register::C),
@@ -54,4 +61,3 @@ impl FromStr for Register {
         }
     }
 }
-

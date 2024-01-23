@@ -1,8 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-use macros::{VmInstruction};
 use crate::register::Register;
+use macros::VmInstruction;
 
 /**
  * instruction = [ 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 ]
@@ -29,7 +29,7 @@ pub enum Instruction {
     #[opcode(0x20)]
     AddStack,
     #[opcode(0x21)]
-    AddRegister(Register, Register), 
+    AddRegister(Register, Register),
     #[opcode(0x22)]
     SubStack,
     #[opcode(0x23)]
@@ -37,4 +37,3 @@ pub enum Instruction {
     #[opcode(0xF0)]
     Signal(u8),
 }
-
