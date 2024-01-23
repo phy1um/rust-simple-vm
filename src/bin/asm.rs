@@ -27,10 +27,10 @@ fn main() -> Result<(), String> {
      */
     for line in BufReader::new(file).lines() {
         let line_inner = line.map_err(|_x| "foo")?;
-        if line_inner.len() == 0 {
+        if line_inner.is_empty() {
             continue;
         }
-        if line_inner.chars().nth(0).unwrap() == ';' {
+        if line_inner.chars().next().unwrap() == ';' {
             continue;
         }
         match Instruction::from_str(&line_inner) {
