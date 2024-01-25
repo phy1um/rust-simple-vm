@@ -19,7 +19,7 @@ fn main() -> Result<(), String> {
     reader
         .read_to_end(&mut program)
         .map_err(|x| format!("read: {}", x))?;
-    unsafe{
+    unsafe {
         let (_, instructions, _) = program.align_to::<u16>();
         for ins in instructions.iter() {
             let value = Instruction::try_from(*ins)?;
