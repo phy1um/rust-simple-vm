@@ -99,6 +99,10 @@ FLAGS: {:X}",
                 self.push(self.registers[r as usize])?;
                 Ok(())
             }
+            Instruction::SetRegister(a, b) => {
+                self.registers[a as usize] = self.registers[b as usize];
+                Ok(())
+            }
             Instruction::AddStack => {
                 let a = self.pop()?;
                 let b = self.pop()?;
