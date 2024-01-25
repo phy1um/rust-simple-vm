@@ -28,6 +28,18 @@ pub enum Instruction {
     PushRegister(Register),
     #[opcode(0x4)]
     SetRegister(Register, Register),
+    #[opcode(0x6)]
+    LoadARegister(Register),
+    #[opcode(0x7)]
+    LoadAImm(u8),
+    #[opcode(0x8)]
+    LoadBRegister(Register),
+    #[opcode(0x9)]
+    LoadBImm(u8),
+    #[opcode(0xA)]
+    LoadCRegister(Register),
+    #[opcode(0xB)]
+    LoadCImm(u8),
     #[opcode(0x20)]
     AddStack,
     #[opcode(0x21)]

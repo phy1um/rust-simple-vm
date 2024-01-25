@@ -103,6 +103,64 @@ FLAGS: {:X}",
                 self.registers[a as usize] = self.registers[b as usize];
                 Ok(())
             }
+            Instruction::LoadARegister(r) => {
+                let addr = self.registers[r as usize];
+                match self.memory.read2(addr) {
+                    Some(x) => {
+                        self.registers[Register::A as usize] = x;
+                        Ok(())
+                    }
+                    None => Err(format!("failed to read {addr:X}")),
+                }
+
+            }
+            Instruction::LoadAImm(b) => {
+                match self.memory.read2(b as u16) {
+                    Some(x) => {
+                        self.registers[Register::A as usize] = x;
+                        Ok(())
+                    }
+                    None => Err(format!("failed to read {b:X}")),
+                }
+            }
+            Instruction::LoadBRegister(r) => {
+                let addr = self.registers[r as usize];
+                match self.memory.read2(addr) {
+                    Some(x) => {
+                        self.registers[Register::B as usize] = x;
+                        Ok(())
+                    }
+                    None => Err(format!("failed to read {addr:X}")),
+                }
+            }
+            Instruction::LoadBImm(b) => {
+                match self.memory.read2(b as u16) {
+                    Some(x) => {
+                        self.registers[Register::B as usize] = x;
+                        Ok(())
+                    }
+                    None => Err(format!("failed to read {b:X}")),
+                }
+            }
+            Instruction::LoadCRegister(r) => {
+                let addr = self.registers[r as usize];
+                match self.memory.read2(addr) {
+                    Some(x) => {
+                        self.registers[Register::C as usize] = x;
+                        Ok(())
+                    }
+                    None => Err(format!("failed to read {addr:X}")),
+                }
+            }
+            Instruction::LoadCImm(b) => {
+                match self.memory.read2(b as u16) {
+                    Some(x) => {
+                        self.registers[Register::C as usize] = x;
+                        Ok(())
+                    }
+                    None => Err(format!("failed to read {b:X}")),
+                }
+            }
             Instruction::AddStack => {
                 let a = self.pop()?;
                 let b = self.pop()?;
