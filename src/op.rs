@@ -34,6 +34,28 @@ pub enum Instruction {
     SubStack,
     #[opcode(0x23)]
     SubRegister(Register, Register),
+
+    #[opcode(0x40)]
+    BranchImm(i8), // branch relative (PC += x if FLAGS[c])
+    #[opcode(0x41)]
+    BranchRegister(Register), // branch absolute (PC = Registers[r] if FLAGS[c])
+    
+    #[opcode(0x50)]
+    IfZero(Register),
+
     #[opcode(0xF0)]
     Signal(u8),
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use super::Instruction::*;
+    
+    #[test]
+    fn test_encodings() {
+        assert_eq!(SubStack.encode_u16(), 0x22 as u16);
+        assert_eq!(Push(0x5).encode_u16(), 0x0501 as u16);
+        assert_eq!(AddRegister(Register::B, Register::BP).encode_u16(), 0x6121 as u16);
+    }
 }

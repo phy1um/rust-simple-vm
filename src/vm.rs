@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::memory::{Addressable, LinearMemory};
 use crate::op::Instruction;
-use crate::register::Register;
+use crate::register::{Register, RegisterFlag};
 
 type SignalFunction = fn(&mut Machine) -> Result<(), String>;
 
@@ -70,6 +70,14 @@ FLAGS: {:X}",
         Ok(())
     }
 
+    fn set_flag(&mut self, flag: RegisterFlag) {
+        self.registers[Register::FLAGS as usize] |= (flag  as u16);
+    }
+
+    fn test_flag(&self, flag: RegisterFlag) -> bool {
+        (self.registers[Register::FLAGS as usize] & (flag as u16)) != 0
+    }
+
     pub fn step(&mut self) -> Result<(), String> {
         let pc = self.registers[Register::PC as usize];
         let instruction = self
@@ -107,6 +115,24 @@ FLAGS: {:X}",
             }
             Instruction::SubRegister(r1, r2) => {
                 self.registers[r1 as usize] -= self.registers[r2 as usize];
+                Ok(())
+            }
+            Instruction::IfZero(r) => {
+                if self.registers[r as usize] == 0 {
+                    self.set_flag(RegisterFlag::Compare);
+                }
+                Ok(())
+            }
+            Instruction::BranchImm(x) => {
+                if self.test_flag(RegisterFlag::Compare) {
+                    self.registers[Register::PC as usize] = pc.wrapping_add_signed(x as i16);
+                }
+                Ok(())
+            }
+            Instruction::BranchRegister(r) => {
+                if self.test_flag(RegisterFlag::Compare) {
+                    self.registers[Register::PC as usize] = self.registers[r as usize];
+                }
                 Ok(())
             }
             Instruction::Signal(signal) => {

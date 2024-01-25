@@ -82,9 +82,33 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                         }
                     });
                 }
+                ["i8"] => {
+                    field_u16_encodings.push(quote! {
+                        Self::#name(u) => {
+                            let raw_value = u.to_le_bytes();
+                            #opcode_value as u16 | ((raw_value[0] as u16) << 8)
+                        }
+                    });
+                    field_u16_decodings.push(quote! {
+                        #opcode_value => {
+                            let raw_value = i8::from_le_bytes([((ins&0xff00)>>8) as u8]);
+                            Ok(Self::#name(raw_value))
+                        }
+                    });
+                    field_to_string.push(quote! {
+                        Self::#name(b) => write!(f, "{} {}", stringify!(#name), b)
+                    });
+                    field_from_str.push(quote! {
+                        stringify!(#name) => {
+                            assert_length(&parts, 2).map_err(|x| Self::Err::Fail(x))?;
+                            Ok(Self::#name(Self::parse_numeric_signed(parts[1])
+                                            .map_err(|x| Self::Err::Fail(x))?))
+                        }
+                    });
+                }
                 ["Register"] => {
                     field_u16_encodings.push(quote! {
-                            Self::#name(r) => #opcode_value as u16 | ((*r as u16)&0xf << 8)
+                            Self::#name(r) => #opcode_value as u16 | (((*r as u16)&0xf) << 8)
                     });
                     field_u16_decodings.push(quote! {
                         #opcode_value => {
@@ -107,8 +131,8 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                 }
                 ["Register", "Register"] => {
                     field_u16_encodings.push(quote! {
-                            Self::#name(r1, r2) => #opcode_value as u16 | ((*r1 as u16)&0xf << 8)
-                                | ((*r2 as u16)&0xf << 12)
+                            Self::#name(r1, r2) => #opcode_value as u16 | (((*r1 as u16)&0xf) << 8)
+                                | (((*r2 as u16)&0xf) << 12)
                     });
                     field_u16_decodings.push(quote! {
                             #opcode_value => {
@@ -161,6 +185,19 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     _ => (s, 10)
                 };
                 u8::from_str_radix(num, radix).map_err(|x| format!("{}", x))
+            }
+
+            fn parse_numeric_signed(s: &str) -> Result<i8, String> {
+                if s.len() == 0 {
+                    return Err("string has no length".to_string());
+                }
+                let fst = s.chars().nth(0).unwrap();
+                let (num, radix) = match fst {
+                    '$' => (&s[1..], 16),
+                    '%' => (&s[1..], 2),
+                    _ => (s, 10)
+                };
+                i8::from_str_radix(num, radix).map_err(|x| format!("{}", x))
             }
         }
 
