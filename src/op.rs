@@ -16,6 +16,12 @@ pub enum InstructionParseError {
     Fail(String),
 }
 
+impl From<String> for InstructionParseError {
+    fn from(value: String) -> Self {
+        Self::Fail(value)
+    }
+}
+
 #[derive(Debug, VmInstruction)]
 pub enum Instruction {
     #[opcode(0x0)]
