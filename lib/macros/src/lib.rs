@@ -50,7 +50,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
             });
             field_from_str.push(quote! {
                 stringify!(#name) => {
-                    assert_length(&parts, 1).map_err(|x| Self::Err::Fail(x))?;
+                    assert_length(&parts, 1)?;
                     Ok(Self::#name)
                 }
             });
@@ -76,9 +76,8 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     });
                     field_from_str.push(quote! {
                         stringify!(#name) => {
-                            assert_length(&parts, 2).map_err(|x| Self::Err::Fail(x))?;
-                            Ok(Self::#name(Self::parse_numeric(parts[1])
-                                            .map_err(|x| Self::Err::Fail(x))?))
+                            assert_length(&parts, 2)?;
+                            Ok(Self::#name(Self::parse_numeric(parts[1])?))
                         }
                     });
                 }
@@ -100,9 +99,8 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     });
                     field_from_str.push(quote! {
                         stringify!(#name) => {
-                            assert_length(&parts, 2).map_err(|x| Self::Err::Fail(x))?;
-                            Ok(Self::#name(Self::parse_numeric_signed(parts[1])
-                                            .map_err(|x| Self::Err::Fail(x))?))
+                            assert_length(&parts, 2)?;
+                            Ok(Self::#name(Self::parse_numeric_signed(parts[1])?))
                         }
                     });
                 }
@@ -123,9 +121,8 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     });
                     field_from_str.push(quote! {
                         stringify!(#name) => {
-                            assert_length(&parts, 2).map_err(|x| Self::Err::Fail(x))?;
-                            Ok(Self::#name(Register::from_str(parts[1])
-                                           .map_err(|x| Self::Err::Fail(x))?))
+                            assert_length(&parts, 2)?;
+                            Ok(Self::#name(Register::from_str(parts[1])?))
                         }
                     });
                 }
@@ -152,10 +149,10 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     });
                     field_from_str.push(quote! {
                         stringify!(#name) => {
-                            assert_length(&parts, 3).map_err(|x| Self::Err::Fail(x))?;
+                            assert_length(&parts, 3)?;
                             Ok(Self::#name(
-                                    Register::from_str(parts[1]).map_err(|x| Self::Err::Fail(x))?,
-                                    Register::from_str(parts[2]).map_err(|x| Self::Err::Fail(x))?))
+                                    Register::from_str(parts[1])?,
+                                    Register::from_str(parts[2])?))
                         }
                     });
                 }
