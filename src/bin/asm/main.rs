@@ -7,7 +7,6 @@ use std::str::FromStr;
 
 mod pp;
 mod macros;
-use crate::macros::macro_defvar;
 use crate::pp::PreProcessor;
 
 use simplevm::{Instruction, InstructionParseError};
@@ -33,7 +32,8 @@ fn main() -> Result<(), String> {
      *
      */
     let mut processor = PreProcessor::new();
-    processor.define_macro("defvar", macro_defvar);
+    processor.define_macro("defvar", macros::defvar);
+    processor.define_macro("include", macros::include);
     for (i, line) in BufReader::new(file).lines().enumerate() {
         // TODO: wtf
         let line_inner = line.map_err(|_x| "foo")?;
