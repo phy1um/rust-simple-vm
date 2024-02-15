@@ -46,7 +46,7 @@ impl PreProcessor {
                 Some('.') => {
                     let name = &head[1..];
                     let func = self.get_macro(name).ok_or(
-                            Error::Other(format!("macro {}", head)))?;
+                            Error::UnknownToken(head[1..].to_string()))?;
                     let res = func(self, parts[1..].to_vec()).map_err(|x| Error::MacroEval(name.to_string(), x))?;
                     let resolved: Result<Vec<String>, Error> = res.into_iter().map(|line| {
                         self.resolve(&line)
