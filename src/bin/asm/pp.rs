@@ -23,6 +23,7 @@ type MacroFunc = fn(&mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, 
 pub struct PreProcessor {
     variables: HashMap<String, String>,
     macros: HashMap<String, MacroFunc>,
+    instruction_count: u32,
 }
 
 impl PreProcessor {
@@ -30,6 +31,7 @@ impl PreProcessor {
         Self {
             variables: HashMap::new(),
             macros: HashMap::new(),
+            instruction_count: 0,
         }
     }
 
@@ -48,6 +50,12 @@ impl PreProcessor {
                     let res = func(self, parts[1..].to_vec()).map_err(|x| Error::MacroEval(name.to_string(), x))?;
                     return Ok(res.join("\n"))
                 }
+                Some(':') => {
+                    let name = &head[1..];
+                    let offset = format!("{}", self.instruction_count*2);
+                    self.define_variable(name, &offset);
+                    return Ok(String::new());
+                }
                 _ => (),
             }
         }
@@ -62,6 +70,7 @@ impl PreProcessor {
             }
         });
         let st: Result<Vec<String>, Error> = resolved.into_iter().collect();
+        self.instruction_count += 1;
         Ok(st?.join(" "))
     }
 

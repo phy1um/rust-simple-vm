@@ -48,7 +48,7 @@ fn main() -> Result<(), String> {
             Err(e) => panic!("line {}: {}", i, e),
             Ok(s) => s,
         };
-        if preprocess_only {
+        if preprocess_only && !processed.is_empty() {
             for &b in processed.as_bytes() {
                 output.push(b);  
             }
