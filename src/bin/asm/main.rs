@@ -5,15 +5,15 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::str::FromStr;
 
-mod pp;
 mod macros;
+mod pp;
 use crate::pp::PreProcessor;
 
 use simplevm::{Instruction, InstructionParseError};
 
 fn main() -> Result<(), String> {
     // ./asm file.asm
-    
+
     let preprocess_only = true;
 
     let args: Vec<_> = env::args().collect();
@@ -34,6 +34,7 @@ fn main() -> Result<(), String> {
     let mut processor = PreProcessor::new();
     processor.define_macro("defvar", macros::defvar);
     processor.define_macro("include", macros::include);
+    processor.define_macro("defmacro", macros::defmacro);
     for (i, line) in BufReader::new(file).lines().enumerate() {
         // TODO: wtf
         let line_inner = line.map_err(|_x| "foo")?;
@@ -45,12 +46,12 @@ fn main() -> Result<(), String> {
         }
         // preprocess here
         let processed = match processor.resolve(&line_inner).map_err(|x| x.to_string()) {
-            Err(e) => panic!("line {}: {}", i, e),
+            Err(e) => panic!("line {}: {}", i+1, e),
             Ok(s) => s,
         };
         if preprocess_only && !processed.is_empty() {
             for &b in processed.as_bytes() {
-                output.push(b);  
+                output.push(b);
             }
             output.push(b'\n');
         } else {
@@ -62,7 +63,7 @@ fn main() -> Result<(), String> {
                     output.push((raw_instruction >> 8) as u8);
                 }
                 Err(InstructionParseError::Fail(s)) => {
-                    panic!("line {}: {}", i, s);
+                    panic!("line {}: {}", i+1, s);
                 }
                 _ => continue,
             }
