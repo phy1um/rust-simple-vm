@@ -5,11 +5,24 @@ use crate::register::Register;
 use macros::VmInstruction;
 
 /**
- * instruction = [ 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 ]
- *                 OPERATOR        | ARG(s)
- *                                 | 8 bit literal
- *                                 | REG1  | REG2
-*/
+ * TYPE A
+ * 0RRR LLLL LLLL LLLL
+ * TYPE B
+ * 1RRR SSSA AAAA DDDD
+ * Add (A = 0)
+ * [ assume register A = 1, B = 2 ]
+ * Reg[D] = Reg[R] + Reg[S]
+ * 1001 0100 0000 0001
+ * Reg[0] is always = 0
+ * Reg[A] = Reg[B] + Reg[Zero]
+ * 1000 0100 0000 0001
+ *
+ * Stack (A = 0xf)
+ * Push (D = 0)
+ * 1001 1010 1111 0000
+ * Pop (D = 1)
+ * 1010 1010 1111 0001
+ */
 
 pub enum InstructionParseError {
     NoContent,
