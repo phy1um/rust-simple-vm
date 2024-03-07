@@ -1,6 +1,5 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn;
 
 #[proc_macro_derive(VmInstruction, attributes(opcode))]
 pub fn generate_vm_instruction_impl(input: TokenStream) -> TokenStream {
@@ -106,10 +105,17 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     field_from_str.push(quote! {
                         stringify!(#name) => {
                             assert_length(&parts, 3).map_err(|x| Self::Err::Fail(x))?;
-                            Ok(Self::#name(
-                                    Register::from_str(parts[1])
-                                           .map_err(|x| Self::Err::Fail(x))?,
-                                    Literal7Bit::from_str(parts[2])))
+                            let num = u8::from_str_radix(&parts[2], 16).map_err(|_| {
+                                Self::Err::Fail(format!("invalid number {}", parts[2]))
+                            })?;
+                            if num > 0x7f {
+                                Err(Self::Err::Fail(format!("number out of range {}", parts[2])))
+                            } else {
+                                Ok(Self::#name(
+                                        Register::from_str(parts[1])
+                                               .map_err(|x| Self::Err::Fail(x))?,
+                                        Literal7Bit::from_str(parts[2])))
+                            }
                         }
                     });
                 }
@@ -240,6 +246,9 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                 }
             }
         }
+        */
     }
     .into()
 }
+
+
