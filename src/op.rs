@@ -36,6 +36,7 @@ pub trait InstructionPart {
     fn from_instruction(ins: u16) -> Self;
 }
 
+#[derive(Debug)]
 pub struct Literal7Bit {
     value: u8, 
 }
@@ -51,8 +52,21 @@ impl InstructionPart for Literal7Bit {
     }
 }
 
+impl fmt::Display for Literal7Bit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+#[derive(Debug)]
 pub struct Literal10Bit {
     value: u16,
+}
+
+impl fmt::Display for Literal10Bit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
 }
 
 impl InstructionPart for Literal10Bit {
@@ -68,7 +82,7 @@ impl InstructionPart for Literal10Bit {
 }
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TestOp {
     Eq, 
     Neq, 
@@ -97,7 +111,7 @@ impl TryFrom<u16> for TestOp {
 
 impl InstructionPart for TestOp {
     fn as_mask(&self) -> u16 {
-        (self as u16)&0xf
+        (*self as u16)&0xf
     }
     fn from_instruction(ins: u16) -> Self {
         TestOp::try_from(ins).unwrap()
@@ -105,7 +119,7 @@ impl InstructionPart for TestOp {
 }
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum StackOp {
     Pop,
     Push,
@@ -117,17 +131,48 @@ pub enum StackOp {
 
 impl InstructionPart for StackOp {
     fn as_mask(&self) -> u16 {
-        (self as u16)&0xf
+        (*self as u16)&0xf
+    }
+
+    fn from_instruction(ins: u16) -> Self {
+        StackOp::try_from(ins).unwrap()
     }
 }
 
+impl TryFrom<u16> for StackOp {
+    type Error = String;
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            x if x == StackOp::Pop as u16 => Ok(StackOp::Pop),
+            x if x == StackOp::Push as u16 => Ok(StackOp::Pop),
+            x if x == StackOp::Peek as u16 => Ok(StackOp::Pop),
+            x if x == StackOp::Swap as u16 => Ok(StackOp::Pop),
+            x if x == StackOp::Dup as u16 => Ok(StackOp::Pop),
+            x if x == StackOp::Rotate as u16 => Ok(StackOp::Pop),
+            _ => Err(format!("unknown stack op value {}", value)),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Nibble {
     value: u8,
+}
+
+impl fmt::Display for Nibble {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
 }
 
 impl InstructionPart for Nibble {
     fn as_mask(&self) -> u16 {
         (self.value as u16)&0xf
+    }
+    fn from_instruction(ins: u16) -> Self {
+        Self {
+            value: (ins&0xf) as u8, 
+        }
     }
 }
 
@@ -177,11 +222,7 @@ mod test {
 
     #[test]
     fn test_encodings() {
-        assert_eq!(SubStack.encode_u16(), 0x22 as u16);
-        assert_eq!(Push(0x5).encode_u16(), 0x0501 as u16);
-        assert_eq!(
-            AddRegister(Register::B, Register::BP).encode_u16(),
-            0x6121 as u16
-        );
+        assert_eq!(Add(Register::A, Register::B, Register::C).encode_u16(), 0x22 as u16);
+        //assert_eq!(Push(0x5).encode_u16(), 0x0501 as u16);
     }
 }

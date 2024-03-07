@@ -71,7 +71,7 @@ FLAGS: {:X}",
     }
 
     fn set_flag(&mut self, flag: RegisterFlag) {
-        self.registers[Register::FLAGS as usize] |= (flag as u16);
+        self.registers[Register::FLAGS as usize] |= flag as u16;
     }
 
     fn test_flag(&self, flag: RegisterFlag) -> bool {
@@ -88,7 +88,7 @@ FLAGS: {:X}",
         let op = Instruction::try_from(instruction)?;
         println!("running {}", op);
         match op {
-            Instruction::Nop => Ok(()),
+            /*
             Instruction::Push(v) => self.push(v.into()),
             Instruction::PopRegister(r) => {
                 let value = self.pop()?;
@@ -197,6 +197,7 @@ FLAGS: {:X}",
                     .ok_or(format!("unknown signal: 0x{:X}", signal))?;
                 sig_fn(self)
             }
+            */
         }
     }
 }
