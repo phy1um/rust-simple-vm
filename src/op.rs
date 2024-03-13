@@ -38,12 +38,23 @@ pub trait InstructionPart {
 
 #[derive(Debug)]
 pub struct Literal7Bit {
-    value: u8, 
+    pub value: u8, 
+}
+
+impl Literal7Bit {
+    pub fn as_signed(&self) -> i8 {
+        let sgn = (self.value & 0x40) >> 7;
+        if sgn == 0 {
+            (self.value & 0x3f) as i8
+        } else {
+            -1 * ((self.value & 0x3f) as i8)
+        }
+    }
 }
 
 impl InstructionPart for Literal7Bit {
     fn as_mask(&self) -> u16 {
-        ((self.value&0xf) as u16) | ((self.value&0xe00) as u16)
+        ((self.value&0xf) as u16) | ((self.value as u16)&0xe00)
     }
     fn from_instruction(ins: u16) -> Self {
         Self {
@@ -60,7 +71,7 @@ impl fmt::Display for Literal7Bit {
 
 #[derive(Debug)]
 pub struct Literal10Bit {
-    value: u16,
+    pub value: u16,
 }
 
 impl fmt::Display for Literal10Bit {
@@ -156,7 +167,7 @@ impl TryFrom<u16> for StackOp {
 
 #[derive(Debug)]
 pub struct Nibble {
-    value: u8,
+    pub value: u8,
 }
 
 impl fmt::Display for Nibble {
@@ -186,9 +197,9 @@ pub enum Instruction {
     Sub(Register, Register, Register),
     #[opcode(0x2)]
     AddImm(Register, Literal7Bit),
-    /*
     #[opcode(0x3)]
     AddImmSigned(Register, Literal7Bit),
+    /*
     #[opcode(0x4)]
     ShiftLeft(Register, Register, Nibble),
     #[opcode(0x5)]
@@ -210,9 +221,9 @@ pub enum Instruction {
     Stack(Register, Register, StackOp),
     #[opcode(0xd)]
     LoadStackOffset(Register, Register, Nibble),
+    */
     #[opcode(0xe)]
     System(Register, Register, Nibble),
-    */
 }
 
 #[cfg(test)]
