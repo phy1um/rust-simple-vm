@@ -88,6 +88,37 @@ FLAGS: {:X}",
         let op = Instruction::try_from(instruction)?;
         println!("running {}", op);
         match op {
+            Instruction::Imm(reg, value) => {
+                self.registers[reg as usize] = value;
+                Ok(())
+            },
+            Instruction::Add(r0, r1, dst) => {
+                let a = self.registers[r0 as usize];
+                let b = self.registers[r1 as usize];
+                self.registers[dst as usize] = a+b;
+                Ok(())
+            },
+            Instruction::Sub(r0, r1, dst) => {
+                let a = self.registers[r0 as usize];
+                let b = self.registers[r1 as usize];
+                self.registers[dst as usize] = a-b;
+                Ok(())
+            },
+            Instruction::AddImm(r, i) => {
+                self.registers[r as usize] += i.value as u16;
+                Ok(())
+            }
+            Instruction::AddImmSigned(r, i) => {
+                let raw_register_value = self.registers[r as usize];
+                let imm_signed = i.as_signed();
+                unsafe {
+                    let register_signed: i16 = std::mem::transmute(raw_register_value);
+                    self.registers[r as usize] = std::mem::transmute(register_signed + (imm_signed as i16));
+                }
+                Ok(())
+            }
+
+
             /*
             Instruction::Push(v) => self.push(v.into()),
             Instruction::PopRegister(r) => {

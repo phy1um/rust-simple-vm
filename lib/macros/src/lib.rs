@@ -114,12 +114,49 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                                 Ok(Self::#name(
                                         Register::from_str(parts[1])
                                                .map_err(|x| Self::Err::Fail(x))?,
-                                        Literal7Bit::from_str(parts[2])))
+                                        Literal7Bit{value: num}))
                             }
                         }
                     });
                 }
                 ["Register", "Register", "Register"] => {
+                    field_u16_encodings.push(quote! {
+                            Self::#name(r1, r2, r3) => {
+                                (#opcode_value as u16) << 4 
+                                    | r1.as_mask_first()
+                                    | r2.as_mask_second()
+                                    | r3.as_mask_third()
+                                    | 0x8000
+                            }                    
+                    });
+                    field_u16_decodings.push(quote! {
+                            #opcode_value => {
+                                let reg1 = Register::from_instruction_first(ins)
+                                    .ok_or("unknown register")
+                                    .unwrap();
+                                let reg2 = Register::from_instruction_second(ins)
+                                    .ok_or("unknown register")
+                                    .unwrap();
+                                let reg3 = Register::from_instruction_third(ins)
+                                    .ok_or("unknown register")
+                                    .unwrap();
+                                Ok(Self::#name(reg1, reg2, reg3))
+                            }
+                    });
+                    field_to_string.push(quote! {
+                        Self::#name(r1, r2, r3) => write!(f, "{} {} {} {}", stringify!(#name), r1, r2, r3)
+                    });
+                    field_from_str.push(quote! {
+                        stringify!(#name) => {
+                            assert_length(&parts, 4).map_err(|x| Self::Err::Fail(x))?;
+                            Ok(Self::#name(
+                                    Register::from_str(parts[1]).map_err(|x| Self::Err::Fail(x))?,
+                                    Register::from_str(parts[2]).map_err(|x| Self::Err::Fail(x))?,
+                                    Register::from_str(parts[3]).map_err(|x| Self::Err::Fail(x))?))
+                        }
+                    });
+                }
+                ["Register", "Register", "Nibble"] => {
                     field_u16_encodings.push(quote! {
                             Self::#name(r1, r2, r3) => {
                                 (#opcode_value as u16) << 4 
@@ -168,6 +205,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
             pub fn encode_u16(&self) -> u16 {
                 match self {
                     #(#field_u16_encodings,)*
+                    _ => 0,
                 }
             }
 
@@ -201,10 +239,10 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
         impl TryFrom<u16> for Instruction {
             type Error = String;
             fn try_from(ins: u16) -> Result<Self, Self::Error> {
-                if ins & 0x8000 {
+                if (ins & 0x8000) > 0 {
                     // match TYPE B 
                     let op = ((ins & 0x1f0) >> 4) as u8;
-                    let ins = match op {
+                    match op {
                         #(#field_u16_decodings,)*
                         _ => Err(format!("unknown opcode {:X}", op))
                     }
@@ -221,6 +259,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 match self {
                     #(#field_to_string,)*
+                    _ => write!(f, "placeholder")
                 }
             }
         }
