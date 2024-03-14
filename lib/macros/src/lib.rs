@@ -19,6 +19,8 @@ fn get_type_name(ty: &syn::Type) -> String {
     }
 }
 
+fn get_arg_name(i: usize)
+
 fn variant_opcode_value(v: &syn::Variant) -> u8 {
     for attr in v.attrs.iter() {
         if attr.path().is_ident("opcode") {
@@ -62,6 +64,54 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                 .map(|x| get_type_name(&x.ty))
                 .collect();
             let types_str: Vec<_> = types.iter().map(AsRef::as_ref).collect();
+            let type_encoders: Vec<TokenStream> = Vec::new();
+            for i, type_name in types_str.iter().enumerate() {
+                match (type_name, i) {
+                    ("Register", 0) => {
+                        quote!(a0.as_mask_first())
+                    }
+                    ("Register", 1) => {
+                        quote!(a1.as_mask_second())
+                    }
+                    ("Register", 2) => {
+                        quote!(a2.as_mask_third())
+                    }
+                    ("Literal7Bit", i) => {
+                        let argname = get_arg_name(i);
+                        quote!{
+                            #argname.as_mask() 
+                        }
+                    }
+                    ("Literal10Bit", i) => {
+                        let argname = get_arg_name(i);
+                        quote!{
+                            #argname.as_mask() 
+                        }
+                    }
+                    ("u16", i) => {
+                        let argname = get_arg_name(i);
+                        quote!{
+                            #argname.as_mask() 
+                        }
+                    }
+                }
+            }
+            let name_matcher = match types_str.len() {
+                0 => Ok(Self::#name),
+                1 => Ok(Self::#name(a0)),
+                2 => Ok(Self::#name(a0, a1)),
+                3 => Ok(Self::#name(a0, a1, a2)),
+                x => Err(format!("opcodes may not have {} fields", x)),
+            }?;
+
+            field_u16_encodings.push(quote!{
+                #name_matcher => {
+                    let op_parts: [u16;3] = [0,0,0];
+                    #(#type_encoders;)*
+                    op_parts[0] | op_parts[1] | op_parts[2]
+                }
+            });
+
             match &types_str[..] {
                 ["Register", "u16"] => {
                     field_u16_encodings.push(quote!{
