@@ -1,10 +1,13 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{quote, format_ident};
 
 #[proc_macro_derive(VmInstruction, attributes(opcode))]
 pub fn generate_vm_instruction_impl(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();
-    impl_opcode_struct(&ast)
+    match impl_opcode_struct(&ast) {
+        Ok(ts) => ts,
+        Err(e) => panic!("{}", e),
+    }
 }
 
 fn get_type_name(ty: &syn::Type) -> String {
@@ -19,7 +22,14 @@ fn get_type_name(ty: &syn::Type) -> String {
     }
 }
 
-fn get_arg_name(i: usize)
+fn get_arg_name(i: usize) -> proc_macro2::Ident {
+    format_ident!("{}", match i {
+        0 => "a0",
+        1 => "a1",
+        2 => "a2",
+        _ => "_",
+    })
+}
 
 fn variant_opcode_value(v: &syn::Variant) -> u8 {
     for attr in v.attrs.iter() {
@@ -31,25 +41,25 @@ fn variant_opcode_value(v: &syn::Variant) -> u8 {
     panic!("instruction ??? has no opcode");
 }
 
-fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
-    let mut field_u16_encodings: Vec<_> = Vec::new();
-    let mut field_u16_decodings: Vec<_> = Vec::new();
-    let mut field_to_string: Vec<_> = Vec::new();
-    let mut field_from_str: Vec<_> = Vec::new();
+fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<TokenStream, String> {
+    let mut field_u16_encodings: proc_macro2::TokenStream = quote!();
+    let mut field_u16_decodings: proc_macro2::TokenStream = quote!();
+    let mut field_to_string: proc_macro2::TokenStream  = quote!();
+    let mut field_from_str: proc_macro2::TokenStream  = quote!();
     for x in ast.variants.iter() {
         let name = &x.ident;
         let opcode_value = variant_opcode_value(&x);
         if let syn::Fields::Unit = &x.fields {
-            field_u16_encodings.push(quote! {
+            field_u16_encodings.extend(quote! {
                 Self::#name => #opcode_value as u16
             });
-            field_u16_decodings.push(quote! {
+            field_u16_decodings.extend(quote! {
                 #opcode_value => Ok(Self::#name)
             });
-            field_to_string.push(quote! {
+            field_to_string.extend(quote! {
                 Self::#name => write!(f, stringify!(#name))
             });
-            field_from_str.push(quote! {
+            field_from_str.extend(quote! {
                 stringify!(#name) => {
                     assert_length(&parts, 1).map_err(|x| Self::Err::Fail(x))?;
                     Ok(Self::#name)
@@ -63,198 +73,164 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                 .iter()
                 .map(|x| get_type_name(&x.ty))
                 .collect();
-            let types_str: Vec<_> = types.iter().map(AsRef::as_ref).collect();
-            let type_encoders: Vec<TokenStream> = Vec::new();
-            for i, type_name in types_str.iter().enumerate() {
-                match (type_name, i) {
+            let mut part_encoders: proc_macro2::TokenStream = quote!();
+            let mut part_decoders: proc_macro2::TokenStream = quote!();
+            let mut part_stringers: proc_macro2::TokenStream = quote!();
+            for (i, &ref type_name) in types.iter().enumerate() {
+                match (type_name.as_str(), i) {
                     ("Register", 0) => {
-                        quote!(a0.as_mask_first())
+                        part_encoders.extend(quote!(op_parts[0] = a0.as_mask_first();));
+                        part_decoders.extend(
+                            quote!(let a0 = Register::from_instruction_first(ins).ok_or("unknown register")?;)
+                        );
+
+                        part_stringers.extend(
+                            quote!(let a0 = Register::from_str(parts[1]).map_err(|x| Self::Err::Fail(x))?;)
+                        );
                     }
                     ("Register", 1) => {
-                        quote!(a1.as_mask_second())
+                        part_encoders.extend(quote!(op_parts[1] = a1.as_mask_second();));
+                        part_decoders.extend(
+                            quote!(let a1 = Register::from_instruction_second(ins).ok_or("unknown register")?;)
+                        );
+                        part_stringers.extend(
+                            quote!(let a1 = Register::from_str(parts[2]).map_err(|x| Self::Err::Fail(x))?;)
+                        );
                     }
                     ("Register", 2) => {
-                        quote!(a2.as_mask_third())
+                        part_encoders.extend(quote!(op_parts[2] = a2.as_mask_third();));
+                        part_decoders.extend(
+                            quote!(let a2 = Register::from_instruction_third(ins).ok_or("unknown register")?;)
+                        );
+                        part_stringers.extend(
+                            quote!(let a2 = Register::from_str(parts[3]).map_err(|x| Self::Err::Fail(x))?;)
+                        );
                     }
                     ("Literal7Bit", i) => {
                         let argname = get_arg_name(i);
-                        quote!{
-                            #argname.as_mask() 
-                        }
+                        let part_index = i+1;
+                        part_encoders.extend(quote!(op_parts[#i] = #argname.as_mask();));
+                        part_decoders.extend(quote!(let #argname = Literal7Bit::from_instruction(ins);));
+                        part_stringers.extend(quote!{
+                            let #argname = Literal7Bit::new(Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
+                                Self::Err::Fail(format!("invalid number {}", parts[2]))
+                            })? as u8);
+                            if #argname.value > 0x7f {
+                                return Err(Self::Err::Fail(format!("number out of range {}", parts[2])))
+                            };
+                        });
                     }
                     ("Literal10Bit", i) => {
                         let argname = get_arg_name(i);
-                        quote!{
-                            #argname.as_mask() 
-                        }
+                        let part_index = i+1;
+                        part_encoders.extend(quote!(op_parts[#i] = #argname.as_mask();));
+                        part_decoders.extend(quote!{
+                            quote!(let #argname = Literal10Bit::from_instruction(ins));
+                        });
+                        part_stringers.extend(quote!{
+                            let #argname = Literal10Bit::new(Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
+                                Self::Err::Fail(format!("invalid number {}", parts[2]))
+                            })?);
+                            if #argname.value > 0x3ff {
+                                return Err(Self::Err::Fail(format!("number out of range {}", parts[2])))
+                            };
+                        });
                     }
                     ("u16", i) => {
                         let argname = get_arg_name(i);
-                        quote!{
-                            #argname.as_mask() 
-                        }
+                        let part_index = i+1;
+                        part_encoders.extend(quote!(op_parts[#i] = #argname&0xfff;));
+                        part_decoders.extend(quote!(let #argname = ins&0xfff;));
+                        part_stringers.extend(quote!{
+                            let #argname = Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
+                                Self::Err::Fail(format!("invalid number {}", parts[2]))
+                            })?;
+                            if #argname > 0xfff {
+                                return Err(Self::Err::Fail(format!("number out of range {}", parts[2])))
+                            };
+                        });
+                    }
+                    (_, _) => {
+                       panic!("invalid type {} at place {}", type_name, i) 
                     }
                 }
             }
-            let name_matcher = match types_str.len() {
-                0 => Ok(Self::#name),
-                1 => Ok(Self::#name(a0)),
-                2 => Ok(Self::#name(a0, a1)),
-                3 => Ok(Self::#name(a0, a1, a2)),
+            let name_matcher = match types.len() {
+                0 => Ok(quote!(Self::#name)),
+                1 => Ok(quote!(Self::#name(a0))),
+                2 => Ok(quote!(Self::#name(a0, a1))),
+                3 => Ok(quote!(Self::#name(a0, a1, a2))),
                 x => Err(format!("opcodes may not have {} fields", x)),
             }?;
 
-            field_u16_encodings.push(quote!{
-                #name_matcher => {
-                    let op_parts: [u16;3] = [0,0,0];
-                    #(#type_encoders;)*
-                    op_parts[0] | op_parts[1] | op_parts[2]
+            // immediate instructions get an extra step
+            if name == "Imm" {
+                field_u16_encodings.extend(quote!{
+                    #name_matcher => {
+                        let mut op_parts: [u16;3] = [0,0,0];
+                        #part_encoders
+                        0x8000 | op_parts[0] | op_parts[1] | op_parts[2]
+                    }
+                });
+            } else {
+                field_u16_encodings.extend(quote!{
+                    #name_matcher => {
+                        let mut op_parts: [u16;3] = [0,0,0];
+                        #part_encoders
+                        op_parts[0] | op_parts[1] | op_parts[2]
+                    }
+                });
+                field_u16_decodings.extend(quote!{
+                    #opcode_value => {
+                        #part_decoders
+                        Ok(#name_matcher)
+                    }
+                });
+            }
+
+            let types_len = types.len();
+            field_from_str.extend(quote!{
+                stringify!(#name) => {
+                    assert_length(&parts, #types_len + 1).map_err(|x| Self::Err::Fail(x))?;
+                    #part_stringers
+                    Ok(#name_matcher)
                 }
             });
 
-            match &types_str[..] {
-                ["Register", "u16"] => {
-                    field_u16_encodings.push(quote!{
-                        Self::#name(r, n) => {
-                            r.as_mask_first() | (n&0xfff)
-                        }
-                    });
-                    field_to_string.push(quote!{
-                        Self::#name(r, l) => write!(f, "{} {} {}", stringify!(#name), r, l)
-                    });
-                    field_from_str.push(quote! {
-                        stringify!(#name) => {
-                            assert_length(&parts, 3).map_err(|x| Self::Err::Fail(x))?;
-                            Ok(Self::#name(
-                                    Register::from_str(parts[1])
-                                           .map_err(|x| Self::Err::Fail(x))?,
-                                    Instruction::parse_numeric(parts[2]).unwrap()))
-                        }
-                    });
-                },
-                ["Register", "Literal7Bit"] => {
-                    field_u16_encodings.push(quote! {
-                            Self::#name(r, l) => {
-                                (#opcode_value as u16) << 4 
-                                    | r.as_mask_first()
-                                    | l.as_mask()
-                                    | 0x8000
-                            }
-                    });
-                    field_u16_decodings.push(quote! {
-                        #opcode_value => {
-                            let r = Register::from_instruction_first(ins)
-                                .ok_or("unknown register")?;
-                            let lit = Literal7Bit::from_instruction(ins);
-                            Ok(Self::#name(r, lit))
-                        }
-                    });
-                    field_to_string.push(quote! {
-                        Self::#name(r, l) => write!(f, "{} {} {}", stringify!(#name), r, l)
-                    });
-                    field_from_str.push(quote! {
-                        stringify!(#name) => {
-                            assert_length(&parts, 3).map_err(|x| Self::Err::Fail(x))?;
-                            let num = u8::from_str_radix(&parts[2], 16).map_err(|_| {
-                                Self::Err::Fail(format!("invalid number {}", parts[2]))
-                            })?;
-                            if num > 0x7f {
-                                Err(Self::Err::Fail(format!("number out of range {}", parts[2])))
-                            } else {
-                                Ok(Self::#name(
-                                        Register::from_str(parts[1])
-                                               .map_err(|x| Self::Err::Fail(x))?,
-                                        Literal7Bit{value: num}))
-                            }
-                        }
-                    });
-                }
-                ["Register", "Register", "Register"] => {
-                    field_u16_encodings.push(quote! {
-                            Self::#name(r1, r2, r3) => {
-                                (#opcode_value as u16) << 4 
-                                    | r1.as_mask_first()
-                                    | r2.as_mask_second()
-                                    | r3.as_mask_third()
-                                    | 0x8000
-                            }                    
-                    });
-                    field_u16_decodings.push(quote! {
-                            #opcode_value => {
-                                let reg1 = Register::from_instruction_first(ins)
-                                    .ok_or("unknown register")
-                                    .unwrap();
-                                let reg2 = Register::from_instruction_second(ins)
-                                    .ok_or("unknown register")
-                                    .unwrap();
-                                let reg3 = Register::from_instruction_third(ins)
-                                    .ok_or("unknown register")
-                                    .unwrap();
-                                Ok(Self::#name(reg1, reg2, reg3))
-                            }
-                    });
-                    field_to_string.push(quote! {
-                        Self::#name(r1, r2, r3) => write!(f, "{} {} {} {}", stringify!(#name), r1, r2, r3)
-                    });
-                    field_from_str.push(quote! {
-                        stringify!(#name) => {
-                            assert_length(&parts, 4).map_err(|x| Self::Err::Fail(x))?;
-                            Ok(Self::#name(
-                                    Register::from_str(parts[1]).map_err(|x| Self::Err::Fail(x))?,
-                                    Register::from_str(parts[2]).map_err(|x| Self::Err::Fail(x))?,
-                                    Register::from_str(parts[3]).map_err(|x| Self::Err::Fail(x))?))
-                        }
-                    });
-                }
-                ["Register", "Register", "Nibble"] => {
-                    field_u16_encodings.push(quote! {
-                            Self::#name(r1, r2, r3) => {
-                                (#opcode_value as u16) << 4 
-                                    | r1.as_mask_first()
-                                    | r2.as_mask_second()
-                                    | r3.as_mask_third()
-                                    | 0x8000
-                            }                    
-                    });
-                    field_u16_decodings.push(quote! {
-                            #opcode_value => {
-                                let reg1 = Register::from_instruction_first(ins)
-                                    .ok_or("unknown register")
-                                    .unwrap();
-                                let reg2 = Register::from_instruction_second(ins)
-                                    .ok_or("unknown register")
-                                    .unwrap();
-                                let reg3 = Register::from_instruction_third(ins)
-                                    .ok_or("unknown register")
-                                    .unwrap();
-                                Ok(Self::#name(reg1, reg2, reg3))
-                            }
-                    });
-                    field_to_string.push(quote! {
-                        Self::#name(r1, r2, r3) => write!(f, "{} {} {} {}", stringify!(#name), r1, r2, r3)
-                    });
-                    field_from_str.push(quote! {
-                        stringify!(#name) => {
-                            assert_length(&parts, 4).map_err(|x| Self::Err::Fail(x))?;
-                            Ok(Self::#name(
-                                    Register::from_str(parts[1]).map_err(|x| Self::Err::Fail(x))?,
-                                    Register::from_str(parts[2]).map_err(|x| Self::Err::Fail(x))?,
-                                    Register::from_str(parts[3]).map_err(|x| Self::Err::Fail(x))?))
-                        }
-                    });
-                }
-                _ => panic!("invalid types: {:?}", types),
-            }
+            match types.len() {
+                0 => field_to_string.extend(quote!{
+                    Self::#name => {
+                        write!(f, "{}", stringify!(#name))
+                    }
+                }),
+                1 => field_to_string.extend(quote!{
+                    Self::#name(a0) => {
+                        write!(f, "{} {}", stringify!(#name), a0)
+                    }
+                }),
+                2 => field_to_string.extend(quote!{
+                    Self::#name(a0, a1) => {
+                        write!(f, "{} {} {}", stringify!(#name), a0, a1)
+                    }
+                }),
+                3 => field_to_string.extend(quote!{
+                    Self::#name(a0, a1, a2) => {
+                        write!(f, "{} {} {} {}", stringify!(#name), a0, a1, a2)
+                    }
+                }),
+                x => panic!("{}", format!("types must be 0-3, got {}", x)),
+            };
         } else {
             panic!("fields must be unnamed in variant: {}", name)
         }
     }
 
-    quote! {
+    Ok(quote! {
+        use std::str::FromStr;
         impl Instruction {
             pub fn encode_u16(&self) -> u16 {
                 match self {
-                    #(#field_u16_encodings,)*
+                    #field_u16_encodings
                     _ => 0,
                 }
             }
@@ -289,15 +265,15 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
         impl TryFrom<u16> for Instruction {
             type Error = String;
             fn try_from(ins: u16) -> Result<Self, Self::Error> {
-                if (ins & 0x8000) > 0 {
-                    // match TYPE B 
+                if (ins & 0x8000) == 0 {
+                    // match other instructions
                     let op = ((ins & 0x1f0) >> 4) as u8;
                     match op {
-                        #(#field_u16_decodings,)*
+                        #field_u16_decodings
                         _ => Err(format!("unknown opcode {:X}", op))
                     }
                 } else {
-                    // match TYPE A
+                    // match immediate
                     let register_bits = ((ins & 0x7000) >> 12) as u8;
                     let register = Register::from_u8(register_bits).ok_or("invalid register")?;
                     Ok(Instruction::Imm(register, ins&0xfff))
@@ -308,7 +284,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
         impl fmt::Display for Instruction {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 match self {
-                    #(#field_to_string,)*
+                    #field_to_string
                     _ => write!(f, "placeholder")
                 }
             }
@@ -330,14 +306,12 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> TokenStream {
                     return Err(Self::Err::NoContent);
                 }
                 match parts[0] {
-                    #(#field_from_str,)*
+                    #field_from_str
                     _ => Err(Self::Err::Fail(format!("unknown op {}", parts[0]))),
                 }
             }
         }
-        */
-    }
-    .into()
+    }.into())
 }
 
 

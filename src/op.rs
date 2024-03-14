@@ -1,14 +1,14 @@
 use std::fmt;
-use std::str::FromStr;
+// use std::str::FromStr;
 
 use crate::register::Register;
 use macros::VmInstruction;
 
 /**
  * TYPE A
- * 0RRR LLLL LLLL LLLL
+ * 1RRR LLLL LLLL LLLL
  * TYPE B
- * 1RRR SSSA AAAA DDDD
+ * 0RRR SSSA AAAA DDDD
  * Add (A = 0)
  * [ assume register A = 1, B = 2 ]
  * Reg[D] = Reg[R] + Reg[S]
@@ -42,6 +42,10 @@ pub struct Literal7Bit {
 }
 
 impl Literal7Bit {
+    pub fn new(value: u8) -> Self {
+        Self { value }
+    }
+
     pub fn as_signed(&self) -> i8 {
         let sgn = (self.value & 0x40) >> 7;
         if sgn == 0 {
@@ -72,6 +76,12 @@ impl fmt::Display for Literal7Bit {
 #[derive(Debug)]
 pub struct Literal10Bit {
     pub value: u16,
+}
+
+impl Literal10Bit {
+    pub fn new(value: u16) -> Self {
+        Self { value }
+    }
 }
 
 impl fmt::Display for Literal10Bit {
@@ -221,9 +231,9 @@ pub enum Instruction {
     Stack(Register, Register, StackOp),
     #[opcode(0xd)]
     LoadStackOffset(Register, Register, Nibble),
-    */
     #[opcode(0xe)]
     System(Register, Register, Nibble),
+    */
 }
 
 #[cfg(test)]
