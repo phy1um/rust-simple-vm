@@ -25,7 +25,7 @@ fn main() -> Result<(), String> {
      * Signal $f0
      *
      */
-    for line in BufReader::new(file).lines() {
+    for (i, line) in BufReader::new(file).lines().enumerate() {
         let line_inner = line.map_err(|_x| "foo")?;
         if line_inner.is_empty() {
             continue;
@@ -41,7 +41,7 @@ fn main() -> Result<(), String> {
                 output.push((raw_instruction >> 8) as u8);
             }
             Err(InstructionParseError::Fail(s)) => {
-                panic!("{}", s);
+                panic!("{} @ {}: {}", s, i, line_inner);
             }
             _ => continue,
         }
