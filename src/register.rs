@@ -1,7 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-pub enum RegisterFlag {
+#[repr(u16)]
+pub enum Flag {
     Compare = 0x1,
 }
 
