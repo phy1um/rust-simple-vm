@@ -1,6 +1,4 @@
 use std::fmt;
-// use std::str::FromStr;
-
 use crate::register::Register;
 use macros::VmInstruction;
 
@@ -56,17 +54,6 @@ impl Literal7Bit {
     }
 }
 
-impl InstructionPart for Literal7Bit {
-    fn as_mask(&self) -> u16 {
-        ((self.value&0xf) as u16) | ((self.value as u16)&0xe00)
-    }
-    fn from_instruction(ins: u16) -> Self {
-        Self {
-            value: ((ins&0xf) as u8) | (((ins&0xe00)>>5) as u8),
-        }
-    }
-}
-
 impl fmt::Display for Literal7Bit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
@@ -88,18 +75,6 @@ impl fmt::Display for Literal10Bit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
     }
-}
-
-impl InstructionPart for Literal10Bit {
-    fn as_mask(&self) -> u16 {
-        ((self.value&0xf) as u16) | ((self.value&0xe00) as u16) | ((self.value&0x7000) as u16)
-    }
-    fn from_instruction(ins: u16) -> Self {
-        Self {
-            value: ((ins&0xf) as u16) | (((ins&0xe00)>>5) as u16) | (((ins&0x7000)>>5) as u16),
-        }
-    }
-
 }
 
 #[repr(u8)]
@@ -175,25 +150,20 @@ impl TryFrom<u16> for StackOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Nibble {
     pub value: u8,
+}
+
+impl Nibble {
+    pub fn new(value: u8) -> Self {
+        Self{ value } 
+    }
 }
 
 impl fmt::Display for Nibble {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
-    }
-}
-
-impl InstructionPart for Nibble {
-    fn as_mask(&self) -> u16 {
-        (self.value as u16)&0xf
-    }
-    fn from_instruction(ins: u16) -> Self {
-        Self {
-            value: (ins&0xf) as u8, 
-        }
     }
 }
 
@@ -231,9 +201,9 @@ pub enum Instruction {
     Stack(Register, Register, StackOp),
     #[opcode(0xd)]
     LoadStackOffset(Register, Register, Nibble),
+    */
     #[opcode(0xe)]
     System(Register, Register, Nibble),
-    */
 }
 
 #[cfg(test)]

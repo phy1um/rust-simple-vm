@@ -109,30 +109,55 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                     ("Literal7Bit", i) => {
                         let argname = get_arg_name(i)?;
                         let part_index = i+1;
-                        part_encoders.extend(quote!(op_parts[#i] = #argname.as_mask();));
-                        part_decoders.extend(quote!(let #argname = Literal7Bit::from_instruction(ins);));
+                        part_encoders.extend(quote!{
+                            op_parts[#i] = ((#argname.value&0xf)as u16) | ((#argname.value as u16)&0xe00);
+                        });
+                        part_decoders.extend(quote!{
+                            let #argname = Literal7Bit::new(((ins&0xf) as u8) | (((ins&0xe00)>>5) as u8));
+                        });
                         part_stringers.extend(quote!{
                             let #argname = Literal7Bit::new(Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
                                 Self::Err::Fail(format!("invalid number {}", parts[2]))
                             })? as u8);
                             if #argname.value > 0x7f {
-                                return Err(Self::Err::Fail(format!("number out of range {}", parts[2])))
+                                return Err(Self::Err::Fail(format!("7bit literal out of range {}", parts[2])))
                             };
                         });
                     }
                     ("Literal10Bit", i) => {
                         let argname = get_arg_name(i)?;
                         let part_index = i+1;
-                        part_encoders.extend(quote!(op_parts[#i] = #argname.as_mask();));
+                        part_encoders.extend(quote!{
+                            op_parts[#i] = ((#argname.value&0xf) as u16) | ((#argname.value&0xe00) as u16) 
+                                | ((#argname.value&0x7000) as u16);
+                        });
                         part_decoders.extend(quote!{
-                            quote!(let #argname = Literal10Bit::from_instruction(ins));
+                            let #argname = Literal10Bit::new(((ins&0xf) as u16) | (((ins&0xe00)>>5) as u16) | (((ins&0x7000)>>5) as u16));
                         });
                         part_stringers.extend(quote!{
                             let #argname = Literal10Bit::new(Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
                                 Self::Err::Fail(format!("invalid number {}", parts[2]))
                             })?);
                             if #argname.value > 0x3ff {
-                                return Err(Self::Err::Fail(format!("number out of range {}", parts[2])))
+                                return Err(Self::Err::Fail(format!("10bit literal out of range {}", parts[2])))
+                            };
+                        });
+                    }
+                    ("Nibble", i) => {
+                        let argname = get_arg_name(i)?;
+                        let part_index = i+1;
+                        part_encoders.extend(quote!{
+                            op_parts[#i] = (#argname.value as u16)&0xf;
+                        });
+                        part_decoders.extend(quote!{
+                            let #argname = Nibble::new((ins&0xf) as u8);
+                        });
+                        part_stringers.extend(quote!{
+                            let #argname = Nibble::new(Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
+                                Self::Err::Fail(format!("invalid number {}", parts[2]))
+                            })? as u8);
+                            if #argname.value > 0xf {
+                                return Err(Self::Err::Fail(format!("nibble out of range {}", parts[2])))
                             };
                         });
                     }

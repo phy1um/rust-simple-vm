@@ -117,6 +117,13 @@ FLAGS: {:X}",
                 }
                 Ok(())
             }
+            Instruction::System(_r0, _r1, signal) => {
+                let sig_fn = self
+                    .signal_handlers
+                    .get(&signal.value)
+                    .ok_or(format!("unknown signal: 0x{:X}", signal.value))?;
+                sig_fn(self)
+            }
 
 
             /*
@@ -221,14 +228,7 @@ FLAGS: {:X}",
                 }
                 Ok(())
             }
-            Instruction::Signal(signal) => {
-                let sig_fn = self
-                    .signal_handlers
-                    .get(&signal)
-                    .ok_or(format!("unknown signal: 0x{:X}", signal))?;
-                sig_fn(self)
-            }
-            */
+                        */
         }
     }
 }
