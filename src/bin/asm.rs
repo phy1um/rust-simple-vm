@@ -1,7 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write, stdin, Read};
 use std::path::Path;
 use std::str::FromStr;
 
@@ -15,17 +15,13 @@ fn main() -> Result<(), String> {
         panic!("usage: {} <input>", args[0]);
     }
 
-    let file = File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?;
+    let reader: Box<dyn Read> = match args[1].as_ref() {
+        "-" => Box::new(stdin()),
+        _ => Box::new(File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?),
+    };
+
     let mut output: Vec<u8> = Vec::new();
-    /*
-     * Push 10
-     * Push 240
-     * AddStack
-     * PopRegister A
-     * Signal $f0
-     *
-     */
-    for (i, line) in BufReader::new(file).lines().enumerate() {
+    for (i, line) in BufReader::new(reader).lines().enumerate() {
         let line_inner = line.map_err(|_x| "foo")?;
         if line_inner.is_empty() {
             continue;
