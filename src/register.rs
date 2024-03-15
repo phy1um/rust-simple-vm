@@ -34,27 +34,27 @@ impl Register {
     }
 
     pub fn as_mask_first(&self) -> u16 {
-        ((*self as u16)&0x7) << 12
+        ((*self as u16) & 0x7) << 12
     }
 
     pub fn from_instruction_first(ins: u16) -> Option<Self> {
-        Self::from_u8(((ins&0x7000)>>12) as u8)
+        Self::from_u8(((ins & 0x7000) >> 12) as u8)
     }
 
     pub fn as_mask_second(&self) -> u16 {
-        ((*self as u16)&0x7) << 9
+        ((*self as u16) & 0x7) << 9
     }
 
     pub fn from_instruction_second(ins: u16) -> Option<Self> {
-        Self::from_u8(((ins&0xe00) >> 9) as u8)
+        Self::from_u8(((ins & 0xe00) >> 9) as u8)
     }
 
     pub fn as_mask_third(&self) -> u16 {
-        (*self as u16)&0x7
+        (*self as u16) & 0x7
     }
 
     pub fn from_instruction_third(ins: u16) -> Option<Self> {
-        Self::from_u8((ins&0x7) as u8)
+        Self::from_u8((ins & 0x7) as u8)
     }
 }
 

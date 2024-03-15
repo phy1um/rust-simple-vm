@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::memory::{Addressable, LinearMemory};
 use crate::op::Instruction;
-use crate::register::{Register};
+use crate::register::Register;
 
 type SignalFunction = fn(&mut Machine, arg: u16) -> Result<(), String>;
 
@@ -98,21 +98,21 @@ SP: {} | PC: {} | BP: {}",
             Instruction::Imm(reg, value) => {
                 self.set_register(reg, value);
                 Ok(())
-            },
+            }
             Instruction::Add(r0, r1, dst) => {
                 let a = self.get_register(r0);
                 let b = self.get_register(r1);
-                self.set_register(dst, a+b);
+                self.set_register(dst, a + b);
                 Ok(())
-            },
+            }
             Instruction::Sub(r0, r1, dst) => {
                 let a = self.get_register(r0);
                 let b = self.get_register(r1);
-                self.set_register(dst, a-b);
+                self.set_register(dst, a - b);
                 Ok(())
-            },
+            }
             Instruction::AddImm(r, i) => {
-                self.set_register(r, self.get_register(r)+(i.value as u16));
+                self.set_register(r, self.get_register(r) + (i.value as u16));
                 Ok(())
             }
             Instruction::AddImmSigned(r, i) => {
@@ -120,7 +120,10 @@ SP: {} | PC: {} | BP: {}",
                 let imm_signed = i.as_signed();
                 unsafe {
                     let register_signed: i16 = std::mem::transmute(raw_register_value);
-                    self.set_register(r, std::mem::transmute(register_signed + (imm_signed as i16)));
+                    self.set_register(
+                        r,
+                        std::mem::transmute(register_signed + (imm_signed as i16)),
+                    );
                 }
                 Ok(())
             }
@@ -131,11 +134,14 @@ SP: {} | PC: {} | BP: {}",
                     .ok_or(format!("unknown signal: 0x{:X}", signal.value))?;
                 let arg = self.get_register(reg_arg);
                 sig_fn(self, arg)
-            },
+            }
             Instruction::System(sig, _, arg) => {
                 let sig_value = self.get_register(sig);
                 if sig_value > 0xff {
-                    Err(format!("unknown signal: 0x{:X}, must be <= 0xFF", sig_value))
+                    Err(format!(
+                        "unknown signal: 0x{:X}, must be <= 0xFF",
+                        sig_value
+                    ))
                 } else {
                     let sig_fn = self
                         .signal_handlers
@@ -143,110 +149,109 @@ SP: {} | PC: {} | BP: {}",
                         .ok_or(format!("unknown signal: 0x{:X}", sig_value))?;
                     sig_fn(self, arg.value as u16)
                 }
-            }
-            /*
-            Instruction::Push(v) => self.push(v.into()),
-            Instruction::PopRegister(r) => {
-                let value = self.pop()?;
-                self.registers[r as usize] = value;
-                Ok(())
-            }
-            Instruction::PushRegister(r) => {
-                self.push(self.registers[r as usize])?;
-                Ok(())
-            }
-            Instruction::SetRegister(a, b) => {
-                self.registers[a as usize] = self.registers[b as usize];
-                Ok(())
-            }
-            Instruction::LoadARegister(r) => {
-                let addr = self.registers[r as usize];
-                match self.memory.read2(addr) {
-                    Some(x) => {
-                        self.registers[Register::A as usize] = x;
-                        Ok(())
-                    }
-                    None => Err(format!("failed to read {addr:X}")),
-                }
-            }
-            Instruction::LoadAImm(b) => match self.memory.read2(b as u16) {
-                Some(x) => {
-                    self.registers[Register::A as usize] = x;
-                    Ok(())
-                }
-                None => Err(format!("failed to read {b:X}")),
-            },
-            Instruction::LoadBRegister(r) => {
-                let addr = self.registers[r as usize];
-                match self.memory.read2(addr) {
-                    Some(x) => {
-                        self.registers[Register::B as usize] = x;
-                        Ok(())
-                    }
-                    None => Err(format!("failed to read {addr:X}")),
-                }
-            }
-            Instruction::LoadBImm(b) => match self.memory.read2(b as u16) {
-                Some(x) => {
-                    self.registers[Register::B as usize] = x;
-                    Ok(())
-                }
-                None => Err(format!("failed to read {b:X}")),
-            },
-            Instruction::LoadCRegister(r) => {
-                let addr = self.registers[r as usize];
-                match self.memory.read2(addr) {
-                    Some(x) => {
-                        self.registers[Register::C as usize] = x;
-                        Ok(())
-                    }
-                    None => Err(format!("failed to read {addr:X}")),
-                }
-            }
-            Instruction::LoadCImm(b) => match self.memory.read2(b as u16) {
-                Some(x) => {
-                    self.registers[Register::C as usize] = x;
-                    Ok(())
-                }
-                None => Err(format!("failed to read {b:X}")),
-            },
-            Instruction::AddStack => {
-                let a = self.pop()?;
-                let b = self.pop()?;
-                self.push(a + b)
-            }
-            Instruction::AddRegister(r1, r2) => {
-                self.registers[r1 as usize] += self.registers[r2 as usize];
-                Ok(())
-            }
-            Instruction::SubStack => {
-                let a = self.pop()?;
-                let b = self.pop()?;
-                self.push(a - b)
-            }
-            Instruction::SubRegister(r1, r2) => {
-                self.registers[r1 as usize] -= self.registers[r2 as usize];
-                Ok(())
-            }
-            Instruction::IfZero(r) => {
-                if self.registers[r as usize] == 0 {
-                    self.set_flag(RegisterFlag::Compare);
-                }
-                Ok(())
-            }
-            Instruction::BranchImm(x) => {
-                if self.test_flag(RegisterFlag::Compare) {
-                    self.registers[Register::PC as usize] = pc.wrapping_add_signed(x as i16);
-                }
-                Ok(())
-            }
-            Instruction::BranchRegister(r) => {
-                if self.test_flag(RegisterFlag::Compare) {
-                    self.registers[Register::PC as usize] = self.registers[r as usize];
-                }
-                Ok(())
-            }
-                        */
+            } /*
+              Instruction::Push(v) => self.push(v.into()),
+              Instruction::PopRegister(r) => {
+                  let value = self.pop()?;
+                  self.registers[r as usize] = value;
+                  Ok(())
+              }
+              Instruction::PushRegister(r) => {
+                  self.push(self.registers[r as usize])?;
+                  Ok(())
+              }
+              Instruction::SetRegister(a, b) => {
+                  self.registers[a as usize] = self.registers[b as usize];
+                  Ok(())
+              }
+              Instruction::LoadARegister(r) => {
+                  let addr = self.registers[r as usize];
+                  match self.memory.read2(addr) {
+                      Some(x) => {
+                          self.registers[Register::A as usize] = x;
+                          Ok(())
+                      }
+                      None => Err(format!("failed to read {addr:X}")),
+                  }
+              }
+              Instruction::LoadAImm(b) => match self.memory.read2(b as u16) {
+                  Some(x) => {
+                      self.registers[Register::A as usize] = x;
+                      Ok(())
+                  }
+                  None => Err(format!("failed to read {b:X}")),
+              },
+              Instruction::LoadBRegister(r) => {
+                  let addr = self.registers[r as usize];
+                  match self.memory.read2(addr) {
+                      Some(x) => {
+                          self.registers[Register::B as usize] = x;
+                          Ok(())
+                      }
+                      None => Err(format!("failed to read {addr:X}")),
+                  }
+              }
+              Instruction::LoadBImm(b) => match self.memory.read2(b as u16) {
+                  Some(x) => {
+                      self.registers[Register::B as usize] = x;
+                      Ok(())
+                  }
+                  None => Err(format!("failed to read {b:X}")),
+              },
+              Instruction::LoadCRegister(r) => {
+                  let addr = self.registers[r as usize];
+                  match self.memory.read2(addr) {
+                      Some(x) => {
+                          self.registers[Register::C as usize] = x;
+                          Ok(())
+                      }
+                      None => Err(format!("failed to read {addr:X}")),
+                  }
+              }
+              Instruction::LoadCImm(b) => match self.memory.read2(b as u16) {
+                  Some(x) => {
+                      self.registers[Register::C as usize] = x;
+                      Ok(())
+                  }
+                  None => Err(format!("failed to read {b:X}")),
+              },
+              Instruction::AddStack => {
+                  let a = self.pop()?;
+                  let b = self.pop()?;
+                  self.push(a + b)
+              }
+              Instruction::AddRegister(r1, r2) => {
+                  self.registers[r1 as usize] += self.registers[r2 as usize];
+                  Ok(())
+              }
+              Instruction::SubStack => {
+                  let a = self.pop()?;
+                  let b = self.pop()?;
+                  self.push(a - b)
+              }
+              Instruction::SubRegister(r1, r2) => {
+                  self.registers[r1 as usize] -= self.registers[r2 as usize];
+                  Ok(())
+              }
+              Instruction::IfZero(r) => {
+                  if self.registers[r as usize] == 0 {
+                      self.set_flag(RegisterFlag::Compare);
+                  }
+                  Ok(())
+              }
+              Instruction::BranchImm(x) => {
+                  if self.test_flag(RegisterFlag::Compare) {
+                      self.registers[Register::PC as usize] = pc.wrapping_add_signed(x as i16);
+                  }
+                  Ok(())
+              }
+              Instruction::BranchRegister(r) => {
+                  if self.test_flag(RegisterFlag::Compare) {
+                      self.registers[Register::PC as usize] = self.registers[r as usize];
+                  }
+                  Ok(())
+              }
+                          */
         }
     }
 }

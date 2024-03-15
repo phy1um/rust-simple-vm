@@ -1,6 +1,6 @@
-use std::fmt;
 use crate::register::Register;
 use macros::VmInstruction;
+use std::fmt;
 
 /**
  * TYPE A
@@ -36,7 +36,7 @@ pub trait InstructionPart {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Literal7Bit {
-    pub value: u8, 
+    pub value: u8,
 }
 
 impl Literal7Bit {
@@ -80,13 +80,13 @@ impl fmt::Display for Literal10Bit {
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TestOp {
-    Eq, 
-    Neq, 
-    Lt, 
-    Lte, 
-    BothZero, 
-    EitherNonZero, 
-    BothNonZero, 
+    Eq,
+    Neq,
+    Lt,
+    Lte,
+    BothZero,
+    EitherNonZero,
+    BothNonZero,
 }
 
 impl TryFrom<u16> for TestOp {
@@ -107,7 +107,7 @@ impl TryFrom<u16> for TestOp {
 
 impl InstructionPart for TestOp {
     fn as_mask(&self) -> u16 {
-        (*self as u16)&0xf
+        (*self as u16) & 0xf
     }
     fn from_instruction(ins: u16) -> Self {
         TestOp::try_from(ins).unwrap()
@@ -127,7 +127,7 @@ pub enum StackOp {
 
 impl InstructionPart for StackOp {
     fn as_mask(&self) -> u16 {
-        (*self as u16)&0xf
+        (*self as u16) & 0xf
     }
 
     fn from_instruction(ins: u16) -> Self {
@@ -157,7 +157,7 @@ pub struct Nibble {
 
 impl Nibble {
     pub fn new(value: u8) -> Self {
-        Self{ value } 
+        Self { value }
     }
 }
 
@@ -209,15 +209,15 @@ pub enum Instruction {
 #[cfg(test)]
 mod test {
     use super::Instruction::*;
-    use crate::register::Register::*;
     use super::*;
+    use crate::register::Register::*;
 
     #[test]
     fn test_encodings() -> Result<(), String> {
         let ops = vec![
-            Imm(M, 0x30), 
+            Imm(M, 0x30),
             AddImm(C, Literal7Bit::new(0x20)),
-            Add(C, B, A), 
+            Add(C, B, A),
             Sub(PC, BP, SP),
             AddImmSigned(A, Literal7Bit::new(0x7)),
             System(A, B, Nibble::new(0x3)),

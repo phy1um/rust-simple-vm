@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::{quote, format_ident};
+use quote::{format_ident, quote};
 
 #[proc_macro_derive(VmInstruction, attributes(opcode))]
 pub fn generate_vm_instruction_impl(input: TokenStream) -> TokenStream {
@@ -23,12 +23,15 @@ fn get_type_name(ty: &syn::Type) -> String {
 }
 
 fn get_arg_name(i: usize) -> Result<proc_macro2::Ident, String> {
-    Ok(format_ident!("{}", match i {
-        0 => Ok("a0"),
-        1 => Ok("a1"),
-        2 => Ok("a2"),
-        _ => Err(format!("invalid argument index: {}", i)),
-    }?))
+    Ok(format_ident!(
+        "{}",
+        match i {
+            0 => Ok("a0"),
+            1 => Ok("a1"),
+            2 => Ok("a2"),
+            _ => Err(format!("invalid argument index: {}", i)),
+        }?
+    ))
 }
 
 fn variant_opcode_value(v: &syn::Variant) -> u8 {
@@ -44,8 +47,8 @@ fn variant_opcode_value(v: &syn::Variant) -> u8 {
 fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, String> {
     let mut field_u16_encodings: proc_macro2::TokenStream = quote!();
     let mut field_u16_decodings: proc_macro2::TokenStream = quote!();
-    let mut field_to_string: proc_macro2::TokenStream  = quote!();
-    let mut field_from_str: proc_macro2::TokenStream  = quote!();
+    let mut field_to_string: proc_macro2::TokenStream = quote!();
+    let mut field_from_str: proc_macro2::TokenStream = quote!();
     for x in ast.variants.iter() {
         let name = &x.ident;
         let opcode_value = variant_opcode_value(&x);
@@ -108,7 +111,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                     }
                     ("Literal7Bit", i) => {
                         let argname = get_arg_name(i)?;
-                        let part_index = i+1;
+                        let part_index = i + 1;
                         part_encoders.extend(quote!{
                             op_parts[#i] = ((#argname.value&0xf)as u16) | (((#argname.value as u16)&0x70) << 5);
                         });
@@ -126,7 +129,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                     }
                     ("Literal10Bit", i) => {
                         let argname = get_arg_name(i)?;
-                        let part_index = i+1;
+                        let part_index = i + 1;
                         part_encoders.extend(quote!{
                             op_parts[#i] = ((#argname.value&0xf) as u16) | (((#argname.value&0x70) as u16) << 5)
                                 | ((#argname.value&0x0380 as u16) << 5);
@@ -145,11 +148,11 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                     }
                     ("Nibble", i) => {
                         let argname = get_arg_name(i)?;
-                        let part_index = i+1;
-                        part_encoders.extend(quote!{
+                        let part_index = i + 1;
+                        part_encoders.extend(quote! {
                             op_parts[#i] = (#argname.value as u16)&0xf;
                         });
-                        part_decoders.extend(quote!{
+                        part_decoders.extend(quote! {
                             let #argname = Nibble::new((ins&0xf) as u8);
                         });
                         part_stringers.extend(quote!{
@@ -163,7 +166,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                     }
                     ("u16", i) => {
                         let argname = get_arg_name(i)?;
-                        let part_index = i+1;
+                        let part_index = i + 1;
                         part_encoders.extend(quote!(op_parts[#i] = #argname&0xfff;));
                         part_decoders.extend(quote!(let #argname = ins&0xfff;));
                         part_stringers.extend(quote!{
@@ -176,7 +179,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                         });
                     }
                     (_, _) => {
-                       panic!("invalid type {} at place {}", type_name, i) 
+                        panic!("invalid type {} at place {}", type_name, i)
                     }
                 }
             }
@@ -190,7 +193,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
 
             // immediate instructions get an extra step
             if name == "Imm" {
-                field_u16_encodings.extend(quote!{
+                field_u16_encodings.extend(quote! {
                     #name_matcher => {
                         let mut op_parts: [u16;3] = [0,0,0];
                         #part_encoders
@@ -199,14 +202,14 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                 });
             } else {
                 let opcode_mask = ((opcode_value as u16) & 0x1f) << 4;
-                field_u16_encodings.extend(quote!{
+                field_u16_encodings.extend(quote! {
                     #name_matcher => {
                         let mut op_parts: [u16;3] = [0,0,0];
                         #part_encoders
                         op_parts[0] | op_parts[1] | op_parts[2] | #opcode_mask
                     }
                 });
-                field_u16_decodings.extend(quote!{
+                field_u16_decodings.extend(quote! {
                     #opcode_value => {
                         #part_decoders
                         Ok(#name_matcher)
@@ -215,7 +218,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
             }
 
             let types_len = types.len();
-            field_from_str.extend(quote!{
+            field_from_str.extend(quote! {
                 stringify!(#name) => {
                     assert_length(&parts, #types_len + 1).map_err(|x| Self::Err::Fail(x))?;
                     #part_stringers
@@ -224,22 +227,22 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
             });
 
             match types.len() {
-                0 => field_to_string.extend(quote!{
+                0 => field_to_string.extend(quote! {
                     Self::#name => {
                         write!(f, "{}", stringify!(#name))
                     }
                 }),
-                1 => field_to_string.extend(quote!{
+                1 => field_to_string.extend(quote! {
                     Self::#name(a0) => {
                         write!(f, "{} {}", stringify!(#name), a0)
                     }
                 }),
-                2 => field_to_string.extend(quote!{
+                2 => field_to_string.extend(quote! {
                     Self::#name(a0, a1) => {
                         write!(f, "{} {} {}", stringify!(#name), a0, a1)
                     }
                 }),
-                3 => field_to_string.extend(quote!{
+                3 => field_to_string.extend(quote! {
                     Self::#name(a0, a1, a2) => {
                         write!(f, "{} {} {} {}", stringify!(#name), a0, a1, a2)
                     }
@@ -345,9 +348,9 @@ mod test {
     use super::*;
     #[test]
     fn arg_name() -> Result<(), String> {
-        assert!(get_arg_name(0)?.to_string() == "a0".to_string()); 
-        assert!(get_arg_name(1)?.to_string() == "a1".to_string()); 
-        assert!(get_arg_name(2)?.to_string() == "a2".to_string()); 
+        assert!(get_arg_name(0)?.to_string() == "a0".to_string());
+        assert!(get_arg_name(1)?.to_string() == "a1".to_string());
+        assert!(get_arg_name(2)?.to_string() == "a2".to_string());
         assert!(get_arg_name(3).is_err());
         assert!(get_arg_name(99).is_err());
         Ok(())
