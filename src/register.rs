@@ -5,7 +5,7 @@ pub enum RegisterFlag {
     Compare = 0x1,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Register {
     A,
