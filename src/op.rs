@@ -110,17 +110,8 @@ impl TryFrom<u16> for TestOp {
     }
 }
 
-impl InstructionPart for TestOp {
-    fn as_mask(&self) -> u16 {
-        (*self as u16) & 0xf
-    }
-    fn from_instruction(ins: u16) -> Self {
-        TestOp::try_from(ins).unwrap()
-    }
-}
-
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, StringyEnum)]
 pub enum StackOp {
     Pop,
     Push,
@@ -128,16 +119,8 @@ pub enum StackOp {
     Swap,
     Dup,
     Rotate,
-}
-
-impl InstructionPart for StackOp {
-    fn as_mask(&self) -> u16 {
-        (*self as u16) & 0xf
-    }
-
-    fn from_instruction(ins: u16) -> Self {
-        StackOp::try_from(ins).unwrap()
-    }
+    Add,
+    Sub,
 }
 
 impl TryFrom<u16> for StackOp {
@@ -145,11 +128,13 @@ impl TryFrom<u16> for StackOp {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
             x if x == StackOp::Pop as u16 => Ok(StackOp::Pop),
-            x if x == StackOp::Push as u16 => Ok(StackOp::Pop),
-            x if x == StackOp::Peek as u16 => Ok(StackOp::Pop),
-            x if x == StackOp::Swap as u16 => Ok(StackOp::Pop),
-            x if x == StackOp::Dup as u16 => Ok(StackOp::Pop),
-            x if x == StackOp::Rotate as u16 => Ok(StackOp::Pop),
+            x if x == StackOp::Push as u16 => Ok(StackOp::Push),
+            x if x == StackOp::Peek as u16 => Ok(StackOp::Peek),
+            x if x == StackOp::Swap as u16 => Ok(StackOp::Swap),
+            x if x == StackOp::Dup as u16 => Ok(StackOp::Dup),
+            x if x == StackOp::Rotate as u16 => Ok(StackOp::Rotate),
+            x if x == StackOp::Add as u16 => Ok(StackOp::Add),
+            x if x == StackOp::Sub as u16 => Ok(StackOp::Sub),
             _ => Err(format!("unknown stack op value {}", value)),
         }
     }
@@ -175,7 +160,7 @@ impl fmt::Display for Nibble {
 #[derive(Debug, VmInstruction, PartialEq, Eq)]
 pub enum Instruction {
     #[opcode(0xff)]
-    Imm(Register, u16),
+    Imm(Register, u16), // Imm has unique instruction format, it doesn't use an opcode.
     #[opcode(0x1)]
     Add(Register, Register, Register),
     #[opcode(0x2)]
@@ -200,13 +185,11 @@ pub enum Instruction {
     Test(Register, Register, TestOp),
     #[opcode(0xc)]
     AddIf(Register, Nibble),
-    /*
-    #[opcode(0xc)]
-    Stack(Register, Register, StackOp),
     #[opcode(0xd)]
-    LoadStackOffset(Register, Register, Nibble),
-    */
+    Stack(Register, Register, StackOp),
     #[opcode(0xe)]
+    LoadStackOffset(Register, Register, Nibble),
+    #[opcode(0xf)]
     System(Register, Register, Nibble),
 }
 
@@ -232,6 +215,8 @@ mod test {
             Jump(Literal10Bit::new(1000)),
             Test(BP, A, TestOp::Gte),
             AddIf(PC, Nibble::new(0x0)),
+            Stack(B, SP, StackOp::Dup),
+            LoadStackOffset(A, BP, Nibble::new(0x3)),
             System(A, B, Nibble::new(0x3)),
         ];
         let encoded: Vec<_> = ops.iter().map(|x| x.encode_u16()).collect();
