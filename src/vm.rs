@@ -136,6 +136,21 @@ SP: {} | PC: {} | BP: {}",
                 }
                 Ok(())
             }
+            Instruction::ShiftLeft(r0, r1, offset) => {
+                let base = self.get_register(r0);
+                self.set_register(r1, base<<offset.value);
+                Ok(())
+            }
+            Instruction::ShiftRightLogical(r0, r1, offset) => {
+                let base = self.get_register(r0);
+                self.set_register(r1, base>>offset.value);
+                Ok(())
+            }
+            Instruction::ShiftRightArithmetic(r0, r1, offset) => {
+                let base = self.get_register(r0);
+                self.set_register(r1, base>>offset.value);
+                Ok(())
+            }
             Instruction::System(Register::Zero, reg_arg, signal) => {
                 let sig_fn = self
                     .signal_handlers
@@ -158,7 +173,9 @@ SP: {} | PC: {} | BP: {}",
                         .ok_or(format!("unknown signal: 0x{:X}", sig_value))?;
                     sig_fn(self, arg.value as u16)
                 }
-            } /*
+            } 
+
+            /*
               Instruction::Push(v) => self.push(v.into()),
               Instruction::PopRegister(r) => {
                   let value = self.pop()?;
