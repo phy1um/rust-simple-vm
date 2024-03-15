@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use crate::memory::{Addressable, LinearMemory};
-use crate::op::Instruction;
-use crate::register::Register;
+use crate::op::{Instruction, TestOp};
+use crate::register::{Register, Flag};
 
 type SignalFunction = fn(&mut Machine, arg: u16) -> Result<(), String>;
 
 pub struct Machine {
     registers: [u16; 8],
     signal_handlers: HashMap<u8, SignalFunction>,
+    flags: u16,
     pub halt: bool,
     pub memory: Box<dyn Addressable>,
 }
@@ -19,6 +20,7 @@ impl Default for Machine {
             registers: [0; 8],
             signal_handlers: HashMap::new(),
             halt: false,
+            flags: 0,
             memory: Box::new(LinearMemory::new(8 * 1024)),
         }
     }
@@ -84,15 +86,17 @@ SP: {} | PC: {} | BP: {}",
         Ok(())
     }
 
-    /*
-    fn set_flag(&mut self, flag: RegisterFlag) {
-        self.registers[Register::FLAGS as usize] |= flag as u16;
+    fn set_flag(&mut self, flag: Flag, state: bool) {
+        if state {
+            self.flags |= flag as u16;
+        } else {
+            self.flags &= !(flag as u16);
+        }
     }
 
-    fn test_flag(&self, flag: RegisterFlag) -> bool {
-        (self.registers[Register::FLAGS as usize] & (flag as u16)) != 0
+    fn test_flag(&self, flag: Flag) -> bool {
+        self.flags & (flag as u16) != 0
     }
-    */
 
     pub fn step(&mut self) -> Result<(), String> {
         let pc = self.get_register(Register::PC);
@@ -170,6 +174,29 @@ SP: {} | PC: {} | BP: {}",
             }
             Instruction::Jump(b) => {
                 self.set_register(Register::PC, self.get_register(Register::PC) + b.value);
+                Ok(())
+            }
+            Instruction::Test(r0, r1, op) => {
+                let a = self.get_register(r0);
+                let b = self.get_register(r1);
+                let res = match op {
+                    TestOp::Eq => a == b,
+                    TestOp::Neq => a != b,
+                    TestOp::Lt => a < b,
+                    TestOp::Lte => a <= b,
+                    TestOp::Gt => a > b,
+                    TestOp::Gte => a >= b,
+                    TestOp::BothZero => a == 0 && b == 0,
+                    TestOp::EitherNonZero => a != 0 || b != 0,
+                    TestOp::BothNonZero => a != 0 && b != 0,
+                };
+                self.set_flag(Flag::Compare, res);
+                Ok(())
+            }
+            Instruction::AddIf(r0, offset) => {
+                if self.test_flag(Flag::Compare) {
+                    self.set_register(r0, self.get_register(r0) + 2*(offset.value as u16));
+                }
                 Ok(())
             }
             Instruction::System(Register::Zero, reg_arg, signal) => {

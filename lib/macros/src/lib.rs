@@ -1,6 +1,49 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 
+#[proc_macro_derive(StringyEnum)]
+pub fn generate_stringy_enum_impls(input: TokenStream) -> TokenStream {
+    let ast = syn::parse(input).unwrap();
+    match impl_stringy_enum(&ast) {
+        Ok(ts) => ts.into(),
+        Err(e) => panic!("{}", e),
+    }
+}
+
+fn impl_stringy_enum(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, String> {
+    let mut to_string = quote!{};
+    let mut from_string = quote!{};
+    let type_name = &ast.ident;
+    for x in ast.variants.iter() {
+        let name = &x.ident;
+        if let syn::Fields::Unit = &x.fields {
+            to_string.extend(quote!(Self::#name => write!(f, "{}", stringify!(#name)),));
+            from_string.extend(quote!(stringify!(#name) => Ok(Self::#name),));
+        } else {
+            return Err(format!("all enum variants must be unit. got {}", stringify!(#name)));
+        }
+    };
+    Ok(quote! {
+        impl FromStr for #type_name {
+            type Err = String;
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                match s {
+                    #from_string
+                    _ => Err(format!("unknown {}: {}", stringify!(#type_name), s)),
+                }
+            }
+        }
+        impl fmt::Display for #type_name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    #to_string
+                    _ => write!(f, "invalid {} value: {:?}", stringify!(#type_name), self),
+                }
+            }
+        }
+    })
+}
+
 #[proc_macro_derive(VmInstruction, attributes(opcode))]
 pub fn generate_vm_instruction_impl(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();
@@ -163,7 +206,23 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                                 return Err(Self::Err::Fail(format!("nibble out of range {}", parts[2])))
                             };
                         });
+                    }                    
+                    ("TestOp", i) => {
+                        let argname = get_arg_name(i)?;
+                        let part_index = i + 1;
+                        part_encoders.extend(quote! {
+                            op_parts[#i] = (*#argname as u16)&0xf;
+                        });
+                        part_decoders.extend(quote! {
+                            let #argname = TestOp::try_from(ins&0xf)?;
+                        });
+                        part_stringers.extend(quote!{
+                            let #argname = TestOp::from_str(&parts[#part_index]).map_err(|x| {
+                                Self::Err::Fail(x)
+                            })?;
+                        });
                     }
+
                     ("u16", i) => {
                         let argname = get_arg_name(i)?;
                         let part_index = i + 1;
@@ -255,7 +314,6 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
     }
 
     Ok(quote! {
-        use std::str::FromStr;
         impl Instruction {
             pub fn encode_u16(&self) -> u16 {
                 match self {

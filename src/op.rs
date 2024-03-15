@@ -1,5 +1,6 @@
 use crate::register::Register;
-use macros::VmInstruction;
+use macros::{VmInstruction, StringyEnum};
+use std::str::FromStr;
 use std::fmt;
 
 /**
@@ -78,12 +79,14 @@ impl fmt::Display for Literal10Bit {
 }
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, StringyEnum)]
 pub enum TestOp {
     Eq,
     Neq,
     Lt,
     Lte,
+    Gt,
+    Gte,
     BothZero,
     EitherNonZero,
     BothNonZero,
@@ -97,6 +100,8 @@ impl TryFrom<u16> for TestOp {
             x if x == TestOp::Neq as u16 => Ok(TestOp::Neq),
             x if x == TestOp::Lt as u16 => Ok(TestOp::Lt),
             x if x == TestOp::Lte as u16 => Ok(TestOp::Lte),
+            x if x == TestOp::Gt as u16 => Ok(TestOp::Gt),
+            x if x == TestOp::Gte as u16 => Ok(TestOp::Gte),
             x if x == TestOp::BothZero as u16 => Ok(TestOp::BothZero),
             x if x == TestOp::BothNonZero as u16 => Ok(TestOp::BothNonZero),
             x if x == TestOp::EitherNonZero as u16 => Ok(TestOp::EitherNonZero),
@@ -189,13 +194,13 @@ pub enum Instruction {
     Load(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
     #[opcode(0x9)]
     Store(Register, Register, Register), // RAM[R1 | (R2<<16)] = R0
-    #[opcode(0xb)]
-    Jump(Literal10Bit),
-    /*
-    #[opcode(0x9)]
-    Test(Register, Register, TestOp),
     #[opcode(0xa)]
+    Jump(Literal10Bit),
+    #[opcode(0xb)]
+    Test(Register, Register, TestOp),
+    #[opcode(0xc)]
     AddIf(Register, Nibble),
+    /*
     #[opcode(0xc)]
     Stack(Register, Register, StackOp),
     #[opcode(0xd)]
@@ -225,6 +230,8 @@ mod test {
             Load(A, C, M),
             Store(C, A, M),
             Jump(Literal10Bit::new(1000)),
+            Test(BP, A, TestOp::Gte),
+            AddIf(PC, Nibble::new(0x0)),
             System(A, B, Nibble::new(0x3)),
         ];
         let encoded: Vec<_> = ops.iter().map(|x| x.encode_u16()).collect();
