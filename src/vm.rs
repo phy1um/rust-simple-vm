@@ -37,7 +37,8 @@ impl Machine {
     pub fn state(&self) -> String {
         format!(
             "A: {} | B: {} | C: {} | M: {}
-SP: {} | PC: {} | BP: {}",
+SP: {} | PC: {} | BP: {}
+Flags: {:016b}",
             self.get_register(Register::A),
             self.get_register(Register::B),
             self.get_register(Register::C),
@@ -45,6 +46,7 @@ SP: {} | PC: {} | BP: {}",
             self.get_register(Register::SP),
             self.get_register(Register::PC),
             self.get_register(Register::BP),
+            self.flags,
         )
     }
 
