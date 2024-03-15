@@ -13,13 +13,22 @@ pub struct Machine {
     pub memory: Box<dyn Addressable>,
 }
 
-impl Machine {
-    pub fn new() -> Self {
+impl Default for Machine {
+    fn default() -> Self {
         Self {
             registers: [0; 8],
             signal_handlers: HashMap::new(),
             halt: false,
             memory: Box::new(LinearMemory::new(8 * 1024)),
+        }
+    }
+}
+
+impl Machine {
+    pub fn new(memory_words: usize) -> Self {
+        Self {
+            memory: Box::new(LinearMemory::new(2*memory_words)),
+            ..Self::default()
         }
     }
 

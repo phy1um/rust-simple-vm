@@ -30,7 +30,7 @@ fn main() -> Result<(), String> {
         if line_inner.is_empty() {
             continue;
         }
-        if line_inner.chars().next().unwrap() == ';' {
+        if line_inner.starts_with(';') {
             continue;
         }
         match Instruction::from_str(&line_inner) {
