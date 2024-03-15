@@ -22,9 +22,8 @@ fn main() -> Result<(), String> {
     unsafe {
         let (_, instructions, _) = program.align_to::<u16>();
         for (i, ins) in instructions.iter().enumerate() {
-            let value = Instruction::try_from(*ins).map_err(|x| {
-                format!("@ {}({:04X}): {}", i, ins, x)
-            })?;
+            let value =
+                Instruction::try_from(*ins).map_err(|x| format!("@ {}({:04X}): {}", i, ins, x))?;
             println!("{value}")
         }
     }
