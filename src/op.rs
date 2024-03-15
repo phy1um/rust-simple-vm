@@ -220,6 +220,7 @@ mod test {
             Add(C, B, A), 
             Sub(PC, BP, SP),
             AddImmSigned(A, Literal7Bit::new(0x7)),
+            System(A, B, Nibble::new(0x3)),
         ];
         let encoded: Vec<_> = ops.iter().map(|x| x.encode_u16()).collect();
         for (l, r) in ops.iter().zip(encoded.iter()) {

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::memory::{Addressable, LinearMemory};
 use crate::op::Instruction;
-use crate::register::{Register, RegisterFlag};
+use crate::register::{Register};
 
 type SignalFunction = fn(&mut Machine) -> Result<(), String>;
 
@@ -26,8 +26,7 @@ impl Machine {
     pub fn state(&self) -> String {
         format!(
             "A: {} | B: {} | C: {} | M: {}
-SP: {} | PC: {} | BP: {}
-FLAGS: {:X}",
+SP: {} | PC: {} | BP: {}",
             self.get_register(Register::A),
             self.get_register(Register::B),
             self.get_register(Register::C),
@@ -35,15 +34,21 @@ FLAGS: {:X}",
             self.get_register(Register::SP),
             self.get_register(Register::PC),
             self.get_register(Register::BP),
-            self.get_register(Register::FLAGS)
         )
     }
 
     pub fn get_register(&self, r: Register) -> u16 {
-        self.registers[r as usize]
+        if r == Register::Zero {
+            0
+        } else {
+            self.registers[r as usize]
+        }
     }
 
     pub fn set_register(&mut self, r: Register, v: u16) {
+        if r == Register::Zero {
+            return;
+        };
         self.registers[r as usize] = v;
     }
 
@@ -70,6 +75,7 @@ FLAGS: {:X}",
         Ok(())
     }
 
+    /*
     fn set_flag(&mut self, flag: RegisterFlag) {
         self.registers[Register::FLAGS as usize] |= flag as u16;
     }
@@ -77,43 +83,44 @@ FLAGS: {:X}",
     fn test_flag(&self, flag: RegisterFlag) -> bool {
         (self.registers[Register::FLAGS as usize] & (flag as u16)) != 0
     }
+    */
 
     pub fn step(&mut self) -> Result<(), String> {
-        let pc = self.registers[Register::PC as usize];
+        let pc = self.get_register(Register::PC);
         let instruction = self
             .memory
             .read2(pc)
             .ok_or(format!("pc read fail @ 0x{:X}", pc))?;
-        self.registers[Register::PC as usize] = pc + 2;
+        self.set_register(Register::PC, pc + 2);
         let op = Instruction::try_from(instruction)?;
         println!("running {}", op);
         match op {
             Instruction::Imm(reg, value) => {
-                self.registers[reg as usize] = value;
+                self.set_register(reg, value);
                 Ok(())
             },
             Instruction::Add(r0, r1, dst) => {
-                let a = self.registers[r0 as usize];
-                let b = self.registers[r1 as usize];
-                self.registers[dst as usize] = a+b;
+                let a = self.get_register(r0);
+                let b = self.get_register(r1);
+                self.set_register(dst, a+b);
                 Ok(())
             },
             Instruction::Sub(r0, r1, dst) => {
-                let a = self.registers[r0 as usize];
-                let b = self.registers[r1 as usize];
-                self.registers[dst as usize] = a-b;
+                let a = self.get_register(r0);
+                let b = self.get_register(r1);
+                self.set_register(dst, a-b);
                 Ok(())
             },
             Instruction::AddImm(r, i) => {
-                self.registers[r as usize] += i.value as u16;
+                self.set_register(r, self.get_register(r)+(i.value as u16));
                 Ok(())
             }
             Instruction::AddImmSigned(r, i) => {
-                let raw_register_value = self.registers[r as usize];
+                let raw_register_value = self.get_register(r);
                 let imm_signed = i.as_signed();
                 unsafe {
                     let register_signed: i16 = std::mem::transmute(raw_register_value);
-                    self.registers[r as usize] = std::mem::transmute(register_signed + (imm_signed as i16));
+                    self.set_register(r, std::mem::transmute(register_signed + (imm_signed as i16)));
                 }
                 Ok(())
             }
@@ -124,8 +131,6 @@ FLAGS: {:X}",
                     .ok_or(format!("unknown signal: 0x{:X}", signal.value))?;
                 sig_fn(self)
             }
-
-
             /*
             Instruction::Push(v) => self.push(v.into()),
             Instruction::PopRegister(r) => {

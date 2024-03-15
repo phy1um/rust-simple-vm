@@ -8,6 +8,7 @@ pub enum RegisterFlag {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Register {
+    Zero,
     A,
     B,
     C,
@@ -15,7 +16,6 @@ pub enum Register {
     SP,
     PC,
     BP,
-    FLAGS,
 }
 
 impl Register {
@@ -28,7 +28,7 @@ impl Register {
             x if x == Register::SP as u8 => Some(Register::SP),
             x if x == Register::PC as u8 => Some(Register::PC),
             x if x == Register::BP as u8 => Some(Register::BP),
-            x if x == Register::FLAGS as u8 => Some(Register::FLAGS),
+            x if x == Register::Zero as u8 => Some(Register::Zero),
             _ => None,
         }
     }
@@ -68,7 +68,7 @@ impl fmt::Display for Register {
             Self::SP => write!(f, "SP"),
             Self::BP => write!(f, "BP"),
             Self::PC => write!(f, "PC"),
-            Self::FLAGS => write!(f, "FLAGS"),
+            Self::Zero => write!(f, "Zero"),
         }
     }
 }
@@ -84,7 +84,7 @@ impl FromStr for Register {
             "SP" => Ok(Register::SP),
             "BP" => Ok(Register::BP),
             "PC" => Ok(Register::PC),
-            "FLAGS" => Ok(Register::FLAGS),
+            "Zero" => Ok(Register::Zero),
             _ => Err(format!("unknown register {}", s)),
         }
     }
@@ -96,13 +96,13 @@ mod test {
 
     #[test]
     fn test_encoding() {
-        assert_eq!(Register::A as u16, 0);
-        assert_eq!(Register::B as u16, 1);
-        assert_eq!(Register::C as u16, 2);
-        assert_eq!(Register::M as u16, 3);
-        assert_eq!(Register::SP as u16, 4);
-        assert_eq!(Register::PC as u16, 5);
-        assert_eq!(Register::BP as u16, 6);
-        assert_eq!(Register::FLAGS as u16, 7);
+        assert_eq!(Register::Zero as u16, 0);
+        assert_eq!(Register::A as u16, 1);
+        assert_eq!(Register::B as u16, 2);
+        assert_eq!(Register::C as u16, 3);
+        assert_eq!(Register::M as u16, 4);
+        assert_eq!(Register::SP as u16, 5);
+        assert_eq!(Register::PC as u16, 6);
+        assert_eq!(Register::BP as u16, 7);
     }
 }
