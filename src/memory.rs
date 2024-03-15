@@ -38,6 +38,17 @@ pub trait Addressable {
         }
         true
     }
+
+    fn zero(&mut self, from: u32, to: u32) -> bool {
+        for i in from..to {
+            if !self.write(i, 0) {
+                return false;
+            }
+        };
+        true
+    }
+
+    fn zero_all(&mut self) -> bool;
 }
 
 pub struct LinearMemory {
@@ -70,5 +81,9 @@ impl Addressable for LinearMemory {
         } else {
             false
         }
+    }
+
+    fn zero_all(&mut self) -> bool {
+        self.zero(0, self.size as u32)
     }
 }
