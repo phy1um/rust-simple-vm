@@ -51,7 +51,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
     let mut field_from_str: proc_macro2::TokenStream = quote!();
     for x in ast.variants.iter() {
         let name = &x.ident;
-        let opcode_value = variant_opcode_value(&x);
+        let opcode_value = variant_opcode_value(x);
         if let syn::Fields::Unit = &x.fields {
             field_u16_encodings.extend(quote! {
                 Self::#name => #opcode_value as u16
@@ -79,7 +79,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
             let mut part_encoders: proc_macro2::TokenStream = quote!();
             let mut part_decoders: proc_macro2::TokenStream = quote!();
             let mut part_stringers: proc_macro2::TokenStream = quote!();
-            for (i, &ref type_name) in types.iter().enumerate() {
+            for (i, type_name) in types.iter().enumerate() {
                 match (type_name.as_str(), i) {
                     ("Register", 0) => {
                         part_encoders.extend(quote!(op_parts[0] = a0.as_mask_first();));
@@ -319,7 +319,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
             }
         }
 
-        fn assert_length(parts: &Vec<&str>, n: usize) -> Result<(), String> {
+        fn assert_length(parts: &[&str], n: usize) -> Result<(), String> {
             if parts.len() == n {
                 Ok(())
             } else {

@@ -24,7 +24,7 @@ pub fn main() -> Result<(), String> {
         .read_to_end(&mut program)
         .map_err(|x| format!("read: {}", x))?;
 
-    let mut vm = Machine::new();
+    let mut vm = Machine::new(1024*4);
     vm.set_register(Register::SP, 0x1000);
     vm.define_handler(0xf0, signal_halt);
     vm.memory.load_from_vec(&program, 0);

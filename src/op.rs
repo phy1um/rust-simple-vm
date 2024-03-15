@@ -49,7 +49,7 @@ impl Literal7Bit {
         if sgn == 0 {
             (self.value & 0x3f) as i8
         } else {
-            -1 * ((self.value & 0x3f) as i8)
+            -((self.value & 0x3f) as i8)
         }
     }
 }
