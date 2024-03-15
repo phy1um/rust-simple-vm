@@ -5,7 +5,7 @@ use std::path::Path;
 
 use simplevm::{Machine, Register};
 
-fn signal_halt(vm: &mut Machine) -> Result<(), String> {
+fn signal_halt(vm: &mut Machine, _: u16) -> Result<(), String> {
     vm.halt = true;
     Ok(())
 }

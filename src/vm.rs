@@ -4,7 +4,7 @@ use crate::memory::{Addressable, LinearMemory};
 use crate::op::Instruction;
 use crate::register::{Register};
 
-type SignalFunction = fn(&mut Machine) -> Result<(), String>;
+type SignalFunction = fn(&mut Machine, arg: u16) -> Result<(), String>;
 
 pub struct Machine {
     registers: [u16; 8],
@@ -124,12 +124,25 @@ SP: {} | PC: {} | BP: {}",
                 }
                 Ok(())
             }
-            Instruction::System(_r0, _r1, signal) => {
+            Instruction::System(Register::Zero, reg_arg, signal) => {
                 let sig_fn = self
                     .signal_handlers
                     .get(&signal.value)
                     .ok_or(format!("unknown signal: 0x{:X}", signal.value))?;
-                sig_fn(self)
+                let arg = self.get_register(reg_arg);
+                sig_fn(self, arg)
+            },
+            Instruction::System(sig, _, arg) => {
+                let sig_value = self.get_register(sig);
+                if sig_value > 0xff {
+                    Err(format!("unknown signal: 0x{:X}, must be <= 0xFF", sig_value))
+                } else {
+                    let sig_fn = self
+                        .signal_handlers
+                        .get(&(sig_value as u8))
+                        .ok_or(format!("unknown signal: 0x{:X}", sig_value))?;
+                    sig_fn(self, arg.value as u16)
+                }
             }
             /*
             Instruction::Push(v) => self.push(v.into()),
