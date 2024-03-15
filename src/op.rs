@@ -36,7 +36,7 @@ pub trait InstructionPart {
     fn from_instruction(ins: u16) -> Self;
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Literal7Bit {
     pub value: u8, 
 }
@@ -73,7 +73,7 @@ impl fmt::Display for Literal7Bit {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Literal10Bit {
     pub value: u16,
 }
@@ -197,17 +197,17 @@ impl InstructionPart for Nibble {
     }
 }
 
-#[derive(Debug, VmInstruction)]
+#[derive(Debug, VmInstruction, PartialEq, Eq)]
 pub enum Instruction {
     #[opcode(0xff)]
     Imm(Register, u16),
-    #[opcode(0x0)]
-    Add(Register, Register, Register),
     #[opcode(0x1)]
-    Sub(Register, Register, Register),
+    Add(Register, Register, Register),
     #[opcode(0x2)]
-    AddImm(Register, Literal7Bit),
+    Sub(Register, Register, Register),
     #[opcode(0x3)]
+    AddImm(Register, Literal7Bit),
+    #[opcode(0x4)]
     AddImmSigned(Register, Literal7Bit),
     /*
     #[opcode(0x4)]
@@ -239,11 +239,22 @@ pub enum Instruction {
 #[cfg(test)]
 mod test {
     use super::Instruction::*;
+    use crate::register::Register::*;
     use super::*;
 
     #[test]
-    fn test_encodings() {
-        assert_eq!(Add(Register::A, Register::B, Register::C).encode_u16(), 0x22 as u16);
-        //assert_eq!(Push(0x5).encode_u16(), 0x0501 as u16);
+    fn test_encodings() -> Result<(), String> {
+        let ops = vec![
+            Imm(M, 0x30), 
+            AddImm(C, Literal7Bit::new(0x20)),
+            Add(C, B, A), 
+            Sub(PC, BP, SP),
+            AddImmSigned(A, Literal7Bit::new(0x7)),
+        ];
+        let encoded: Vec<_> = ops.iter().map(|x| x.encode_u16()).collect();
+        for (l, r) in ops.iter().zip(encoded.iter()) {
+            assert_eq!(*l, Instruction::try_from(*r)?);
+        }
+        Ok(())
     }
 }
