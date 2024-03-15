@@ -179,14 +179,13 @@ pub enum Instruction {
     AddImm(Register, Literal7Bit),
     #[opcode(0x4)]
     AddImmSigned(Register, Literal7Bit),
-    /*
-    #[opcode(0x4)]
-    ShiftLeft(Register, Register, Nibble),
     #[opcode(0x5)]
-    ShiftRightLogical(Register, Register, Nibble),
+    ShiftLeft(Register, Register, Nibble),
     #[opcode(0x6)]
+    ShiftRightLogical(Register, Register, Nibble),
+    #[opcode(0x7)]
     ShiftRightArithmetic(Register, Register, Nibble),
-
+    /*
     #[opcode(0x7)]
     Load(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
     #[opcode(0x8)]
@@ -220,6 +219,9 @@ mod test {
             Add(C, B, A),
             Sub(PC, BP, SP),
             AddImmSigned(A, Literal7Bit::new(0x7)),
+            ShiftLeft(M, BP, Nibble::new(0xe)),
+            ShiftRightLogical(M, BP, Nibble::new(0xe)),
+            ShiftRightArithmetic(M, BP, Nibble::new(0xe)),
             System(A, B, Nibble::new(0x3)),
         ];
         let encoded: Vec<_> = ops.iter().map(|x| x.encode_u16()).collect();
