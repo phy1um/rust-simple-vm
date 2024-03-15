@@ -222,7 +222,21 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                             })?;
                         });
                     }
-
+                    ("StackOp", i) => {
+                        let argname = get_arg_name(i)?;
+                        let part_index = i + 1;
+                        part_encoders.extend(quote! {
+                            op_parts[#i] = (*#argname as u16)&0xf;
+                        });
+                        part_decoders.extend(quote! {
+                            let #argname = StackOp::try_from(ins&0xf)?;
+                        });
+                        part_stringers.extend(quote!{
+                            let #argname = StackOp::from_str(&parts[#part_index]).map_err(|x| {
+                                Self::Err::Fail(x)
+                            })?;
+                        });
+                    }
                     ("u16", i) => {
                         let argname = get_arg_name(i)?;
                         let part_index = i + 1;
