@@ -110,7 +110,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                         let argname = get_arg_name(i)?;
                         let part_index = i+1;
                         part_encoders.extend(quote!{
-                            op_parts[#i] = ((#argname.value&0xf)as u16) | ((#argname.value as u16)&0xe00);
+                            op_parts[#i] = ((#argname.value&0xf)as u16) | (((#argname.value as u16)&0x70) << 5);
                         });
                         part_decoders.extend(quote!{
                             let #argname = Literal7Bit::new(((ins&0xf) as u8) | (((ins&0xe00)>>5) as u8));
@@ -128,8 +128,8 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                         let argname = get_arg_name(i)?;
                         let part_index = i+1;
                         part_encoders.extend(quote!{
-                            op_parts[#i] = ((#argname.value&0xf) as u16) | ((#argname.value&0xe00) as u16) 
-                                | ((#argname.value&0x7000) as u16);
+                            op_parts[#i] = ((#argname.value&0xf) as u16) | (((#argname.value&0x70) as u16) << 5)
+                                | ((#argname.value&0x0380 as u16) << 5);
                         });
                         part_decoders.extend(quote!{
                             let #argname = Literal10Bit::new(((ins&0xf) as u16) | (((ins&0xe00)>>5) as u16) | (((ins&0x7000)>>5) as u16));
