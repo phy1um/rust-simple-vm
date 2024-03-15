@@ -67,7 +67,7 @@ SP: {} | PC: {} | BP: {}",
 
     pub fn pop(&mut self) -> Result<u16, String> {
         let sp = self.registers[Register::SP as usize] - 2;
-        if let Some(v) = self.memory.read2(sp) {
+        if let Some(v) = self.memory.read2(sp as u32) {
             self.registers[Register::SP as usize] -= 2;
             Ok(v)
         } else {
@@ -77,7 +77,7 @@ SP: {} | PC: {} | BP: {}",
 
     pub fn push(&mut self, v: u16) -> Result<(), String> {
         let sp = self.registers[Register::SP as usize];
-        if !self.memory.write2(sp, v) {
+        if !self.memory.write2(sp as u32, v) {
             return Err(format!("memory write fault @ 0x{:X}", sp));
         }
         self.registers[Register::SP as usize] += 2;
@@ -98,7 +98,7 @@ SP: {} | PC: {} | BP: {}",
         let pc = self.get_register(Register::PC);
         let instruction = self
             .memory
-            .read2(pc)
+            .read2(pc as u32)
             .ok_or(format!("pc read fail @ 0x{:X}", pc))?;
         self.set_register(Register::PC, pc + 2);
         let op = Instruction::try_from(instruction)?;
@@ -150,6 +150,23 @@ SP: {} | PC: {} | BP: {}",
                 let base = self.get_register(r0);
                 self.set_register(r1, base>>offset.value);
                 Ok(())
+            }
+            Instruction::Load(r0, r1, r2) => {
+                let base = self.get_register(r1);
+                let page = self.get_register(r2);
+                let addr = (base as u32) + ((page as u32)<<16);
+                let w = self.memory.read2(addr).ok_or(format!("failed to read word @ {}", addr))?;
+                self.set_register(r0, w);
+                Ok(())
+            }
+            Instruction::Store(r0, r1, r2) => {
+                let base = self.get_register(r0);
+                let page = self.get_register(r1);
+                let addr = (base as u32) + ((page as u32)<<16);
+                match self.memory.write2(addr, self.get_register(r2)) {
+                    true => Ok(()),
+                    false => Err(format!("failed to write word {} @ {}", self.get_register(r2), addr)),
+                }
             }
             Instruction::System(Register::Zero, reg_arg, signal) => {
                 let sig_fn = self

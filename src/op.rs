@@ -185,11 +185,11 @@ pub enum Instruction {
     ShiftRightLogical(Register, Register, Nibble),
     #[opcode(0x7)]
     ShiftRightArithmetic(Register, Register, Nibble),
-    /*
     #[opcode(0x7)]
     Load(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
     #[opcode(0x8)]
     Store(Register, Register, Register), // RAM[R1 | (R2<<16)] = R0
+    /*
     #[opcode(0x9)]
     Test(Register, Register, TestOp),
     #[opcode(0xa)]
