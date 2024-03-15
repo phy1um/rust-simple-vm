@@ -168,6 +168,10 @@ SP: {} | PC: {} | BP: {}",
                     false => Err(format!("failed to write word {} @ {}", self.get_register(r2), addr)),
                 }
             }
+            Instruction::Jump(b) => {
+                self.set_register(Register::PC, self.get_register(Register::PC) + b.value);
+                Ok(())
+            }
             Instruction::System(Register::Zero, reg_arg, signal) => {
                 let sig_fn = self
                     .signal_handlers

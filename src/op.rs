@@ -185,17 +185,17 @@ pub enum Instruction {
     ShiftRightLogical(Register, Register, Nibble),
     #[opcode(0x7)]
     ShiftRightArithmetic(Register, Register, Nibble),
-    #[opcode(0x7)]
-    Load(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
     #[opcode(0x8)]
+    Load(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
+    #[opcode(0x9)]
     Store(Register, Register, Register), // RAM[R1 | (R2<<16)] = R0
+    #[opcode(0xb)]
+    Jump(Literal10Bit),
     /*
     #[opcode(0x9)]
     Test(Register, Register, TestOp),
     #[opcode(0xa)]
     AddIf(Register, Nibble),
-    #[opcode(0xb)]
-    Jump(Literal10Bit),
     #[opcode(0xc)]
     Stack(Register, Register, StackOp),
     #[opcode(0xd)]
@@ -222,6 +222,9 @@ mod test {
             ShiftLeft(M, BP, Nibble::new(0xe)),
             ShiftRightLogical(M, BP, Nibble::new(0xe)),
             ShiftRightArithmetic(M, BP, Nibble::new(0xe)),
+            Load(A, C, M),
+            Store(C, A, M),
+            Jump(Literal10Bit::new(1000)),
             System(A, B, Nibble::new(0x3)),
         ];
         let encoded: Vec<_> = ops.iter().map(|x| x.encode_u16()).collect();
