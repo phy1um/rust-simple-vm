@@ -34,6 +34,13 @@ impl Machine {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.memory.zero_all(); 
+        self.registers = [0; 8];
+        self.flags = 0;
+        self.halt = false;
+    }
+
     pub fn state(&self) -> String {
         format!(
             "A: {} | B: {} | C: {} | M: {}
@@ -132,7 +139,7 @@ Flags: {:016b}",
             Instruction::Sub(r0, r1, dst) => {
                 let a = self.get_register(r0);
                 let b = self.get_register(r1);
-                self.set_register(dst, a - b);
+                self.set_register(dst, a.wrapping_sub(b));
                 Ok(())
             }
             Instruction::AddImm(r, i) => {
