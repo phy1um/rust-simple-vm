@@ -25,6 +25,7 @@ use std::str::FromStr;
  * 1000 0000 0000 0000
  */
 
+#[derive(Debug)]
 pub enum InstructionParseError {
     NoContent,
     Fail(String),
