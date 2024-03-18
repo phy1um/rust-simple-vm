@@ -70,6 +70,31 @@ fn test_add_imm() -> Result<(), String> {
 }
 
 #[test]
+fn test_add_imm_signed() -> Result<(), String> {
+    let mut vm = Machine::new(1024 * 4);
+    run(
+        &mut vm,
+        &[
+            Imm(C, 0x5E),
+            AddImmSigned(C, Literal7Bit::from_signed(-5)),
+            System(Zero, Zero, Nibble::new(SIGHALT)),
+        ],
+    )?;
+    assert_reg!(vm, C, 0x59);
+
+    run(
+        &mut vm,
+        &[
+            Imm(B, 29),
+            AddImmSigned(B, Literal7Bit::from_signed(-29)),
+            System(Zero, Zero, Nibble::new(SIGHALT)),
+        ],
+    )?;
+    assert_reg!(vm, B, 0);
+    Ok(())
+}
+
+#[test]
 fn test_shift_left() -> Result<(), String> {
     let mut vm = Machine::new(1024 * 4);
     run(
