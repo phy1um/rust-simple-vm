@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Flag {
     Compare = 0b1,
