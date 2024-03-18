@@ -107,7 +107,7 @@ Flags: {:016b}",
         Ok(())
     }
 
-    fn set_flag(&mut self, flag: Flag, state: bool) {
+    pub fn set_flag(&mut self, flag: Flag, state: bool) {
         if state {
             self.flags |= flag as u16;
         } else {
@@ -115,7 +115,7 @@ Flags: {:016b}",
         }
     }
 
-    fn test_flag(&self, flag: Flag) -> bool {
+    pub fn test_flag(&self, flag: Flag) -> bool {
         self.flags & (flag as u16) != 0
     }
 

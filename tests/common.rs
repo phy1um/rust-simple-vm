@@ -30,6 +30,20 @@ macro_rules! assert_mem {
     }};
 }
 
+#[macro_export]
+macro_rules! assert_flag_set {
+    ($vm: expr, $flg:expr) => {
+        assert!($vm.test_flag($flg), "expected flag {:?} set", $flg);
+    };
+}
+
+#[macro_export]
+macro_rules! assert_flag_unset {
+    ($vm: expr, $flg:expr) => {
+        assert!(!$vm.test_flag($flg), "expected flag {:?} unset", $flg);
+    };
+}
+
 pub const SIGHALT: u8 = 0x1;
 
 pub fn signal_halt(vm: &mut Machine, _: u16) -> Result<(), String> {
