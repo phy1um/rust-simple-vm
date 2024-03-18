@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>tom's simple vm</title>
+  </head>
+  <body>
+    <textarea id="program" cols=80 rows=20>
+Imm B 5
+System Zero B 1
+Imm A $f0
+System A A 0
+    </textarea>
+    <button id="compile" text="Compile">Compile</button>
+    <div id="state"></div>
+    <script type="module">
+      import init, { VM, assemble_line } from "./pkg/simplevm.js";
+      init().then(() => {
+        window.VM = VM;
+        window.assemble_line = assemble_line;
+        let vm = new VM(1024);
+        vm.set_register("A", 13);
+        console.log(vm.get_register("A"));
+
+        const programText = document.querySelector("#program");
+        document.querySelector("#compile").onclick = () => {
+          const lines = programText.value.split("\n");
+          const program = [];
+          for (let i in lines) {
+            const line = lines[i].trim();
+            if (line.length == 0 || line[0] == "#") {
+              continue;
+            }
+            const v = assemble_line(line);
+            program.push(v&0xff);
+            program.push((v&0xff00)>>8);
+          }
+          const pp = new Uint8Array(program);
+          vm.reset();
+          vm.write_program(pp);
+          vm.set_halt(false);
+        }
+
+        const uiContainer = document.createElement("pre");
+        document.querySelector("#state").appendChild(uiContainer);
+        let then = performance.now();
+        const loop = (now) => {
+          requestAnimationFrame(loop);
+          let dt = now - then;
+          try {
+            vm.tick(dt);
+          } catch (e) {
+            console.error(e);
+            vm.set_halt(true); 
+          }
+          uiContainer.innerText = vm.state();
+          then = now;
+        };
+        loop(performance.now());
+      });
+    </script>
+  </body>
+</html>
+
