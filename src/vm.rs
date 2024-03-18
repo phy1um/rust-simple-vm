@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::memory::{Addressable, LinearMemory};
-use crate::op::{Instruction, TestOp, StackOp};
-use crate::register::{Register, Flag};
+use crate::op::{Instruction, StackOp, TestOp};
+use crate::register::{Flag, Register};
 
 type SignalFunction = fn(&mut Machine, arg: u16) -> Result<(), String>;
 
@@ -29,13 +29,13 @@ impl Default for Machine {
 impl Machine {
     pub fn new(memory_words: usize) -> Self {
         Self {
-            memory: Box::new(LinearMemory::new(2*memory_words)),
+            memory: Box::new(LinearMemory::new(2 * memory_words)),
             ..Self::default()
         }
     }
 
     pub fn reset(&mut self) {
-        self.memory.zero_all(); 
+        self.memory.zero_all();
         self.registers = [0; 8];
         self.flags = 0;
         self.halt = false;
@@ -70,6 +70,9 @@ Flags: {:016b}",
             return;
         };
         self.registers[r as usize] = v;
+        if r == Register::PC {
+            self.set_flag(Flag::DidJump, true);
+        }
     }
 
     pub fn define_handler(&mut self, index: u8, f: SignalFunction) {
@@ -100,7 +103,7 @@ Flags: {:016b}",
         if !self.memory.write2(sp as u32, v) {
             return Err(format!("memory write fault @ 0x{:X}", sp));
         }
-        self.set_register(stack_pointer_register, sp+2);
+        self.set_register(stack_pointer_register, sp + 2);
         Ok(())
     }
 
@@ -122,10 +125,11 @@ Flags: {:016b}",
             .memory
             .read2(pc as u32)
             .ok_or(format!("pc read fail @ 0x{:X}", pc))?;
-        self.set_register(Register::PC, pc + 2);
+        self.set_flag(Flag::DidJump, false);
         let op = Instruction::try_from(instruction)?;
         println!("running {}", op);
         match op {
+            Instruction::Invalid(_) => Err("0 instruction".to_string()),
             Instruction::Imm(reg, value) => {
                 self.set_register(reg, value);
                 Ok(())
@@ -160,38 +164,61 @@ Flags: {:016b}",
             }
             Instruction::ShiftLeft(r0, r1, offset) => {
                 let base = self.get_register(r0);
-                self.set_register(r1, base<<offset.value);
+                self.set_register(r1, base << (offset.value as u16));
                 Ok(())
             }
             Instruction::ShiftRightLogical(r0, r1, offset) => {
                 let base = self.get_register(r0);
-                self.set_register(r1, base>>offset.value);
+                self.set_register(r1, base >> (offset.value as u16));
                 Ok(())
             }
             Instruction::ShiftRightArithmetic(r0, r1, offset) => {
                 let base = self.get_register(r0);
-                self.set_register(r1, base>>offset.value);
+                unsafe {
+                    let as_signed: i16 = std::mem::transmute(base);
+                    let shifted: i16 = as_signed >> (offset.value as u16);
+                    let res: u16 = std::mem::transmute(shifted);
+                    self.set_register(r1, res);
+                }
                 Ok(())
             }
             Instruction::Load(r0, r1, r2) => {
                 let base = self.get_register(r1);
                 let page = self.get_register(r2);
-                let addr = (base as u32) + ((page as u32)<<16);
-                let w = self.memory.read2(addr).ok_or(format!("failed to read word @ {}", addr))?;
+                let addr = (base as u32) + ((page as u32) << 16);
+                let w = self
+                    .memory
+                    .read2(addr)
+                    .ok_or(format!("failed to read word @ {}", addr))?;
                 self.set_register(r0, w);
                 Ok(())
             }
             Instruction::Store(r0, r1, r2) => {
                 let base = self.get_register(r0);
                 let page = self.get_register(r1);
-                let addr = (base as u32) + ((page as u32)<<16);
+                let addr = (base as u32) + ((page as u32) << 16);
                 match self.memory.write2(addr, self.get_register(r2)) {
                     true => Ok(()),
-                    false => Err(format!("failed to write word {} @ {}", self.get_register(r2), addr)),
+                    false => Err(format!(
+                        "failed to write word {} @ {}",
+                        self.get_register(r2),
+                        addr
+                    )),
                 }
             }
-            Instruction::Jump(b) => {
+            Instruction::JumpOffset(b) => {
                 self.set_register(Register::PC, self.get_register(Register::PC) + b.value);
+                Ok(())
+            }
+            Instruction::SetAndSave(r0, r1, save) => {
+                self.set_register(save, self.get_register(r0));
+                self.set_register(r0, self.get_register(r1));
+                Ok(())
+            }
+            Instruction::AddAndSave(r0, r1, save) => {
+                let v = self.get_register(r0);
+                self.set_register(save, v);
+                self.set_register(r0, v + self.get_register(r1));
                 Ok(())
             }
             Instruction::Test(r0, r1, op) => {
@@ -213,7 +240,8 @@ Flags: {:016b}",
             }
             Instruction::AddIf(r0, offset) => {
                 if self.test_flag(Flag::Compare) {
-                    self.set_register(r0, self.get_register(r0) + 2*(offset.value as u16));
+                    self.set_register(r0, self.get_register(r0) + 2 * (offset.value as u16));
+                    self.set_flag(Flag::Compare, false);
                 }
                 Ok(())
             }
@@ -252,20 +280,26 @@ Flags: {:016b}",
                     StackOp::Add => {
                         let a = self.pop(sp)?;
                         let b = self.pop(sp)?;
-                        self.push(sp, a+b)?;
+                        self.push(sp, a + b)?;
                     }
                     StackOp::Sub => {
                         let a = self.pop(sp)?;
                         let b = self.pop(sp)?;
-                        self.push(sp, a-b)?;
+                        self.push(sp, a - b)?;
                     }
                 };
                 Ok(())
             }
             Instruction::LoadStackOffset(tgt, sp, word_offset) => {
-                let base = self.get_register(sp); 
-                let addr = base - ((word_offset.value as u16) *2);
-                self.set_register(tgt, self.memory.read2(addr as u32).ok_or(format!("invalid stack read: stack={}, offset={:X} @ {:X}", sp, word_offset.value, addr))?);
+                let base = self.get_register(sp);
+                let addr = base - ((word_offset.value as u16) * 2);
+                self.set_register(
+                    tgt,
+                    self.memory.read2(addr as u32).ok_or(format!(
+                        "invalid stack read: stack={}, offset={:X} @ {:X}",
+                        sp, word_offset.value, addr
+                    ))?,
+                );
                 Ok(())
             }
             Instruction::System(Register::Zero, reg_arg, signal) => {
@@ -290,7 +324,12 @@ Flags: {:016b}",
                         .ok_or(format!("unknown signal: 0x{:X}", sig_value))?;
                     sig_fn(self, arg.value as u16)
                 }
-            } 
-        }
+            }
+        }?;
+        if !self.test_flag(Flag::DidJump) {
+            self.set_register(Register::PC, pc + 2);
+            self.set_flag(Flag::DidJump, false);
+        };
+        Ok(())
     }
 }
