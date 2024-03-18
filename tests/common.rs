@@ -44,6 +44,15 @@ macro_rules! assert_flag_unset {
     };
 }
 
+#[macro_export]
+macro_rules! run_with {
+    ($vm:expr, $pre:block, $($prog:expr),+) => {
+        $vm.reset();
+        $pre;
+        run_program_code($vm, &[$($prog),*])?;
+    }
+}
+
 pub const SIGHALT: u8 = 0x1;
 
 pub fn signal_halt(vm: &mut Machine, _: u16) -> Result<(), String> {
@@ -53,6 +62,10 @@ pub fn signal_halt(vm: &mut Machine, _: u16) -> Result<(), String> {
 
 pub fn run(m: &mut Machine, program: &[Instruction]) -> Result<(), String> {
     m.reset();
+    run_program_code(m, program)
+}
+
+pub fn run_program_code(m: &mut Machine, program: &[Instruction]) -> Result<(), String> {
     let program_words: Vec<_> = program.iter().map(|x| x.encode_u16()).collect();
     unsafe {
         let program_bytes = program_words.align_to::<u8>().1;
