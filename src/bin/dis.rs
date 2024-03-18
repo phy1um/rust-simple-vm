@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::File;
-use std::io::{BufReader, Read, stdin};
+use std::io::{stdin, BufReader, Read};
 use std::path::Path;
 
 use simplevm::Instruction;
@@ -15,7 +15,9 @@ fn main() -> Result<(), String> {
 
     let tgt: Box<dyn Read> = match args[1].as_ref() {
         "-" => Box::new(stdin()),
-        _ => Box::new(File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?),
+        _ => {
+            Box::new(File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?)
+        }
     };
 
     let mut reader = BufReader::new(tgt);

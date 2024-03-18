@@ -1,7 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, Write, stdin, Read};
+use std::io::{stdin, BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::str::FromStr;
 
@@ -17,7 +17,9 @@ fn main() -> Result<(), String> {
 
     let reader: Box<dyn Read> = match args[1].as_ref() {
         "-" => Box::new(stdin()),
-        _ => Box::new(File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?),
+        _ => {
+            Box::new(File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?)
+        }
     };
 
     let mut output: Vec<u8> = Vec::new();
