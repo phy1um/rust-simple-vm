@@ -44,7 +44,7 @@ pub trait Addressable {
             if !self.write(i, 0) {
                 return false;
             }
-        };
+        }
         true
     }
 

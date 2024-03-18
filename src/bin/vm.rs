@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::File;
-use std::io::{BufReader, Read, stdin};
+use std::io::{stdin, BufReader, Read};
 use std::path::Path;
 
 use simplevm::{Machine, Register};
@@ -18,7 +18,9 @@ pub fn main() -> Result<(), String> {
 
     let reader: Box<dyn Read> = match args[1].as_ref() {
         "-" => Box::new(stdin()),
-        _ => Box::new(File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?),
+        _ => {
+            Box::new(File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?)
+        }
     };
 
     let mut reader = BufReader::new(reader);
@@ -27,7 +29,7 @@ pub fn main() -> Result<(), String> {
         .read_to_end(&mut program)
         .map_err(|x| format!("read: {}", x))?;
 
-    let mut vm = Machine::new(1024*4);
+    let mut vm = Machine::new(1024 * 4);
     vm.set_register(Register::SP, 0x1000);
     vm.define_handler(0xf0, signal_halt);
     vm.memory.load_from_vec(&program, 0);
