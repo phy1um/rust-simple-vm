@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 #[repr(u16)]
 pub enum Flag {
-    Compare = 0x1,
+    Compare = 0b1,
+    DidJump = 0b10,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

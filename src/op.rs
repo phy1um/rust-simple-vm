@@ -1,7 +1,7 @@
 use crate::register::Register;
-use macros::{VmInstruction, StringyEnum};
-use std::str::FromStr;
+use macros::{StringyEnum, VmInstruction};
 use std::fmt;
+use std::str::FromStr;
 
 /**
  * TYPE A
@@ -160,7 +160,10 @@ impl fmt::Display for Nibble {
 #[derive(Debug, VmInstruction, PartialEq, Eq)]
 pub enum Instruction {
     #[opcode(0xff)]
+    // TODO: make u16 more restrictive
     Imm(Register, u16), // Imm has unique instruction format, it doesn't use an opcode.
+    #[opcode(0x0)]
+    Invalid(u16),
     #[opcode(0x1)]
     Add(Register, Register, Register),
     #[opcode(0x2)]
@@ -175,12 +178,17 @@ pub enum Instruction {
     ShiftRightLogical(Register, Register, Nibble),
     #[opcode(0x7)]
     ShiftRightArithmetic(Register, Register, Nibble),
+    // TODO: and, or, xor, not
     #[opcode(0x8)]
     Load(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
     #[opcode(0x9)]
     Store(Register, Register, Register), // RAM[R1 | (R2<<16)] = R0
     #[opcode(0xa)]
-    Jump(Literal10Bit),
+    JumpOffset(Literal10Bit),
+    #[opcode(0x10)]
+    SetAndSave(Register, Register, Register), // R2 = R0, R0 = R1
+    #[opcode(0x11)]
+    AddAndSave(Register, Register, Register), // R2 = R0, R0 = R0+R1
     #[opcode(0xb)]
     Test(Register, Register, TestOp),
     #[opcode(0xc)]
@@ -204,15 +212,17 @@ mod test {
         let ops = vec![
             Imm(M, 0x30),
             AddImm(C, Literal7Bit::new(0x20)),
+            AddImmSigned(A, Literal7Bit::new(0x7)),
             Add(C, B, A),
             Sub(PC, BP, SP),
-            AddImmSigned(A, Literal7Bit::new(0x7)),
             ShiftLeft(M, BP, Nibble::new(0xe)),
             ShiftRightLogical(M, BP, Nibble::new(0xe)),
             ShiftRightArithmetic(M, BP, Nibble::new(0xe)),
             Load(A, C, M),
             Store(C, A, M),
-            Jump(Literal10Bit::new(1000)),
+            JumpOffset(Literal10Bit::new(1000)),
+            SetAndSave(A, B, C),
+            AddAndSave(PC, B, C),
             Test(BP, A, TestOp::Gte),
             AddIf(PC, Nibble::new(0x0)),
             Stack(B, SP, StackOp::Dup),
