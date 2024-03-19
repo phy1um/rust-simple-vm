@@ -6,6 +6,8 @@ use std::path::Path;
 use std::str::FromStr;
 
 mod pp;
+mod macros;
+use crate::macros::macro_defvar;
 use crate::pp::PreProcessor;
 
 use simplevm::{Instruction, InstructionParseError};
@@ -31,9 +33,9 @@ fn main() -> Result<(), String> {
      *
      */
     let mut processor = PreProcessor::new();
-    processor.define_variable("foo", "5");
-    processor.define_variable("bar", "B");
-    for line in BufReader::new(file).lines() {
+    processor.define_macro("defvar", macro_defvar);
+    for (i, line) in BufReader::new(file).lines().enumerate() {
+        // TODO: wtf
         let line_inner = line.map_err(|_x| "foo")?;
         if line_inner.is_empty() {
             continue;
@@ -42,7 +44,10 @@ fn main() -> Result<(), String> {
             continue;
         }
         // preprocess here
-        let processed = processor.resolve(&line_inner).map_err(|x| x.to_string())?;
+        let processed = match processor.resolve(&line_inner).map_err(|x| x.to_string()) {
+            Err(e) => panic!("line {}: {}", i, e),
+            Ok(s) => s,
+        };
         if preprocess_only {
             for &b in processed.as_bytes() {
                 output.push(b);  
@@ -57,7 +62,7 @@ fn main() -> Result<(), String> {
                     output.push((raw_instruction >> 8) as u8);
                 }
                 Err(InstructionParseError::Fail(s)) => {
-                    panic!("{}", s);
+                    panic!("line {}: {}", i, s);
                 }
                 _ => continue,
             }
