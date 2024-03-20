@@ -211,8 +211,9 @@ Flags: {:016b}",
                 Ok(())
             }
             Instruction::SetAndSave(r0, r1, save) => {
+                let v = self.get_register(r1); // save this upfront in case r0 == r1!
                 self.set_register(save, self.get_register(r0));
-                self.set_register(r0, self.get_register(r1));
+                self.set_register(r0, v);
                 Ok(())
             }
             Instruction::AddAndSave(r0, r1, save) => {
@@ -238,9 +239,9 @@ Flags: {:016b}",
                 self.set_flag(Flag::Compare, res);
                 Ok(())
             }
-            Instruction::AddIf(r0, offset) => {
+            Instruction::AddIf(r0, r1, offset) => {
                 if self.test_flag(Flag::Compare) {
-                    self.set_register(r0, self.get_register(r0) + 2 * (offset.value as u16));
+                    self.set_register(r0, self.get_register(r1) + 2 * (offset.value as u16));
                     self.set_flag(Flag::Compare, false);
                 }
                 Ok(())

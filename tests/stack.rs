@@ -173,9 +173,11 @@ fn test_load_offset() -> Result<(), String> {
             Imm(A, 0x11),
             Stack(A, SP, StackOp::Push),
             LoadStackOffset(C, SP, Nibble::new(3)),
+            LoadStackOffset(B, SP, Nibble::new(2)),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
     )?;
     assert_reg!(vm, C, 0x33);
+    assert_reg!(vm, B, 0x22);
     Ok(())
 }

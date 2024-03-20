@@ -14,7 +14,7 @@ fn test_loop() -> Result<(), String> {
             Imm(A, 5),
             // LABEL: start=2
             Test(A, Zero, TestOp::Neq), // if A != 0
-            AddIf(PC, Nibble::new(2)),  //
+            AddIf(PC, PC, Nibble::new(2)),  //
             Imm(PC, 14),                // GOTO: end
             AddImmSigned(A, Literal7Bit::from_signed(-1)),
             AddImm(B, Literal7Bit::new(1)),

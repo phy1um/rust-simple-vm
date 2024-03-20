@@ -203,7 +203,7 @@ pub enum Instruction {
     #[opcode(0xb)]
     Test(Register, Register, TestOp),
     #[opcode(0xc)]
-    AddIf(Register, Nibble),
+    AddIf(Register, Register, Nibble),
     #[opcode(0xd)]
     Stack(Register, Register, StackOp),
     #[opcode(0xe)]
@@ -235,7 +235,7 @@ mod test {
             SetAndSave(A, B, C),
             AddAndSave(PC, B, C),
             Test(BP, A, TestOp::Gte),
-            AddIf(PC, Nibble::new(0x0)),
+            AddIf(PC, A, Nibble::new(0x0)),
             Stack(B, SP, StackOp::Dup),
             LoadStackOffset(A, BP, Nibble::new(0x3)),
             System(A, B, Nibble::new(0x3)),
