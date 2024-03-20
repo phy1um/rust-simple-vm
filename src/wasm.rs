@@ -26,6 +26,7 @@ fn signal_halt(m: &mut Machine, _: u16) -> Result<(), String> {
 #[wasm_bindgen(js_name = VM)]
 struct JSMachine {
     m: Machine,
+    on_run_instruction: Option<js_sys::Function>,
     tick_rate: f32,
     tick_acc: f32,
 }
@@ -42,6 +43,7 @@ impl JSMachine {
             m,
             tick_rate: 0.1,
             tick_acc: 0.0,
+            on_run_instruction: None,
         }
     }
 
@@ -49,6 +51,11 @@ impl JSMachine {
     pub fn write_program(&mut self, b: &[u8]) -> Result<(), String> {
         let _ = self.m.memory.load_from_vec(b, 0);
         Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub fn instruction_callback(&mut self, f: js_sys::Function) {
+        self.on_run_instruction = Some(f);
     }
 
     #[wasm_bindgen]
@@ -82,9 +89,19 @@ impl JSMachine {
         self.tick_acc += dt;
         if self.tick_acc > self.tick_rate {
             self.tick_acc -= self.tick_rate;
-            self.m.step()?;
+            self.step()?;
         }
         Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub fn step(&mut self) -> Result<(), String> {
+        if let Some(f) = &self.on_run_instruction {
+            let this = JsValue::null();
+            let ins = self.m.memory.read2(self.m.get_register(Register::PC) as u32).unwrap();
+            let _ = f.call1(&this, &JsValue::from(ins));
+        };
+        self.m.step()
     }
 
     #[wasm_bindgen]
@@ -97,5 +114,11 @@ impl JSMachine {
 pub fn assemble_line(line: &str) -> Result<u16, String> {
     let ins = Instruction::from_str(line).map_err(|x| format!("failed to parse: {:?}", x))?;
     Ok(ins.encode_u16())
+}
+
+#[wasm_bindgen]
+pub fn dissasemble_instruction(i: u16) -> Result<String, String> {
+    let ins = Instruction::try_from(i)?;
+    Ok(format!("{}", ins))
 }
 
