@@ -1,27 +1,27 @@
 use std::env;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{Read, BufReader, Write};
 use std::path::Path;
 use std::str::FromStr;
 
-mod macros;
-mod pp;
-use crate::pp::PreProcessor;
+use simplevm::pp::PreProcessor;
+use simplevm::pp::macros;
 
 use simplevm::{Instruction, InstructionParseError};
 
+mod args;
+
 fn main() -> Result<(), String> {
     // ./asm file.asm
-
-    let preprocess_only = true;
-
-    let args: Vec<_> = env::args().collect();
-    if args.len() != 2 {
-        panic!("usage: {} <input>", args[0]);
+    let args_vec: Vec<_> = env::args().collect();
+    let args = args::process_cli(&args_vec).map_err(|x| x.to_string())?;
+    if !args.validate() {
+        println!("{}", args.usage());
+        return Ok(());
     }
 
-    let file = File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?;
+    let file = File::open(Path::new(&args.input_file.unwrap())).map_err(|x| format!("failed to open: {}", x))?;
     let mut output: Vec<u8> = Vec::new();
     /*
      * Push 10
@@ -31,31 +31,28 @@ fn main() -> Result<(), String> {
      * Signal $f0
      *
      */
+    
     let mut processor = PreProcessor::new();
-    processor.define_macro("defvar", macros::defvar);
-    processor.define_macro("include", macros::include);
-    processor.define_macro("defmacro", macros::defmacro);
-    for (i, line) in BufReader::new(file).lines().enumerate() {
-        // TODO: wtf
-        let line_inner = line.map_err(|_x| "foo")?;
-        if line_inner.is_empty() {
-            continue;
-        }
-        if line_inner.chars().next().unwrap() == ';' {
-            continue;
-        }
-        // preprocess here
-        let processed = match processor.resolve(&line_inner).map_err(|x| x.to_string()) {
-            Err(e) => panic!("line {}: {}", i+1, e),
-            Ok(s) => s,
-        };
-        if preprocess_only && !processed.is_empty() {
-            for &b in processed.as_bytes() {
+    macros::setup_std_macros(&mut processor);
+    let mut reader = BufReader::new(file);
+    let mut content = String::new();
+    reader.read_to_string(&mut content).map_err(|_| "failed to read file".to_string())?;
+    let processed = processor.resolve(&content).map_err(|_| "failed to resolve".to_string())?;
+    for line in processed {
+        let resolved = line.resolve(&processor).map_err(|_| format!("failed to resolve line: {}", line.get_line_number()))?;
+        if args.preprocess_only {
+            for &b in resolved.as_bytes() {
                 output.push(b);
             }
             output.push(b'\n');
         } else {
-            match Instruction::from_str(&processed) {
+            if resolved.len() == 0 {
+                continue;
+            }
+            if let Some(';') = resolved.chars().nth(0) {
+                continue;
+            }
+            match Instruction::from_str(&resolved) {
                 Ok(instruction) => {
                     let raw_instruction: u16 = instruction.encode_u16();
                     // assumption: >>8 needs to mask for u16
@@ -63,9 +60,9 @@ fn main() -> Result<(), String> {
                     output.push((raw_instruction >> 8) as u8);
                 }
                 Err(InstructionParseError::Fail(s)) => {
-                    panic!("line {}: {}", i+1, s);
+                    panic!("line {} ({}): {}", line.get_line_number(), resolved, s);
                 }
-                _ => continue,
+                _ => panic!("line {} ({}): error", line.get_line_number(), resolved),
             }
         }
     }
