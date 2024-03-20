@@ -39,7 +39,7 @@ fn main() -> Result<(), String> {
     reader.read_to_string(&mut content).map_err(|_| "failed to read file".to_string())?;
     let processed = processor.resolve(&content).map_err(|_| "failed to resolve".to_string())?;
     for line in processed {
-        let resolved = line.resolve(&processor).map_err(|_| format!("failed to resolve line: {}", line.get_line_number()))?;
+        let resolved = processor.resolve_pass2(&line).map_err(|_| format!("failed to resolve line: {}", line.get_line_number()))?;
         if args.preprocess_only {
             for &b in resolved.as_bytes() {
                 output.push(b);
