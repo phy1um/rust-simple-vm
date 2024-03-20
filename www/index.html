@@ -24,10 +24,8 @@ System A A 0
     <div id="ins"></div>
     <div id="error"></div>
     <script type="module">
-      import init, { VM, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
+      import init, { VM, PreProcessor, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
       init().then(() => {
-        window.VM = VM;
-        window.assemble_line = assemble_line;
         const vm = new VM(1024);
         vm.set_register("A", 13);
         vm.set_halt(true);
@@ -45,22 +43,23 @@ System A A 0
         const programText = document.querySelector("#program");
         const programBin = document.querySelector("#binary");
         document.querySelector("#compile").onclick = () => {
-          const lines = programText.value.split("\n");
+          const pp = new PreProcessor();
+          const lines = pp.resolve(programText.value);
           const program = [];
           for (let i in lines) {
             const line = lines[i].trim();
-            if (line.length == 0 || line[0] == "#") {
+            if (line.length == 0 || line[0] == ";") {
               continue;
             }
             const v = assemble_line(line);
             program.push(v&0xff);
             program.push((v&0xff00)>>8);
           }
-          const pp = new Uint8Array(program);
-          const b64 = btoa(String.fromCharCode.apply(null, pp));
+          const programBytes = new Uint8Array(program);
+          const b64 = btoa(String.fromCharCode.apply(null, programBytes));
           programBin.value = b64;
           vm.reset();
-          vm.write_program(pp);
+          vm.write_program(programBytes);
           vm.set_halt(true);
           clearOutputs();
         }
@@ -71,6 +70,14 @@ System A A 0
           vm.write_program(program);
           vm.set_halt(true);
           clearOutputs();
+          const body = new Array(); 
+          for (let i = 0; i < program.length; i+=2) {
+            const b0 = program[i];
+            const b1 = program[i+1];
+            const txt = dissasemble_instruction(b0 | (b1<<8));
+            body.push(txt);
+          }
+          programText.value = body.join("\n");
         };
         document.querySelector("#reset").onclick = () => {
           vm.reset();

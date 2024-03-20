@@ -44,28 +44,12 @@ enum ProcessedLinePart {
     Unresolved(String, Box<ProcessedLinePart>, Box<ProcessedLinePart>),
 }
 
-impl ProcessedLinePart {
-    pub fn resolve(&self, pp: &PreProcessor) -> Result<String, Error> {
-        match self {
-            ProcessedLinePart::Line(s) => Ok(s.to_string()),
-            ProcessedLinePart::Unresolved(varname, pre, post) => {
-                let value = pp.get_variable(&varname).ok_or(Error::UnknownToken(varname.to_string()))?;
-                Ok(format!("{} {} {}", pre.resolve(pp)?, value, post.resolve(pp)?))
-            }
-        }
-    }
-}
-
 impl ProcessedLine {
     pub fn from_str(s: &str, source_line_number: usize) -> Self {
         Self {
             source_line_number,
             line: ProcessedLinePart::Line(s.to_string()),
         }
-    }
-
-    pub fn resolve(&self, pp: &PreProcessor) -> Result<String, Error> {
-        self.line.resolve(pp)
     }
 
     pub fn get_line_number(&self) -> usize {
@@ -79,6 +63,20 @@ impl PreProcessor {
             variables: HashMap::new(),
             macros: HashMap::new(),
             instruction_count: 0,
+        }
+    }
+
+    pub fn resolve_pass2(&self, p: &ProcessedLine) -> Result<String, Error> {
+        self.reprocess_line(&p.line) 
+    }
+
+    fn reprocess_line(&self, p: &ProcessedLinePart) -> Result<String, Error> {
+        match p {
+            ProcessedLinePart::Line(s) => Ok(s.to_string()),
+            ProcessedLinePart::Unresolved(varname, pre, post) => {
+                let value = self.get_variable(&varname).ok_or(Error::UnknownToken(varname.to_string()))?;
+                Ok(format!("{} {} {}", self.reprocess_line(pre)?, value, self.reprocess_line(post)?))
+            }
         }
     }
 

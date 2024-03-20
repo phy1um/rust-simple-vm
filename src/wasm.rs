@@ -23,6 +23,31 @@ fn signal_halt(m: &mut Machine, _: u16) -> Result<(), String> {
     Ok(())
 }
 
+#[wasm_bindgen]
+struct PreProcessor {
+    pp: pp::PreProcessor,
+}
+
+#[wasm_bindgen(js_class= PreProcessor)]
+impl PreProcessor {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        let mut pp = pp::PreProcessor::new();
+        pp::macros::setup_std_macros(&mut pp);
+        Self { pp }
+    }
+
+    #[wasm_bindgen]
+    pub fn resolve(&mut self, input: &str) -> Result<Vec<String>, String> {
+        let lines = self.pp.resolve(input).map_err(|_| "failed to resolve".to_string())?;
+        let mut out: Vec<String> = Vec::new();
+        for l in lines {
+            out.push(self.pp.resolve_pass2(&l).map_err(|_| format!("error @ line {}", l.get_line_number()))?);
+        }
+        Ok(out)
+    }
+}
+
 #[wasm_bindgen(js_name = VM)]
 struct JSMachine {
     m: Machine,
