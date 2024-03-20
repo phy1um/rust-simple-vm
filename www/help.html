@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" /> <title>tom's simple vm</title>
+  </head>
+  <body>
+    <h1>Help</h1>
+    <h2>Memory Map</h2>
+    <pre>
+Main memory: 0x0 -&gt; 0x2000
+Screen buffer(40px x 40px): 0x400 -&gt; 0x590
+
+Each byte in the screen buffer represents 2x 4bit pixels. 
+    </pre>
+    <h2>System Handlers</h2>
+    <pre>
+0x01: Write arg to console.log
+0xf0: Halt the system
+    </pre>
+    <h2>Assembler Syntax</h2>
+    <ul>
+      <li>Comments start with ";", these lines are ignored</li>
+      <li>Labels start with ":" and must go on their own line. They become variables equal to the 
+        value of the offset of the next instruction.</li>
+      <li>Variable references are prefixed with "!", eg "!n" to substitute the variable "n"</li>
+      <li>Macro invocations start with "."
+        <ul>
+          <li>`.defvar` defines a variable that can be referenced later</li>
+          <li>`.defmacro` defines a substitution macro. Instructions are separated by `/`, and tokens
+            of the form `!0`, `!1`, ... represent the first, second, etc arguments when invoked. 
+            <br>
+            For example, a macro for loading the sum of 2 numbers to the top of the stack:
+            <pre>.defmacro AddOnStack Imm A !0 / Imm B !1 / Stack A SP Push / Stack B SP Push / Stack Zero SP Add</pre> 
+            Which could be used:
+            <pre>.AddOnStack 17 33</pre>
+          </li>
+        </ul>
+      </li>
+      <li>All other lines must be a valid instruction of the form "Name [X] [Y] [Z]", where X, Y and Z
+        may be numbers, register names. In a Stack instruction Z must be a Stack Op. In a Test instruction,
+        Z must be a Test Op. See the <a href="https://github.com/phy1um/rust-simple-vm">repo</a> for more
+        details.
+      </li>
+    </ul>
+    <a href="./">Back</a>
+  </body>
+</html>

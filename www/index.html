@@ -23,18 +23,17 @@ System A A 0
     <div id="state"></div>
     <div id="ins"></div>
     <div id="error"></div>
+    <a href="./help.html">Help?</a>
     <script type="module">
       import init, { VM, PreProcessor, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
       init().then(() => {
         const vm = new VM(8*1024);
-        vm.set_register("A", 13);
         vm.set_halt(true);
         const lastInstructionText = document.querySelector("#ins");
         const errorText = document.querySelector("#error");
         vm.instruction_callback((i) => {
           lastInstructionText.innerText = dissasemble_instruction(i);
         });
-        console.log(vm.get_register("A"));
         function clearOutputs() {
           lastInstructionText.innerText = "";
           errorText.innerText = "";
@@ -42,6 +41,18 @@ System A A 0
 
         const programText = document.querySelector("#program");
         const programBin = document.querySelector("#binary");
+
+        const qs = window.location.search;
+        if (qs.length > 0) {
+          const qsp = new URLSearchParams(qs);
+          const b64 = qsp.get("bin");
+          const program = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+          vm.reset();
+          vm.write_program(program);
+          vm.set_halt(false);
+          programBin.value = b64;
+          programText.value = "";
+        }
         document.querySelector("#compile").onclick = () => {
           const pp = new PreProcessor();
           const lines = pp.resolve(programText.value);
