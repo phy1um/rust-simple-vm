@@ -41,7 +41,7 @@ fn main() -> Result<(), String> {
     for line in processed {
         let resolved = processor.resolve_pass2(&line).map_err(|_| format!("failed to resolve line: {}", line.get_line_number()))?;
         if args.preprocess_only {
-            for &b in resolved.as_bytes() {
+            for &b in format!("{}: {}", line.get_line_number(), resolved).as_bytes() {
                 output.push(b);
             }
             output.push(b'\n');
