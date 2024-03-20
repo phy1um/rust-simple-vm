@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en-US">
   <head>
-    <meta charset="utf-8" />
-    <title>tom's simple vm</title>
+    <meta charset="utf-8" /> <title>tom's simple vm</title>
   </head>
   <body>
+    <canvas width=400 height=400 id="canvas"></canvas>
     <div id="inputs">
     <textarea id="program" cols=80 rows=20>
 Imm B 5
@@ -26,7 +26,7 @@ System A A 0
     <script type="module">
       import init, { VM, PreProcessor, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
       init().then(() => {
-        const vm = new VM(1024);
+        const vm = new VM(8*1024);
         vm.set_register("A", 13);
         vm.set_halt(true);
         const lastInstructionText = document.querySelector("#ins");
@@ -102,6 +102,30 @@ System A A 0
 
         const uiContainer = document.createElement("pre");
         document.querySelector("#state").appendChild(uiContainer);
+        const canvas = document.querySelector("#canvas")
+        const ctx = canvas.getContext("2d");
+        const pixelSize = canvas.width/40;
+        const screenHz = 1;
+        const screenBaseAddr = 0x400;
+        let screenHzAcc = 0;
+        const screenColours = [
+          "#000",
+          "rgb(205,49,49)",
+          "rgb(13,188,121)",
+          "rgb(229,229,16)",
+          "rgb(36,114,200)",
+          "rgb(188,63,188)",
+          "rgb(17,168,205)",
+          "rgb(229,229,229)",
+          "rgb(102,102,102)",
+          "rgb(241,76,76)",
+          "rgb(35,209,139)",
+          "rgb(245,245,67)",
+          "rgb(59,142,234)",
+          "rgb(214,112,214)",
+          "rgb(41,184,219)",
+          "rgb(255,255,255)",
+        ];
         let then = performance.now();
         const loop = (now) => {
           requestAnimationFrame(loop);
@@ -115,6 +139,27 @@ System A A 0
           }
           uiContainer.innerText = vm.state();
           then = now;
+
+          screenHzAcc += dt;
+          if (screenHzAcc > screenHz) {
+            screenHzAcc -= screenHz;
+            ctx.fillStyle = "black";
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+            for (let i = 0; i < 40*40; i+=4) {
+              const addr = screenBaseAddr + (i/2); 
+              const m = vm.read_memory(addr);
+              for (let a = 0; a < 4; a++) {
+                const xx = (i+a)%40;
+                const yy = Math.floor((i+a)/40);
+                const v = (m>>(4*a))&0xf;
+                if (v == 0) {
+                  continue;
+                }
+                ctx.fillStyle = screenColours[v];
+                ctx.fillRect(xx*pixelSize, yy*pixelSize, pixelSize, pixelSize);
+              }
+            }
+          }
         };
         loop(performance.now());
       });

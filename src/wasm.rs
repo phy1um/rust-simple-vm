@@ -112,9 +112,13 @@ impl JSMachine {
             return Ok(());
         }
         self.tick_acc += dt;
-        if self.tick_acc > self.tick_rate {
+        while self.tick_acc > self.tick_rate {
             self.tick_acc -= self.tick_rate;
             self.step()?;
+            if self.m.halt {
+                self.tick_acc = 0.0;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -132,6 +136,20 @@ impl JSMachine {
     #[wasm_bindgen]
     pub fn state(&self) -> String {
         self.m.state() 
+    }
+
+    #[wasm_bindgen]
+    pub fn read_memory(&self, addr: u32) -> Result<u16, String> {
+        self.m.memory.read2(addr).ok_or(format!("invalid read @ {}", addr))
+    }
+
+    #[wasm_bindgen]
+    pub fn write_memory(&mut self, addr: u32, value: u16) -> Result<(), String> {
+        if !self.m.memory.write2(addr, value) {
+            Err(format!("invalid write @ {}", addr))
+        } else {
+            Ok(())
+        }
     }
 }
 
