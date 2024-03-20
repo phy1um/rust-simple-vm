@@ -3,7 +3,6 @@ use std::fmt;
 pub enum ArgsError {
     ExtraInput,
     UnknownFlag(String),
-    Other(String),
 }
 
 impl fmt::Display for ArgsError {
@@ -11,7 +10,6 @@ impl fmt::Display for ArgsError {
         match self {
             ArgsError::ExtraInput => write!(f, "extra input file(s)"),
             ArgsError::UnknownFlag(s) => write!(f, "unknown flag: {}", s), 
-            ArgsError::Other(msg) => write!(f, "{}", msg),
         }
     }
 }
