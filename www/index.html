@@ -5,24 +5,45 @@
     <title>tom's simple vm</title>
   </head>
   <body>
+    <div id="inputs">
     <textarea id="program" cols=80 rows=20>
 Imm B 5
 System Zero B 1
 Imm A $f0
 System A A 0
     </textarea>
+    <textarea id="binary" cols=80 rows=10></textarea>
+    <br>
     <button id="compile" text="Compile">Compile</button>
+    <button id="loadbin" text="Load Bin">Load Bin</button>
+    <button id="reset" text="Reset">Reset</button>
+    <button id="run" text="Run">Run</button>
+    <button id="step" text="Step">Step</button>
+    </div>
     <div id="state"></div>
+    <div id="ins"></div>
+    <div id="error"></div>
     <script type="module">
-      import init, { VM, assemble_line } from "./pkg/simplevm.js";
+      import init, { VM, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
       init().then(() => {
         window.VM = VM;
         window.assemble_line = assemble_line;
-        let vm = new VM(1024);
+        const vm = new VM(1024);
         vm.set_register("A", 13);
+        vm.set_halt(true);
+        const lastInstructionText = document.querySelector("#ins");
+        const errorText = document.querySelector("#error");
+        vm.instruction_callback((i) => {
+          lastInstructionText.innerText = dissasemble_instruction(i);
+        });
         console.log(vm.get_register("A"));
+        function clearOutputs() {
+          lastInstructionText.innerText = "";
+          errorText.innerText = "";
+        }
 
         const programText = document.querySelector("#program");
+        const programBin = document.querySelector("#binary");
         document.querySelector("#compile").onclick = () => {
           const lines = programText.value.split("\n");
           const program = [];
@@ -36,10 +57,41 @@ System A A 0
             program.push((v&0xff00)>>8);
           }
           const pp = new Uint8Array(program);
+          const b64 = btoa(String.fromCharCode.apply(null, pp));
+          programBin.value = b64;
           vm.reset();
           vm.write_program(pp);
-          vm.set_halt(false);
+          vm.set_halt(true);
+          clearOutputs();
         }
+        document.querySelector("#loadbin").onclick = () => {
+          const b64 = programBin.value;
+          const program = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+          vm.reset();
+          vm.write_program(program);
+          vm.set_halt(true);
+          clearOutputs();
+        };
+        document.querySelector("#reset").onclick = () => {
+          vm.reset();
+          vm.set_halt(true);
+          clearOutputs();
+        };
+        document.querySelector("#run").onclick = () => {
+          vm.set_halt(false);
+        };
+        document.querySelector("#step").onclick = () => {
+          vm.set_halt(true);
+          try {
+            vm.step();
+          } catch(e) {
+            console.error(e);
+            errorText.innerText = `${e}`;
+            vm.set_halt(true);
+          }
+        };
+
+
 
         const uiContainer = document.createElement("pre");
         document.querySelector("#state").appendChild(uiContainer);
@@ -51,6 +103,7 @@ System A A 0
             vm.tick(dt);
           } catch (e) {
             console.error(e);
+            errorText.innerText = `${e}`;
             vm.set_halt(true); 
           }
           uiContainer.innerText = vm.state();
