@@ -131,8 +131,8 @@ Flags: {:016b}",
         println!("running {}", op);
         match op {
             Instruction::Invalid(_) => Err("0 instruction".to_string()),
-            Instruction::Imm(reg, value) => {
-                self.set_register(reg, value);
+            Instruction::Imm(reg, v) => {
+                self.set_register(reg, v.value);
                 Ok(())
             }
             Instruction::Add(r0, r1, dst) => {

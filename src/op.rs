@@ -42,7 +42,7 @@ pub trait InstructionPart {
 pub enum Instruction {
     #[opcode(0xff)]
     // TODO: make u16 more restrictive
-    Imm(Register, u16), // Imm has unique instruction format, it doesn't use an opcode.
+    Imm(Register, Literal12Bit), // Imm has unique instruction format, it doesn't use an opcode.
     #[opcode(0x0)]
     Invalid(u16),
     #[opcode(0x1)]
