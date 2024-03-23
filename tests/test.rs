@@ -7,14 +7,14 @@ use common::*;
 
 macro_rules! test_set {
     ($vm:ident, $($prog:expr),+) => {
-        run(&mut $vm, &[$($prog),*, System(Zero, Zero, Nibble::new(SIGHALT))])?;
+        run(&mut $vm, &[$($prog),*, System(Zero, Zero, Nibble::new_checked(SIGHALT)?)])?;
         assert_flag_set!($vm, Flag::Compare);
     }
 }
 
 macro_rules! test_unset {
     ($vm:ident, $($prog:expr),+) => {
-        run(&mut $vm, &[$($prog),*, System(Zero, Zero, Nibble::new(SIGHALT))])?;
+        run(&mut $vm, &[$($prog),*, System(Zero, Zero, Nibble::new_checked(SIGHALT)?)])?;
         assert_flag_unset!($vm, Flag::Compare);
     }
 }

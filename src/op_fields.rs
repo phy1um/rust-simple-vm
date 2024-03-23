@@ -28,7 +28,7 @@ pub struct Literal7Bit {
 impl Literal7Bit {
     pub fn new_checked(value: u8) -> Result<Self, String> {
         if value >= 0x80 {
-            Err(format!("out of range [0x0, 0x7F]: {}", value))
+            Err(format!("out of range [0x0, 0x7F]: {:X}", value))
         } else {
             Ok(Self{value})
         }
@@ -76,7 +76,7 @@ pub struct Literal10Bit {
 impl Literal10Bit {
     pub fn new_checked(value: u16) -> Result<Self, String> {
         if value > 0x3ff {
-            Err(format!("out of range [0x0, 0x3ff]: {}", value))
+            Err(format!("out of range [0x0, 0x3ff]: {:X}", value))
         } else {
             Ok(Self{value})
         }
@@ -125,7 +125,7 @@ pub struct Literal12Bit {
 impl Literal12Bit {
     pub fn new_checked(value: u16) -> Result<Self, String> {
         if value > 0xfff {
-            Err(format!("out of range [0x0, 0xfff]: {}", value))
+            Err(format!("out of range [0x0, 0xfff]: {:X}", value))
         } else {
             Ok(Self{value})
         }
@@ -235,8 +235,39 @@ pub struct Nibble {
 }
 
 impl Nibble {
-    pub fn new(value: u8) -> Self {
-        Self { value }
+    pub fn new_checked(value: u8) -> Result<Self, String> {
+        if value > 0xf {
+            Err(format!("out of range [0x0, 0xF]: {:X}", value))
+        } else {
+            Ok(Self{value})
+        }
+    }
+
+    pub fn from_str_radix(s: &str, radix: u32) -> Result<Self, String> {
+        let res = CombinedResult::from(u8::from_str_radix(s, radix), i8::from_str_radix(s, radix)).map_err(|_| format!("invalid number {}", s))?;
+        match res {
+            CombinedResult::Left(a) => Self::new_checked(a),
+            CombinedResult::Right(b) => Self::from_signed(b),
+        }
+    }
+
+    pub fn from_signed(value: i8) -> Result<Self, String> {
+        if value >= 0 {
+            Self::new_checked(value.unsigned_abs())
+        } else {
+            let v: u8 = value.unsigned_abs();
+            let inv = !(v & 0xf);
+            Self::new_checked((inv + 1) & 0xf)
+        }
+    }
+
+    pub fn as_signed(&self) -> i8 {
+        let sgn = (self.value & 0x8) >> 3;
+        if sgn == 0 {
+            (self.value & 0xf) as i8
+        } else {
+            unsafe { std::mem::transmute(self.value | 0xf0) }
+        }
     }
 }
 

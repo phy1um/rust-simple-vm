@@ -16,7 +16,7 @@ fn test_jump() -> Result<(), String> {
             Invalid(0),
             Invalid(0),
             Invalid(0),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_reg!(vm, PC, 12);
@@ -37,7 +37,7 @@ fn test_jump_offset() -> Result<(), String> {
             Invalid(0),
             Invalid(0),
             Invalid(0),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_reg!(vm, PC, 18);
@@ -53,11 +53,11 @@ fn test_branch() -> Result<(), String> {
             Imm(A, Literal12Bit::new_checked(12)?),
             Imm(B, Literal12Bit::new_checked(13)?),
             Test(A, B, TestOp::Neq),
-            AddIf(PC, PC, Nibble::new(0x4)),
+            AddIf(PC, PC, Nibble::new_checked(0x4)?),
             Invalid(0),
             Invalid(0),
             Invalid(0),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
 
@@ -67,11 +67,11 @@ fn test_branch() -> Result<(), String> {
             Imm(A, Literal12Bit::new_checked(12)?),
             Imm(B, Literal12Bit::new_checked(13)?),
             Test(A, B, TestOp::Neq),
-            AddIf(PC, PC, Nibble::new(0x3)),
+            AddIf(PC, PC, Nibble::new_checked(0x3)?),
             Invalid(0),
             Invalid(0),
-            AddIf(PC, PC, Nibble::new(0xf)),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            AddIf(PC, PC, Nibble::new_checked(0xf)?),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     Ok(())
@@ -85,7 +85,7 @@ fn test_jump_and_link() -> Result<(), String> {
         &[
             Imm(B, Literal12Bit::new_checked(4)?),
             SetAndSave(PC, B, C),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_reg!(vm, C, 2);
@@ -98,7 +98,7 @@ fn test_jump_and_link() -> Result<(), String> {
             Invalid(0),
             Invalid(0),
             Invalid(0),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_reg!(vm, B, 2);

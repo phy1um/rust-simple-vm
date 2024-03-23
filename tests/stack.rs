@@ -17,7 +17,7 @@ fn test_push() -> Result<(), String> {
             Stack(B, SP, StackOp::Push),
             Imm(A, Literal12Bit::new_checked(1)?),
             Stack(A, SP, StackOp::Push),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_mem!(vm, vm.get_register(SP) - 2, 1);
@@ -37,7 +37,7 @@ fn test_pop() -> Result<(), String> {
             Imm(A, Literal12Bit::new_checked(521)?),
             Stack(A, SP, StackOp::Push),
             Stack(B, SP, StackOp::Pop),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_reg!(vm, B, 521);
@@ -56,7 +56,7 @@ fn test_swap() -> Result<(), String> {
             Stack(A, SP, StackOp::Push),
             Stack(B, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Swap),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_mem!(vm, vm.get_register(SP) - 2, 333);
@@ -75,7 +75,7 @@ fn test_peek() -> Result<(), String> {
             Imm(A, Literal12Bit::new_checked(521)?),
             Stack(A, SP, StackOp::Push),
             Stack(B, SP, StackOp::Peek),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_reg!(vm, B, 521);
@@ -93,7 +93,7 @@ fn test_dup() -> Result<(), String> {
             Stack(A, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Dup),
             Stack(Zero, SP, StackOp::Dup),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_mem!(vm, vm.get_register(SP) - 2, 88);
@@ -115,7 +115,7 @@ fn test_rot() -> Result<(), String> {
             Imm(A, Literal12Bit::new_checked(33)?),
             Stack(A, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Rotate),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_mem!(vm, vm.get_register(SP) - 2, 22);
@@ -135,7 +135,7 @@ fn test_stack_add() -> Result<(), String> {
             Imm(A, Literal12Bit::new_checked(60)?),
             Stack(A, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Add),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_mem!(vm, vm.get_register(SP) - 2, 100);
@@ -153,7 +153,7 @@ fn test_stack_sub() -> Result<(), String> {
             Imm(A, Literal12Bit::new_checked(60)?),
             Stack(A, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Sub),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_mem!(vm, vm.get_register(SP) - 2, 20);
@@ -172,9 +172,9 @@ fn test_load_offset() -> Result<(), String> {
             Stack(A, SP, StackOp::Push),
             Imm(A, Literal12Bit::new_checked(0x11)?),
             Stack(A, SP, StackOp::Push),
-            LoadStackOffset(C, SP, Nibble::new(3)),
-            LoadStackOffset(B, SP, Nibble::new(2)),
-            System(Zero, Zero, Nibble::new(SIGHALT)),
+            LoadStackOffset(C, SP, Nibble::new_checked(3)?),
+            LoadStackOffset(B, SP, Nibble::new_checked(2)?),
+            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
     assert_reg!(vm, C, 0x33);
