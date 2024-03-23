@@ -174,15 +174,11 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                                 | ((#argname.value&0x0380 as u16) << 5);
                         });
                         part_decoders.extend(quote!{
-                            let #argname = Literal10Bit::new(((ins&0xf) as u16) | (((ins&0xe00)>>5) as u16) | (((ins&0x7000)>>5) as u16));
+                            let #argname = Literal10Bit::new_checked(((ins&0xf) as u16) | (((ins&0xe00)>>5) as u16) | (((ins&0x7000)>>5) as u16))?;
                         });
                         part_stringers.extend(quote!{
-                            let #argname = Literal10Bit::new(Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
-                                Self::Err::Fail(format!("invalid number {}", parts[2]))
-                            })?);
-                            if #argname.value > 0x3ff {
-                                return Err(Self::Err::Fail(format!("10bit literal out of range {}", parts[2])))
-                            };
+                            let (part, radix) = Instruction::pre_handle_number(&parts[#part_index]).map_err(|x| Self::Err::Fail(x))?;
+                            let #argname = Literal10Bit::from_str_radix(part, radix).map_err(|x| Self::Err::Fail(x))?;
                         });
                     }
                     ("Literal12Bit", i) => {

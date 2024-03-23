@@ -101,7 +101,7 @@ mod test {
             ShiftRightArithmetic(M, BP, Nibble::new(0xe)),
             Load(A, C, M),
             Store(C, A, M),
-            JumpOffset(Literal10Bit::new(1000)),
+            JumpOffset(Literal10Bit::new_checked(1000)?),
             SetAndSave(A, B, C),
             AddAndSave(PC, B, C),
             Test(BP, A, TestOp::Gte),
