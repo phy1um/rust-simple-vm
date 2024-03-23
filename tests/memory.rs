@@ -16,10 +16,10 @@ fn test_load() -> Result<(), String> {
         },
         Imm(B, Literal12Bit::new_checked(0x100)?),
         Imm(C, Literal12Bit::new_checked(0x100)?),
-        ShiftLeft(C, C, Nibble::new(4)),
+        ShiftLeft(C, C, Nibble::new_checked(4)?),
         Load(A, B, Zero),
         Load(M, C, Zero),
-        System(Zero, Zero, Nibble::new(SIGHALT))
+        System(Zero, Zero, Nibble::new_checked(SIGHALT)?)
     );
     assert_reg!(vm, A, 0x77);
     assert_reg!(vm, M, 0x999);
@@ -37,7 +37,7 @@ fn test_store() -> Result<(), String> {
         Store(B, Zero, A),
         Imm(B, Literal12Bit::new_checked(0x22)?),
         Store(B, Zero, A),
-        System(Zero, Zero, Nibble::new(SIGHALT))
+        System(Zero, Zero, Nibble::new_checked(SIGHALT)?)
     );
     assert_mem!(vm, 0x11, 0x99);
     assert_mem!(vm, 0x22, 0x99);

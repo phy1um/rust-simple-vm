@@ -202,15 +202,11 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                             op_parts[#i] = (#argname.value as u16)&0xf;
                         });
                         part_decoders.extend(quote! {
-                            let #argname = Nibble::new((ins&0xf) as u8);
+                            let #argname = Nibble::new_checked((ins&0xf) as u8)?;
                         });
                         part_stringers.extend(quote!{
-                            let #argname = Nibble::new(Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
-                                Self::Err::Fail(format!("invalid number {}", parts[2]))
-                            })? as u8);
-                            if #argname.value > 0xf {
-                                return Err(Self::Err::Fail(format!("nibble out of range {}", parts[2])))
-                            };
+                            let (part, radix) = Instruction::pre_handle_number(&parts[#part_index]).map_err(|x| Self::Err::Fail(x))?;
+                            let #argname = Nibble::from_str_radix(part, radix).map_err(|x| Self::Err::Fail(x))?;
                         });
                     }                    
                     ("TestOp", i) => {
