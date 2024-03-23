@@ -159,7 +159,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                             op_parts[#i] = ((#argname.value&0xf)as u16) | (((#argname.value as u16)&0x70) << 5);
                         });
                         part_decoders.extend(quote!{
-                            let #argname = Literal7Bit::new(((ins&0xf) as u8) | (((ins&0xe00)>>5) as u8));
+                            let #argname = Literal7Bit::new_checked(((ins&0xf) as u8) | (((ins&0xe00)>>5) as u8))?;
                         });
                         part_stringers.extend(quote!{
                             let (part, radix) = Instruction::pre_handle_number(&parts[#part_index]).map_err(|x| Self::Err::Fail(x))?;
