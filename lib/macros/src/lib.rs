@@ -239,20 +239,6 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                             })?;
                         });
                     }
-                    ("u16", i) => {
-                        let argname = get_arg_name(i)?;
-                        let part_index = i + 1;
-                        part_encoders.extend(quote!(op_parts[#i] = #argname&0xfff;));
-                        part_decoders.extend(quote!(let #argname = ins&0xfff;));
-                        part_stringers.extend(quote!{
-                            let #argname = Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
-                                Self::Err::Fail(format!("invalid number {}", parts[2]))
-                            })?;
-                            if #argname > 0xfff {
-                                return Err(Self::Err::Fail(format!("number out of range {}", parts[2])))
-                            };
-                        });
-                    }
                     (_, _) => {
                         panic!("invalid type {} at place {}", type_name, i)
                     }
