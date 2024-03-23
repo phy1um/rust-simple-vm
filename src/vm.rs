@@ -130,7 +130,7 @@ Flags: {:016b}",
         let op = Instruction::try_from(instruction)?;
         println!("running {}", op);
         match op {
-            Instruction::Invalid(_) => Err("0 instruction".to_string()),
+            Instruction::Invalid => Err("0 instruction".to_string()),
             Instruction::Imm(reg, v) => {
                 self.set_register(reg, v.value);
                 Ok(())

@@ -97,13 +97,13 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
         let opcode_value = variant_opcode_value(x);
         if let syn::Fields::Unit = &x.fields {
             field_u16_encodings.extend(quote! {
-                Self::#name => #opcode_value as u16
+                Self::#name => #opcode_value as u16,
             });
             field_u16_decodings.extend(quote! {
-                #opcode_value => Ok(Self::#name)
+                #opcode_value => Ok(Self::#name),
             });
             field_to_string.extend(quote! {
-                Self::#name => write!(f, stringify!(#name))
+                Self::#name => write!(f, stringify!(#name)),
             });
             field_from_str.extend(quote! {
                 stringify!(#name) => {
