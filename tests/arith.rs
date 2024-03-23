@@ -11,8 +11,8 @@ fn test_add() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 11),
-            Imm(B, 15),
+            Imm(A, Literal12Bit::new_checked(11)?),
+            Imm(B, Literal12Bit::new_checked(15)?),
             Add(A, B, C),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
@@ -27,8 +27,8 @@ fn test_sub() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 20),
-            Imm(B, 15),
+            Imm(A, Literal12Bit::new_checked(20)?),
+            Imm(B, Literal12Bit::new_checked(15)?),
             Sub(A, B, C),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
@@ -43,8 +43,8 @@ fn test_sub() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 10),
-            Imm(B, 52),
+            Imm(A, Literal12Bit::new_checked(10)?),
+            Imm(B, Literal12Bit::new_checked(52)?),
             Sub(A, B, C),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
@@ -60,7 +60,7 @@ fn test_add_imm() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 23),
+            Imm(A, Literal12Bit::new_checked(23)?),
             AddImm(A, Literal7Bit::new(4)),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
@@ -75,8 +75,8 @@ fn test_add_imm_signed() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(C, 0x5E),
-            AddImmSigned(C, Literal7Bit::from_signed(-5)),
+            Imm(C, Literal12Bit::new_checked(0x5E)?),
+            AddImmSigned(C, Literal7Bit::from_signed(-5)?),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
     )?;
@@ -85,8 +85,8 @@ fn test_add_imm_signed() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(B, 29),
-            AddImmSigned(B, Literal7Bit::from_signed(-29)),
+            Imm(B, Literal12Bit::new_checked(29)?),
+            AddImmSigned(B, Literal7Bit::from_signed(-29)?),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
     )?;
@@ -100,7 +100,7 @@ fn test_shift_left() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(C, 0xff),
+            Imm(C, Literal12Bit::new_checked(0xff)?),
             ShiftLeft(C, B, Nibble::new(4)),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
@@ -115,7 +115,7 @@ fn test_shift_right() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 0x8fc),
+            Imm(A, Literal12Bit::new_checked(0x8fc)?),
             ShiftLeft(A, A, Nibble::new(4)),
             AddImm(A, Literal7Bit::new(0x7)),
             // A = 0x8FC7
@@ -128,7 +128,7 @@ fn test_shift_right() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 0xff0),
+            Imm(A, Literal12Bit::new_checked(0xff0)?),
             ShiftLeft(A, A, Nibble::new(4)),
             AddImm(A, Literal7Bit::new(0x70)),
             // A = 0xff70
