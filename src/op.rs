@@ -44,7 +44,7 @@ pub enum Instruction {
     // TODO: make u16 more restrictive
     Imm(Register, Literal12Bit), // Imm has unique instruction format, it doesn't use an opcode.
     #[opcode(0x0)]
-    Invalid(u16),
+    Invalid,
     #[opcode(0x1)]
     Add(Register, Register, Register),
     #[opcode(0x2)]
