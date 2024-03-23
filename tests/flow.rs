@@ -32,7 +32,7 @@ fn test_jump_offset() -> Result<(), String> {
             Add(Zero, Zero, Zero),
             Add(Zero, Zero, Zero),
             Add(Zero, Zero, Zero),
-            JumpOffset(Literal10Bit::new(10)),
+            JumpOffset(Literal10Bit::new_checked(10)?),
             Invalid(0),
             Invalid(0),
             Invalid(0),

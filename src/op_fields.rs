@@ -74,10 +74,6 @@ pub struct Literal10Bit {
 }
 
 impl Literal10Bit {
-    pub fn new(value: u16) -> Self {
-        Self { value }
-    }
-
     pub fn new_checked(value: u16) -> Result<Self, String> {
         if value > 0x3ff {
             Err(format!("out of range [0x0, 0x3ff]: {}", value))
@@ -127,10 +123,6 @@ pub struct Literal12Bit {
 }
 
 impl Literal12Bit {
-    pub fn new(value: u16) -> Self {
-        Self { value }
-    }
-
     pub fn new_checked(value: u16) -> Result<Self, String> {
         if value > 0xfff {
             Err(format!("out of range [0x0, 0xfff]: {}", value))
