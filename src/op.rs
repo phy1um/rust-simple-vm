@@ -91,7 +91,7 @@ mod test {
     #[test]
     fn test_encodings() -> Result<(), String> {
         let ops = vec![
-            Imm(M, 0x30),
+            Imm(M, Literal12Bit::new_checked(0x30)?),
             AddImm(C, Literal7Bit::new(0x20)),
             AddImmSigned(A, Literal7Bit::new(0x7)),
             Add(C, B, A),
@@ -118,12 +118,13 @@ mod test {
     }
     
     #[test]
-    fn test_literal_7b() {
-        assert!(Literal7Bit::from_signed(-1).value == 0b111_1111);
-        assert!(Literal7Bit::from_signed(-5).value == 0b111_1011);
-        assert!(Literal7Bit::from_signed(-30).value == 0b110_0010);
-        assert!(Literal7Bit::from_signed(-10).as_signed() == -10);
-        assert!(Literal7Bit::from_signed(-30).as_signed() == -30);
-        assert!(Literal7Bit::from_signed(-29).as_signed() == -29);
+    fn test_literal_7b() -> Result<(), String> {
+        assert!(Literal7Bit::from_signed(-1)?.value == 0b111_1111);
+        assert!(Literal7Bit::from_signed(-5)?.value == 0b111_1011);
+        assert!(Literal7Bit::from_signed(-30)?.value == 0b110_0010);
+        assert!(Literal7Bit::from_signed(-10)?.as_signed() == -10);
+        assert!(Literal7Bit::from_signed(-30)?.as_signed() == -30);
+        assert!(Literal7Bit::from_signed(-29)?.as_signed() == -29);
+        Ok(())
     }
 }

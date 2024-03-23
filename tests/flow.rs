@@ -11,7 +11,7 @@ fn test_jump() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(PC, 10),
+            Imm(PC, Literal12Bit::new_checked(10)?),
             Invalid(0),
             Invalid(0),
             Invalid(0),
@@ -50,8 +50,8 @@ fn test_branch() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 12),
-            Imm(B, 13),
+            Imm(A, Literal12Bit::new_checked(12)?),
+            Imm(B, Literal12Bit::new_checked(13)?),
             Test(A, B, TestOp::Neq),
             AddIf(PC, PC, Nibble::new(0x4)),
             Invalid(0),
@@ -64,8 +64,8 @@ fn test_branch() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 12),
-            Imm(B, 13),
+            Imm(A, Literal12Bit::new_checked(12)?),
+            Imm(B, Literal12Bit::new_checked(13)?),
             Test(A, B, TestOp::Neq),
             AddIf(PC, PC, Nibble::new(0x3)),
             Invalid(0),
@@ -83,7 +83,7 @@ fn test_jump_and_link() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(B, 4),
+            Imm(B, Literal12Bit::new_checked(4)?),
             SetAndSave(PC, B, C),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
@@ -93,7 +93,7 @@ fn test_jump_and_link() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 8),
+            Imm(A, Literal12Bit::new_checked(8)?),
             AddAndSave(PC, A, B),
             Invalid(0),
             Invalid(0),

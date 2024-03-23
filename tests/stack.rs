@@ -11,11 +11,11 @@ fn test_push() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 123),
+            Imm(A, Literal12Bit::new_checked(123)?),
             Stack(A, SP, StackOp::Push),
-            Imm(B, 222),
+            Imm(B, Literal12Bit::new_checked(222)?),
             Stack(B, SP, StackOp::Push),
-            Imm(A, 1),
+            Imm(A, Literal12Bit::new_checked(1)?),
             Stack(A, SP, StackOp::Push),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
@@ -32,9 +32,9 @@ fn test_pop() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 188),
+            Imm(A, Literal12Bit::new_checked(188)?),
             Stack(A, SP, StackOp::Push),
-            Imm(A, 521),
+            Imm(A, Literal12Bit::new_checked(521)?),
             Stack(A, SP, StackOp::Push),
             Stack(B, SP, StackOp::Pop),
             System(Zero, Zero, Nibble::new(SIGHALT)),
@@ -51,8 +51,8 @@ fn test_swap() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 333),
-            Imm(B, 111),
+            Imm(A, Literal12Bit::new_checked(333)?),
+            Imm(B, Literal12Bit::new_checked(111)?),
             Stack(A, SP, StackOp::Push),
             Stack(B, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Swap),
@@ -70,9 +70,9 @@ fn test_peek() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 188),
+            Imm(A, Literal12Bit::new_checked(188)?),
             Stack(A, SP, StackOp::Push),
-            Imm(A, 521),
+            Imm(A, Literal12Bit::new_checked(521)?),
             Stack(A, SP, StackOp::Push),
             Stack(B, SP, StackOp::Peek),
             System(Zero, Zero, Nibble::new(SIGHALT)),
@@ -89,7 +89,7 @@ fn test_dup() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 88),
+            Imm(A, Literal12Bit::new_checked(88)?),
             Stack(A, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Dup),
             Stack(Zero, SP, StackOp::Dup),
@@ -108,11 +108,11 @@ fn test_rot() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 11),
+            Imm(A, Literal12Bit::new_checked(11)?),
             Stack(A, SP, StackOp::Push),
-            Imm(A, 22),
+            Imm(A, Literal12Bit::new_checked(22)?),
             Stack(A, SP, StackOp::Push),
-            Imm(A, 33),
+            Imm(A, Literal12Bit::new_checked(33)?),
             Stack(A, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Rotate),
             System(Zero, Zero, Nibble::new(SIGHALT)),
@@ -130,9 +130,9 @@ fn test_stack_add() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 40),
+            Imm(A, Literal12Bit::new_checked(40)?),
             Stack(A, SP, StackOp::Push),
-            Imm(A, 60),
+            Imm(A, Literal12Bit::new_checked(60)?),
             Stack(A, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Add),
             System(Zero, Zero, Nibble::new(SIGHALT)),
@@ -148,9 +148,9 @@ fn test_stack_sub() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 40),
+            Imm(A, Literal12Bit::new_checked(40)?),
             Stack(A, SP, StackOp::Push),
-            Imm(A, 60),
+            Imm(A, Literal12Bit::new_checked(60)?),
             Stack(A, SP, StackOp::Push),
             Stack(Zero, SP, StackOp::Sub),
             System(Zero, Zero, Nibble::new(SIGHALT)),
@@ -166,11 +166,11 @@ fn test_load_offset() -> Result<(), String> {
     run(
         &mut vm,
         &[
-            Imm(A, 0x33),
+            Imm(A, Literal12Bit::new_checked(0x33)?),
             Stack(A, SP, StackOp::Push),
-            Imm(A, 0x22),
+            Imm(A, Literal12Bit::new_checked(0x22)?),
             Stack(A, SP, StackOp::Push),
-            Imm(A, 0x11),
+            Imm(A, Literal12Bit::new_checked(0x11)?),
             Stack(A, SP, StackOp::Push),
             LoadStackOffset(C, SP, Nibble::new(3)),
             LoadStackOffset(B, SP, Nibble::new(2)),
