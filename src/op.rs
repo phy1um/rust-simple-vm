@@ -1,7 +1,9 @@
-use crate::register::Register;
-use macros::{StringyEnum, VmInstruction};
+use macros::VmInstruction;
 use std::fmt;
 use std::str::FromStr;
+
+use crate::register::Register;
+use crate::op_fields::*;
 
 /**
  * TYPE A
@@ -34,138 +36,6 @@ pub enum InstructionParseError {
 pub trait InstructionPart {
     fn as_mask(&self) -> u16;
     fn from_instruction(ins: u16) -> Self;
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Literal7Bit {
-    pub value: u8,
-}
-
-impl Literal7Bit {
-    pub fn new(value: u8) -> Self {
-        Self { value }
-    }
-
-    pub fn from_signed(value: i8) -> Self {
-        if value >= 0 {
-            Self::new(value.unsigned_abs())
-        } else {
-            let v: u8 = value.unsigned_abs();
-            let inv = !(v & 0x7f);
-            Self::new((inv + 1) & 0x7f)
-        }
-    }
-
-    pub fn as_signed(&self) -> i8 {
-        let sgn = (self.value & 0x40) >> 6;
-        if sgn == 0 {
-            (self.value & 0x7f) as i8
-        } else {
-            unsafe { std::mem::transmute(self.value | 0x80) }
-        }
-    }
-}
-
-impl fmt::Display for Literal7Bit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Literal10Bit {
-    pub value: u16,
-}
-
-impl Literal10Bit {
-    pub fn new(value: u16) -> Self {
-        Self { value }
-    }
-}
-
-impl fmt::Display for Literal10Bit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
-
-#[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, StringyEnum)]
-pub enum TestOp {
-    Eq,
-    Neq,
-    Lt,
-    Lte,
-    Gt,
-    Gte,
-    BothZero,
-    EitherNonZero,
-    BothNonZero,
-}
-
-impl TryFrom<u16> for TestOp {
-    type Error = String;
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        match value {
-            x if x == TestOp::Eq as u16 => Ok(TestOp::Eq),
-            x if x == TestOp::Neq as u16 => Ok(TestOp::Neq),
-            x if x == TestOp::Lt as u16 => Ok(TestOp::Lt),
-            x if x == TestOp::Lte as u16 => Ok(TestOp::Lte),
-            x if x == TestOp::Gt as u16 => Ok(TestOp::Gt),
-            x if x == TestOp::Gte as u16 => Ok(TestOp::Gte),
-            x if x == TestOp::BothZero as u16 => Ok(TestOp::BothZero),
-            x if x == TestOp::BothNonZero as u16 => Ok(TestOp::BothNonZero),
-            x if x == TestOp::EitherNonZero as u16 => Ok(TestOp::EitherNonZero),
-            _ => Err(format!("unknown test op value {}", value)),
-        }
-    }
-}
-
-#[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, StringyEnum)]
-pub enum StackOp {
-    Pop,
-    Push,
-    Peek,
-    Swap,
-    Dup,
-    Rotate,
-    Add,
-    Sub,
-}
-
-impl TryFrom<u16> for StackOp {
-    type Error = String;
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        match value {
-            x if x == StackOp::Pop as u16 => Ok(StackOp::Pop),
-            x if x == StackOp::Push as u16 => Ok(StackOp::Push),
-            x if x == StackOp::Peek as u16 => Ok(StackOp::Peek),
-            x if x == StackOp::Swap as u16 => Ok(StackOp::Swap),
-            x if x == StackOp::Dup as u16 => Ok(StackOp::Dup),
-            x if x == StackOp::Rotate as u16 => Ok(StackOp::Rotate),
-            x if x == StackOp::Add as u16 => Ok(StackOp::Add),
-            x if x == StackOp::Sub as u16 => Ok(StackOp::Sub),
-            _ => Err(format!("unknown stack op value {}", value)),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Nibble {
-    pub value: u8,
-}
-
-impl Nibble {
-    pub fn new(value: u8) -> Self {
-        Self { value }
-    }
-}
-
-impl fmt::Display for Nibble {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
 }
 
 #[derive(Debug, VmInstruction, PartialEq, Eq)]
@@ -246,7 +116,7 @@ mod test {
         }
         Ok(())
     }
-
+    
     #[test]
     fn test_literal_7b() {
         assert!(Literal7Bit::from_signed(-1).value == 0b111_1111);
