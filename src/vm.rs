@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::memory::{Addressable, LinearMemory};
-use crate::op::{Instruction, StackOp, TestOp};
+use crate::op::{Instruction};
+use crate::op_fields::{StackOp, TestOp};
 use crate::register::{Flag, Register};
 
 type SignalFunction = fn(&mut Machine, arg: u16) -> Result<(), String>;

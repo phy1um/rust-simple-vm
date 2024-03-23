@@ -162,12 +162,8 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                             let #argname = Literal7Bit::new(((ins&0xf) as u8) | (((ins&0xe00)>>5) as u8));
                         });
                         part_stringers.extend(quote!{
-                            let #argname = Literal7Bit::new(Instruction::parse_numeric(&parts[#part_index]).map_err(|_| {
-                                Self::Err::Fail(format!("invalid number {}", parts[2]))
-                            })? as u8);
-                            if #argname.value > 0x7f {
-                                return Err(Self::Err::Fail(format!("7bit literal out of range {}", parts[2])))
-                            };
+                            let (part, radix) = Instruction::pre_handle_number(&parts[#part_index]).map_err(|x| Self::Err::Fail(x))?;
+                            let #argname = Literal7Bit::from_str_radix(part, radix).map_err(|x| Self::Err::Fail(x))?;
                         });
                     }
                     ("Literal10Bit", i) => {
@@ -336,6 +332,18 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                 }
             }
 
+            fn pre_handle_number(s: &str) -> Result<(&str, u32), String> {
+                if s.len() == 0 {
+                    return Err("string has no length".to_string());
+                }
+                let fst = s.chars().nth(0).unwrap();
+                Ok(match fst {
+                    '$' => (&s[1..], 16),
+                    '%' => (&s[1..], 2),
+                    _ => (s, 10)
+                })
+            }
+
             fn parse_numeric(s: &str) -> Result<u16, String> {
                 if s.len() == 0 {
                     return Err("string has no length".to_string());
@@ -360,6 +368,16 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                     _ => (s, 10)
                 };
                 i16::from_str_radix(num, radix).map_err(|x| format!("{}", x))
+            }
+
+            fn result_join<A,B,E>(left: Result<A, E>, right: Result<B, E>) -> Result<Result<A,B>, E> {
+                match left {
+                    Ok(a) => Ok(Ok(a)),
+                    Err(_) => match right {
+                        Ok(b) => Ok(Err(b)),
+                        Err(e2) => Err(e2),
+                    }
+                }
             }
         }
 
