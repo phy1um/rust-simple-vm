@@ -185,6 +185,20 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                             };
                         });
                     }
+                    ("Literal12Bit", i) => {
+                        let argname = get_arg_name(i)?;
+                        let part_index = i + 1;
+                        part_encoders.extend(quote!{
+                            op_parts[#i] = #argname.value&0xfff;
+                        });
+                        part_decoders.extend(quote!{
+                            let #argname = Literal12Bit::new_checked(ins&0xfff)?;
+                        });
+                        part_stringers.extend(quote!{
+                            let (part, radix) = Instruction::pre_handle_number(&parts[#part_index]).map_err(|x| Self::Err::Fail(x))?;
+                            let #argname = Literal12Bit::from_str_radix(part, radix).map_err(|x| Self::Err::Fail(x))?;
+                        });
+                    }
                     ("Nibble", i) => {
                         let argname = get_arg_name(i)?;
                         let part_index = i + 1;
@@ -395,7 +409,8 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                     // match immediate
                     let register_bits = ((ins & 0x7000) >> 12) as u8;
                     let register = Register::from_u8(register_bits).ok_or("invalid register")?;
-                    Ok(Instruction::Imm(register, ins&0xfff))
+                    let lit = Literal12Bit::new_checked(ins&0xfff)?;
+                    Ok(Instruction::Imm(register, lit))
                 }
             }
         }
