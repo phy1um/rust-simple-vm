@@ -26,10 +26,6 @@ pub struct Literal7Bit {
 }
 
 impl Literal7Bit {
-    pub fn new(value: u8) -> Self {
-        Self { value }
-    }
-
     pub fn new_checked(value: u8) -> Result<Self, String> {
         if value >= 0x80 {
             Err(format!("out of range [0x0, 0x7F]: {}", value))
@@ -258,4 +254,18 @@ impl fmt::Display for Nibble {
     }
 }
 
+#[cfg(test)]
+mod test {
+    use super::*;
 
+    #[test]
+    fn test_literal_7b() -> Result<(), String> {
+        assert!(Literal7Bit::from_signed(-1)?.value == 0b111_1111);
+        assert!(Literal7Bit::from_signed(-5)?.value == 0b111_1011);
+        assert!(Literal7Bit::from_signed(-30)?.value == 0b110_0010);
+        assert!(Literal7Bit::from_signed(-10)?.as_signed() == -10);
+        assert!(Literal7Bit::from_signed(-30)?.as_signed() == -30);
+        assert!(Literal7Bit::from_signed(-29)?.as_signed() == -29);
+        Ok(())
+    }
+}

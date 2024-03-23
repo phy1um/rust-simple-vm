@@ -61,7 +61,7 @@ fn test_add_imm() -> Result<(), String> {
         &mut vm,
         &[
             Imm(A, Literal12Bit::new_checked(23)?),
-            AddImm(A, Literal7Bit::new(4)),
+            AddImm(A, Literal7Bit::new_checked(4)?),
             System(Zero, Zero, Nibble::new(SIGHALT)),
         ],
     )?;
@@ -117,7 +117,7 @@ fn test_shift_right() -> Result<(), String> {
         &[
             Imm(A, Literal12Bit::new_checked(0x8fc)?),
             ShiftLeft(A, A, Nibble::new(4)),
-            AddImm(A, Literal7Bit::new(0x7)),
+            AddImm(A, Literal7Bit::new_checked(0x7)?),
             // A = 0x8FC7
             ShiftRightLogical(A, C, Nibble::new(3)),
             System(Zero, Zero, Nibble::new(SIGHALT)),
@@ -130,7 +130,7 @@ fn test_shift_right() -> Result<(), String> {
         &[
             Imm(A, Literal12Bit::new_checked(0xff0)?),
             ShiftLeft(A, A, Nibble::new(4)),
-            AddImm(A, Literal7Bit::new(0x70)),
+            AddImm(A, Literal7Bit::new_checked(0x70)?),
             // A = 0xff70
             ShiftRightArithmetic(A, C, Nibble::new(2)),
             System(Zero, Zero, Nibble::new(SIGHALT)),
