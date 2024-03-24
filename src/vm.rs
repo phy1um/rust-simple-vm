@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::memory::{Addressable, LinearMemory};
+use crate::memory::{Addressable, MemoryMapper};
 use crate::op::{Instruction};
 use crate::op_fields::{StackOp, TestOp};
 use crate::register::{Flag, Register};
@@ -12,7 +12,7 @@ pub struct Machine {
     signal_handlers: HashMap<u8, SignalFunction>,
     flags: u16,
     pub halt: bool,
-    pub memory: Box<dyn Addressable>,
+    pub memory: MemoryMapper,
 }
 
 impl Default for Machine {
@@ -22,17 +22,20 @@ impl Default for Machine {
             signal_handlers: HashMap::new(),
             halt: false,
             flags: 0,
-            memory: Box::new(LinearMemory::new(8 * 1024)),
+            memory: MemoryMapper::new(),
         }
     }
 }
 
 impl Machine {
-    pub fn new(memory_words: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            memory: Box::new(LinearMemory::new(2 * memory_words)),
             ..Self::default()
         }
+    }
+
+    pub fn map(&mut self, start: usize, size: usize, a: Box<dyn Addressable>) -> Result<(), String> {
+        self.memory.map(start, size, a)
     }
 
     pub fn reset(&mut self) {
@@ -295,13 +298,11 @@ Flags: {:016b}",
             Instruction::LoadStackOffset(tgt, sp, word_offset) => {
                 let base = self.get_register(sp);
                 let addr = base - ((word_offset.value as u16) * 2);
-                self.set_register(
-                    tgt,
-                    self.memory.read2(addr as u32).ok_or(format!(
-                        "invalid stack read: stack={}, offset={:X} @ {:X}",
-                        sp, word_offset.value, addr
-                    ))?,
-                );
+                let stack_value = self.memory.read2(addr as u32).ok_or(format!(
+                    "invalid stack read: stack={}, offset={:X} @ {:X}",
+                    sp, word_offset.value, addr
+                ))?;
+                self.set_register(tgt, stack_value);
                 Ok(())
             }
             Instruction::System(Register::Zero, reg_arg, signal) => {

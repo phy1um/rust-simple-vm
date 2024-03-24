@@ -8,6 +8,7 @@ pub mod pp;
 pub use crate::op::*;
 pub use crate::op_fields::*;
 pub use crate::register::*;
+pub use crate::memory::*;
 pub use crate::vm::*;
 
 #[cfg(target_family = "wasm")]
