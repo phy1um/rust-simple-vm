@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{stdin, BufReader, Read};
 use std::path::Path;
 
-use simplevm::{Machine, Register, LinearMemory, Addressable};
+use simplevm::{Machine, Register, LinearMemory, Addressable, MemoryError};
 
 fn signal_halt(vm: &mut Machine, _: u16) -> Result<(), String> {
     vm.halt = true;

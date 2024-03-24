@@ -39,7 +39,7 @@ impl Machine {
     }
 
     pub fn reset(&mut self) {
-        self.memory.zero_all();
+        let _ = self.memory.zero_all();
         self.registers = [0; 8];
         self.flags = 0;
         self.halt = false;
@@ -85,30 +85,20 @@ Flags: {:016b}",
 
     pub fn pop(&mut self, stack_pointer_register: Register) -> Result<u16, String> {
         let sp = self.get_register(stack_pointer_register) - 2;
-        if let Some(v) = self.memory.read2(sp as u32) {
-            self.set_register(stack_pointer_register, sp);
-            Ok(v)
-        } else {
-            Err(format!("memory read fault @ 0x{:X}", sp))
-        }
+        let v = self.memory.read2(sp as u32).map_err(|x| x.to_string())?;
+        self.set_register(stack_pointer_register, sp);
+        Ok(v)
     }
 
     pub fn peek(&mut self, stack_pointer_register: Register) -> Result<u16, String> {
         let sp = self.get_register(stack_pointer_register) - 2;
-        if let Some(v) = self.memory.read2(sp as u32) {
-            Ok(v)
-        } else {
-            Err(format!("memory read fault @ 0x{:X}", sp))
-        }
+        self.memory.read2(sp as u32).map_err(|x| x.to_string())
     }
 
     pub fn push(&mut self, stack_pointer_register: Register, v: u16) -> Result<(), String> {
         let sp = self.get_register(stack_pointer_register);
-        if !self.memory.write2(sp as u32, v) {
-            return Err(format!("memory write fault @ 0x{:X}", sp));
-        }
         self.set_register(stack_pointer_register, sp + 2);
-        Ok(())
+        self.memory.write2(sp as u32, v).map_err(|x| x.to_string())
     }
 
     pub fn set_flag(&mut self, flag: Flag, state: bool) {
@@ -128,7 +118,7 @@ Flags: {:016b}",
         let instruction = self
             .memory
             .read2(pc as u32)
-            .ok_or(format!("pc read fail @ 0x{:X}", pc))?;
+            .map_err(|x| x.to_string())?;
         self.set_flag(Flag::DidJump, false);
         let op = Instruction::try_from(instruction)?;
         println!("running {}", op);
@@ -193,7 +183,7 @@ Flags: {:016b}",
                 let w = self
                     .memory
                     .read2(addr)
-                    .ok_or(format!("failed to read word @ {}", addr))?;
+                    .map_err(|x| x.to_string())?;
                 self.set_register(r0, w);
                 Ok(())
             }
@@ -201,14 +191,7 @@ Flags: {:016b}",
                 let base = self.get_register(r0);
                 let page = self.get_register(r1);
                 let addr = (base as u32) + ((page as u32) << 16);
-                match self.memory.write2(addr, self.get_register(r2)) {
-                    true => Ok(()),
-                    false => Err(format!(
-                        "failed to write word {} @ {}",
-                        self.get_register(r2),
-                        addr
-                    )),
-                }
+                self.memory.write2(addr, self.get_register(r2)).map_err(|x| x.to_string())
             }
             Instruction::JumpOffset(b) => {
                 self.set_register(Register::PC, self.get_register(Register::PC) + b.value);
@@ -298,10 +281,7 @@ Flags: {:016b}",
             Instruction::LoadStackOffset(tgt, sp, word_offset) => {
                 let base = self.get_register(sp);
                 let addr = base - ((word_offset.value as u16) * 2);
-                let stack_value = self.memory.read2(addr as u32).ok_or(format!(
-                    "invalid stack read: stack={}, offset={:X} @ {:X}",
-                    sp, word_offset.value, addr
-                ))?;
+                let stack_value = self.memory.read2(addr as u32).map_err(|x| x.to_string())?;
                 self.set_register(tgt, stack_value);
                 Ok(())
             }
