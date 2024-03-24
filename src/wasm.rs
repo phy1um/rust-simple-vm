@@ -4,6 +4,35 @@ use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 use crate::*;
 
+struct JSMemCallback {
+    on_read: js_sys::Function,
+    on_write: js_sys::Function,
+}
+
+impl JSMemCallback {
+    fn new(on_read: js_sys::Function, on_write: js_sys::Function) -> Self {
+       Self { on_read, on_write } 
+    }
+}
+
+impl Addressable for JSMemCallback {
+    fn read(&mut self, addr: u32) -> Result<u8, MemoryError> {
+        let this = JsValue::null();
+        self.on_read.call1(&this, &JsValue::from(addr));
+        Ok(0)
+    }
+
+    fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {
+        let this = JsValue::null();
+        self.on_write.call2(&this, &JsValue::from(addr), &JsValue::from(value));
+        Ok(())
+    }
+
+    fn zero_all(&mut self) -> Result<(), MemoryError> {
+        Ok(())
+    }
+}
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
@@ -59,17 +88,24 @@ struct JSMachine {
 #[wasm_bindgen(js_class = VM)]
 impl JSMachine {
     #[wasm_bindgen(constructor)]
-    pub fn new(memory_size: usize) -> Self {
-        let mut m = Machine::new(memory_size);
+    pub fn new(memory_size: usize, tick_every_secs: f32) -> Self {
+        let mut m = Machine::new();
+        let _ = m.map(0, memory_size, Box::new(LinearMemory::new(memory_size)));
         m.halt = true;
         m.define_handler(0xf0, signal_halt);
         m.define_handler(0x1, signal_write);
         Self {
             m,
-            tick_rate: 0.1,
+            tick_rate: tick_every_secs,
             tick_acc: 0.0,
             on_run_instruction: None,
         }
+    }
+
+    #[wasm_bindgen]
+    pub fn map_memory_func(&mut self, start: usize, size: usize, 
+            on_read: js_sys::Function, on_write: js_sys::Function) {
+        self.m.map(start, size, Box::new(JSMemCallback::new(on_read, on_write)));
     }
 
     #[wasm_bindgen]
@@ -139,17 +175,13 @@ impl JSMachine {
     }
 
     #[wasm_bindgen]
-    pub fn read_memory(&self, addr: u32) -> Result<u16, String> {
-        self.m.memory.read2(addr).ok_or(format!("invalid read @ {}", addr))
+    pub fn read_memory(&mut self, addr: u32) -> Result<u16, String> {
+        self.m.memory.read2(addr).map_err(|x| x.to_string())
     }
 
     #[wasm_bindgen]
     pub fn write_memory(&mut self, addr: u32, value: u16) -> Result<(), String> {
-        if !self.m.memory.write2(addr, value) {
-            Err(format!("invalid write @ {}", addr))
-        } else {
-            Ok(())
-        }
+        self.m.memory.write2(addr, value).map_err(|x| x.to_string())
     }
 }
 
