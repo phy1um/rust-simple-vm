@@ -21,7 +21,7 @@ macro_rules! test_unset {
 
 #[test]
 fn test_eq() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     test_unset!(vm, Imm(A, Literal12Bit::new_checked(123)?), Imm(B, Literal12Bit::new_checked(567)?), Test(A, B, TestOp::Eq));
     test_set!(vm, Imm(A, Literal12Bit::new_checked(444)?), Imm(B, Literal12Bit::new_checked(444)?), Test(A, B, TestOp::Eq));
     Ok(())
@@ -29,7 +29,7 @@ fn test_eq() -> Result<(), String> {
 
 #[test]
 fn test_neq() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     test_set!(vm, Imm(A, Literal12Bit::new_checked(123)?), Imm(B, Literal12Bit::new_checked(567)?), Test(A, B, TestOp::Neq));
     test_unset!(vm, Imm(A, Literal12Bit::new_checked(444)?), Imm(B, Literal12Bit::new_checked(444)?), Test(A, B, TestOp::Neq));
     Ok(())
@@ -37,7 +37,7 @@ fn test_neq() -> Result<(), String> {
 
 #[test]
 fn test_lt() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     test_set!(vm, Imm(A, Literal12Bit::new_checked(44)?), Imm(B, Literal12Bit::new_checked(55)?), Test(A, B, TestOp::Lt));
     test_unset!(vm, Imm(A, Literal12Bit::new_checked(88)?), Imm(B, Literal12Bit::new_checked(44)?), Test(A, B, TestOp::Lt));
     test_set!(vm, Imm(A, Literal12Bit::new_checked(55)?), Imm(B, Literal12Bit::new_checked(55)?), Test(A, B, TestOp::Lte));
@@ -47,7 +47,7 @@ fn test_lt() -> Result<(), String> {
 
 #[test]
 fn test_gt() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     test_unset!(vm, Imm(A, Literal12Bit::new_checked(44)?), Imm(B, Literal12Bit::new_checked(55)?), Test(A, B, TestOp::Gt));
     test_set!(vm, Imm(A, Literal12Bit::new_checked(88)?), Imm(B, Literal12Bit::new_checked(44)?), Test(A, B, TestOp::Gt));
     test_set!(vm, Imm(A, Literal12Bit::new_checked(55)?), Imm(B, Literal12Bit::new_checked(55)?), Test(A, B, TestOp::Gte));
@@ -57,7 +57,7 @@ fn test_gt() -> Result<(), String> {
 
 #[test]
 fn test_both_zero() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     test_unset!(vm, Imm(A, Literal12Bit::new_checked(44)?), Test(A, B, TestOp::BothZero));
     test_set!(vm, Test(A, B, TestOp::BothZero));
     test_set!(vm, Test(Zero, Zero, TestOp::BothZero));
@@ -66,7 +66,7 @@ fn test_both_zero() -> Result<(), String> {
 
 #[test]
 fn test_either_nonzero() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     test_set!(vm, Imm(A, Literal12Bit::new_checked(44)?), Test(A, B, TestOp::EitherNonZero));
     test_unset!(vm, Test(A, B, TestOp::EitherNonZero));
     test_unset!(vm, Test(Zero, Zero, TestOp::EitherNonZero));
@@ -75,7 +75,7 @@ fn test_either_nonzero() -> Result<(), String> {
 
 #[test]
 fn test_both_nonzero() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     test_unset!(vm, Imm(A, Literal12Bit::new_checked(44)?), Test(A, B, TestOp::BothNonZero));
     test_unset!(vm, Test(Zero, Zero, TestOp::BothNonZero));
     test_set!(vm, Imm(A, Literal12Bit::new_checked(1)?), Imm(B, Literal12Bit::new_checked(2)?), Test(A, B, TestOp::BothNonZero));

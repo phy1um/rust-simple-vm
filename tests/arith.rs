@@ -7,7 +7,7 @@ use common::*;
 
 #[test]
 fn test_add() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -23,7 +23,7 @@ fn test_add() -> Result<(), String> {
 
 #[test]
 fn test_sub() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -56,7 +56,7 @@ fn test_sub() -> Result<(), String> {
 
 #[test]
 fn test_add_imm() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -71,7 +71,7 @@ fn test_add_imm() -> Result<(), String> {
 
 #[test]
 fn test_add_imm_signed() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -96,7 +96,7 @@ fn test_add_imm_signed() -> Result<(), String> {
 
 #[test]
 fn test_shift_left() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -111,7 +111,7 @@ fn test_shift_left() -> Result<(), String> {
 
 #[test]
 fn test_shift_right() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[

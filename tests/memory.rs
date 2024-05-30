@@ -7,12 +7,12 @@ use common::*;
 
 #[test]
 fn test_load() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024*5)?;
     run_with!(
         &mut vm,
         {
-            vm.memory.write2(0x100, 0x77);
-            vm.memory.write2(0x1000, 0x999)
+            vm.memory.write2(0x100, 0x77)?;
+            vm.memory.write2(0x1000, 0x999)?;
         },
         Imm(B, Literal12Bit::new_checked(0x100)?),
         Imm(C, Literal12Bit::new_checked(0x100)?),
@@ -28,7 +28,8 @@ fn test_load() -> Result<(), String> {
 
 #[test]
 fn test_store() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
+    vm.map(0x0, 1024*5, Box::new(LinearMemory::new(1024*5)))?;
     run_with!(
         &mut vm,
         {},

@@ -7,7 +7,7 @@ use common::*;
 
 #[test]
 fn test_loop() -> Result<(), String> {
-    let mut vm = Machine::new(4 * 1024);
+    let mut vm = make_test_vm(4 * 1024)?;
     run(
         &mut vm,
         &[

@@ -7,7 +7,7 @@ use common::*;
 
 #[test]
 fn test_push() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -28,7 +28,7 @@ fn test_push() -> Result<(), String> {
 
 #[test]
 fn test_pop() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -47,7 +47,7 @@ fn test_pop() -> Result<(), String> {
 
 #[test]
 fn test_swap() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -66,7 +66,7 @@ fn test_swap() -> Result<(), String> {
 
 #[test]
 fn test_peek() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -85,7 +85,7 @@ fn test_peek() -> Result<(), String> {
 
 #[test]
 fn test_dup() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -104,7 +104,7 @@ fn test_dup() -> Result<(), String> {
 
 #[test]
 fn test_rot() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -126,7 +126,7 @@ fn test_rot() -> Result<(), String> {
 
 #[test]
 fn test_stack_add() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -144,7 +144,7 @@ fn test_stack_add() -> Result<(), String> {
 
 #[test]
 fn test_stack_sub() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -162,7 +162,7 @@ fn test_stack_sub() -> Result<(), String> {
 
 #[test]
 fn test_load_offset() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[

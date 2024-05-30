@@ -7,7 +7,7 @@ use common::*;
 
 #[test]
 fn test_jump() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -25,7 +25,7 @@ fn test_jump() -> Result<(), String> {
 
 #[test]
 fn test_jump_offset() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -46,7 +46,7 @@ fn test_jump_offset() -> Result<(), String> {
 
 #[test]
 fn test_branch() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
@@ -79,7 +79,7 @@ fn test_branch() -> Result<(), String> {
 
 #[test]
 fn test_jump_and_link() -> Result<(), String> {
-    let mut vm = Machine::new(1024 * 4);
+    let mut vm = make_test_vm(1024 * 4)?;
     run(
         &mut vm,
         &[
