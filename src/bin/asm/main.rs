@@ -23,14 +23,6 @@ fn main() -> Result<(), String> {
 
     let file = File::open(Path::new(&args.input_file.unwrap())).map_err(|x| format!("failed to open: {}", x))?;
     let mut output: Vec<u8> = Vec::new();
-    /*
-     * Push 10
-     * Push 240
-     * AddStack
-     * PopRegister A
-     * Signal $f0
-     *
-     */
     
     let mut processor = PreProcessor::new();
     macros::setup_std_macros(&mut processor);
