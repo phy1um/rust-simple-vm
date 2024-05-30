@@ -324,7 +324,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                 }
             }
 
-            fn pre_handle_number(s: &str) -> Result<(&str, u32), String> {
+            pub fn pre_handle_number(s: &str) -> Result<(&str, u32), String> {
                 if s.len() == 0 {
                     return Err("string has no length".to_string());
                 }
