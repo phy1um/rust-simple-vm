@@ -3,11 +3,13 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 use crate::pp::{PreProcessor};
+use crate::Instruction;
 
 pub fn setup_std_macros(pp: &mut PreProcessor) {
     pp.define_macro("defvar", defvar);
     pp.define_macro("include", include);
     pp.define_macro("defmacro", defmacro);
+    pp.define_macro("offsetPC", set_pc_offset);
 }
 
 pub fn defvar(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, String> {
@@ -54,6 +56,16 @@ pub fn defmacro(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>,S
         lines.push(current_line.join(" "));
     }
     pp.define_subst_macro(macro_name, lines);
+    Ok(Vec::new())
+}
+
+pub fn set_pc_offset(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>,String> {
+    if input.len() != 1 {
+        return Err(format!("requires exactly 1 argument, got {}", input.len()));
+    }
+    let (num, base) = Instruction::pre_handle_number(input.get(0).unwrap())?;
+    let offset = u32::from_str_radix(num, base).map_err(|_| format!("invalid number: {}", num))?;
+    pp.instruction_count = offset;
     Ok(Vec::new())
 }
 
