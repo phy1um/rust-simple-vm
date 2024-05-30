@@ -7,24 +7,13 @@ use crate::register::{Flag, Register};
 
 type SignalFunction = fn(&mut Machine, arg: u16) -> Result<(), String>;
 
+#[derive(Default)]
 pub struct Machine {
     registers: [u16; 8],
     signal_handlers: HashMap<u8, SignalFunction>,
     flags: u16,
     pub halt: bool,
     pub memory: MemoryMapper,
-}
-
-impl Default for Machine {
-    fn default() -> Self {
-        Self {
-            registers: [0; 8],
-            signal_handlers: HashMap::new(),
-            halt: false,
-            flags: 0,
-            memory: MemoryMapper::new(),
-        }
-    }
 }
 
 impl Machine {

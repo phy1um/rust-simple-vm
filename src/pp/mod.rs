@@ -20,11 +20,14 @@ impl fmt::Display for Error {
 }
 
 type MacroFunc = fn(&mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, String>;
+
+#[derive(Debug)]
 pub enum Macro {
     Func(MacroFunc),
     Subst(Vec<String>),
 }
 
+#[derive(Debug, Default)]
 pub struct PreProcessor {
     variables: HashMap<String, String>,
     macros: HashMap<String, Macro>,
@@ -57,14 +60,6 @@ impl ProcessedLine {
 }
 
 impl PreProcessor {
-    pub fn new() -> Self {
-        Self {
-            variables: HashMap::new(),
-            macros: HashMap::new(),
-            instruction_count: 0,
-        }
-    }
-
     pub fn resolve_pass2(&self, p: &ProcessedLine) -> Result<String, Error> {
         self.reprocess_line(&p.line)
     }
@@ -74,7 +69,7 @@ impl PreProcessor {
             ProcessedLinePart::Line(s) => Ok(s.to_string()),
             ProcessedLinePart::Unresolved(varname, pre, post) => {
                 let value = self
-                    .get_variable(&varname)
+                    .get_variable(varname)
                     .ok_or(Error::UnknownToken(varname.to_string()))?;
                 Ok(format!(
                     "{} {} {}",
@@ -90,10 +85,10 @@ impl PreProcessor {
         let mut res: Vec<ProcessedLine> = Vec::new();
         for line in input.lines() {
             let parts: Vec<_> = line.split_whitespace().collect();
-            if parts.len() == 0 {
+            if parts.is_empty() {
                 continue;
             }
-            if let Some(head) = parts.get(0) {
+            if let Some(head) = parts.first() {
                 match head.chars().nth(0) {
                     Some(';') => {
                         res.push(ProcessedLine::from_str(
@@ -112,10 +107,10 @@ impl PreProcessor {
                                 .map_err(|x| Error::MacroEval(name.to_string(), x))?,
                             Macro::Subst(lines) => {
                                 lines
-                                    .into_iter()
+                                    .iter()
                                     .map(|line| {
                                         let mp: Result<Vec<String>, String> = line
-                                            .split(" ")
+                                            .split(' ')
                                             .map(|p| {
                                                 match p.chars().nth(0) {
                                                     Some('!') => {

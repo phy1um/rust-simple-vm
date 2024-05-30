@@ -69,15 +69,12 @@ pub trait Addressable {
     }
 }
 
+#[derive(Default)]
 pub struct MemoryMapper {
     mapped: Vec<(usize, usize, RefCell<Box<dyn Addressable>>)>,
 }
 
 impl MemoryMapper {
-    pub fn new() -> Self {
-        Self { mapped: Vec::new() }
-    }
-
     pub fn map(
         &mut self,
         start: usize,

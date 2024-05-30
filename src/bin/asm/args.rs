@@ -58,18 +58,18 @@ impl Default for Args {
 }
 
 pub fn process_cli(args: &[String]) -> Result<Args, ArgsError> {
-    let mut out = Args::default();
-    out.bin_name = args[0].to_string();
+    let mut out = Args {
+        bin_name: args[0].to_string(),
+        ..Args::default()
+    };
     for a in &args[1..] {
-        if a.starts_with("--") {
-            let flag = &a[2..];
+        if let Some(flag) = a.strip_prefix("--") {
             match flag {
                 "preprocess-only" => out.preprocess_only = true,
                 "help" => out.show_help = true,
                 x => return Err(ArgsError::UnknownFlag(x.to_string())),
             }
-        } else if a.starts_with("-") {
-            let flag = &a[1..];
+        } else if let Some(flag) = a.strip_prefix('-') {
             match flag {
                 "p" => out.preprocess_only = true,
                 "h" => out.show_help = true,

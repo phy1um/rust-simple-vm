@@ -25,7 +25,7 @@ fn main() -> Result<(), String> {
         .map_err(|x| format!("failed to open: {}", x))?;
     let mut output: Vec<u8> = Vec::new();
 
-    let mut processor = PreProcessor::new();
+    let mut processor = PreProcessor::default();
     macros::setup_std_macros(&mut processor);
     let mut reader = BufReader::new(file);
     let mut content = String::new();
@@ -45,10 +45,10 @@ fn main() -> Result<(), String> {
             }
             output.push(b'\n');
         } else {
-            if resolved.len() == 0 {
+            if resolved.is_empty() {
                 continue;
             }
-            if let Some(';') = resolved.chars().nth(0) {
+            if let Some(';') = resolved.chars().next() {
                 continue;
             }
             match Instruction::from_str(&resolved) {

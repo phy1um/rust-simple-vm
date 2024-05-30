@@ -16,7 +16,7 @@ pub fn defvar(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, St
     if input.len() != 2 {
         return Err("format <name> <value>".to_string());
     }
-    let name = input.get(0).unwrap();
+    let name = input.first().unwrap();
     let value = input.get(1).unwrap();
     pp.define_variable(name, value);
     Ok(Vec::new())
@@ -26,7 +26,7 @@ pub fn include(_pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, 
     if input.len() != 1 {
         return Err(format!("requires exactly 1 argument, got {}", input.len()));
     }
-    let file_name = input.get(0).unwrap();
+    let file_name = input.first().unwrap();
     let file = File::open(Path::new(&file_name))
         .map_err(|x| format!("failed to open \"{}\": {}", file_name, x))?;
     let mut out: Vec<String> = Vec::new();
@@ -39,9 +39,9 @@ pub fn include(_pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, 
 
 pub fn defmacro(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, String> {
     if input.is_empty() {
-        return Err(format!("no arguments"));
+        return Err("no arguments".to_string());
     }
-    let macro_name = input.get(0).unwrap();
+    let macro_name = input.first().unwrap();
     let mut lines: Vec<String> = Vec::new();
     let mut current_line: Vec<String> = Vec::new();
     for &token in &input[1..] {
@@ -63,7 +63,7 @@ pub fn set_pc_offset(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<Stri
     if input.len() != 1 {
         return Err(format!("requires exactly 1 argument, got {}", input.len()));
     }
-    let (num, base) = Instruction::pre_handle_number(input.get(0).unwrap())?;
+    let (num, base) = Instruction::pre_handle_number(input.first().unwrap())?;
     let offset = u32::from_str_radix(num, base).map_err(|_| format!("invalid number: {}", num))?;
     pp.instruction_count = offset;
     Ok(Vec::new())
