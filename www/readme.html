@@ -1,0 +1,251 @@
+<h1 id="simple-vm">Simple VM</h1>
+<p>A simple 16-bit virtual machine, written to learn Rust basics.</p>
+<h2 id="technical-details">Technical Details</h2>
+<p>This machine has 8 general purpose registers named
+<code>A B C M SP BP PC Zero</code>. These are all valid in any position
+of any instruction that takes a register. As the names suggest, some
+have intended uses:</p>
+<ul class="incremental">
+<li>A, B, C and M are general purpose. M is intended to be the page
+register when that is needed.</li>
+<li>SP is the stack pointer</li>
+<li>BP is the base pointer for function frames</li>
+<li>PC is the program counter</li>
+<li>Zero is always == 0. Writes to this register do nothing.</li>
+</ul>
+<p>Registers are 16-bits. Memory is accessed with 32-bit addresses,
+created by combining 2 registers.</p>
+<h3 id="instructions">Instructions</h3>
+<p>Instructions are 16-bits and have the following bit formats:</p>
+<h4 id="type-a-loading-constants">Type A (loading constants):</h4>
+<p><code>[ 1 R R R I I I I | I I I I I I I I ]</code></p>
+<p><code>REG[R] = Literal12Bit(I)</code></p>
+<p>This instruction type sets a register to an unsigned 12bit constant.
+It does not support negative numbers, you will end up with a positive
+12bit number in the 16bit register.</p>
+<h4 id="type-b-everything-else">Type B (everything else):</h4>
+<p><code>[ 0 X X X Y Y Y P | P P P P Z Z Z Z ]</code></p>
+<p>These instructions operate on up to 3 registers in X, Y and Z. P is
+an opcode, which is described in the table below. C is sometimes
+interpreted as a 4bit nibble, or as a selector to <code>Stack</code> and
+<code>Test</code> instructions - like a secondary opcode.</p>
+<p>Sometimes fields X, Y and Z are combined into 4, 7 and 10 bit
+literals. In this case, they are always combined with Z in the least
+significant position, then Y, then X.</p>
+<ul class="incremental">
+<li>Nibble (4bit): ZZZZ</li>
+<li>Lit7Bit: YYY ZZZZ</li>
+<li>Lit10Bit: XX XYYY ZZZZ</li>
+</ul>
+<h5 id="opcodes">Opcodes</h5>
+<ul class="incremental">
+<li>Add (0x1):
+<ul class="incremental">
+<li><code>REG[C] = REG[X] + REG[Y]</code></li>
+</ul></li>
+<li>Sub (0x2):
+<ul class="incremental">
+<li><code>REG[C] = REG[X] - REG[Y]</code></li>
+</ul></li>
+<li>AddImm (0x3):
+<ul class="incremental">
+<li><code>REG[X] += Lit7Bit(Y,Z)</code></li>
+</ul></li>
+<li>AddImmSigned (0x4):
+<ul class="incremental">
+<li><code>REG[X] += Lit7Bit(Y,Z)</code></li>
+<li>Interpret Lit7Bit(B,C) as a signed 7bit 2s compliment number, then
+sign extend this to 16bits before performing addition</li>
+</ul></li>
+<li>ShiftLeft (0x5):
+<ul class="incremental">
+<li><code>REG[Y] = REG[X] &lt;&lt; Nibble(Z)</code></li>
+</ul></li>
+<li>ShiftRightLogical (0x6):
+<ul class="incremental">
+<li><code>REG[Y] = REG[X] &gt;&gt; Nibble(Z)</code></li>
+</ul></li>
+<li>ShiftRightArithmetic (0x7):
+<ul class="incremental">
+<li><code>REG[Y] = REG[X] &gt;&gt; Nibble(Z)</code></li>
+</ul></li>
+<li>Load (0x8):
+<ul class="incremental">
+<li><code>REG[X] = MEM[REG[Y] + REG[Z]&lt;&lt;16]</code></li>
+</ul></li>
+<li>Store (0x9):
+<ul class="incremental">
+<li><code>MEM[REG[Y] + REG(Z)&lt;&lt;16] = REG[X]</code></li>
+</ul></li>
+<li>JumpOffset (0xa):
+<ul class="incremental">
+<li><code>REG[PC] += Lit10Bit(X,Y,Z)</code></li>
+</ul></li>
+<li>SetAndSave (0x10):
+<ul class="incremental">
+<li><code>tmp = REG[Y]; REG[Z] = REG[X]; REG[X] = tmp</code></li>
+</ul></li>
+<li>AddAndSave (0x11):
+<ul class="incremental">
+<li><code>tmp = REG[Y]; REG[Z] += REG[X]; REG[X] = tmp</code>|</li>
+</ul></li>
+<li>Test (0xb):
+<ul class="incremental">
+<li><code>if TestOp(REG[X], REG[Y]) then set FLAGS[Compare]</code></li>
+<li>See section below for a list of TestOps</li>
+</ul></li>
+<li>AddIf (0xc):
+<ul class="incremental">
+<li><code>if FLAGS[Compare] then { REG[X] = REG[Y]+2\*Nibble(Z); FLAGS[Compare] = false }</code></li>
+</ul></li>
+<li>Stack (0xd):
+<ul class="incremental">
+<li><code>StackOp(REG[X], REG[Y])</code></li>
+<li>See section below for a list of StackOps</li>
+</ul></li>
+<li>LoadStackOffset (0xe):
+<ul class="incremental">
+<li><code>REG[X] = MEM[REG[Y] - Nibble(Z)\*2]</code></li>
+</ul></li>
+<li>System (0xf):
+<ul class="incremental">
+<li>See section below</li>
+</ul></li>
+</ul>
+<h4 id="test-ops">Test Ops</h4>
+<p>A test instruction compares the values in 2 registers X and Y, then
+conditionally sets the <code>Compare</code> flag. The list of possible
+test operations are:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Index</th>
+<th>Name</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>Eq</td>
+<td>X == Y</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td>Neq</td>
+<td>X != Y</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td>Lt</td>
+<td>X &lt; Y</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>Lte</td>
+<td>X &lt;= Y</td>
+</tr>
+<tr class="odd">
+<td>4</td>
+<td>Gt</td>
+<td>X &gt; Y</td>
+</tr>
+<tr class="even">
+<td>5</td>
+<td>Gte</td>
+<td>X &gt;= Y</td>
+</tr>
+<tr class="odd">
+<td>6</td>
+<td>BothZero</td>
+<td>X == 0 &amp;&amp; Y == 0</td>
+</tr>
+<tr class="even">
+<td>7</td>
+<td>EitherNonZero</td>
+<td>X != 0</td>
+</tr>
+<tr class="odd">
+<td>8</td>
+<td>BothNonZero</td>
+<td>X != 0 &amp;&amp; Y != 0</td>
+</tr>
+</tbody>
+</table>
+<h4 id="stack-ops">Stack Ops</h4>
+<p>A stack instruction operates on a stack in memory. This instruction
+takes 2 registers. The first register is an argument the the stack
+operation. <em>The second register is the address of the stack in
+memory</em>, which is usually the register SP but could be anything.
+This means that SP does not have to be the stack register, and that you
+can do other clever things with this stack instruction. For 2 registers
+X and Y, the list of possible stack operations are:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Index</th>
+<th>Name</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>Pop</td>
+<td>REG[X] = MEM[REG[Y]-2]; REG[Y] += 2</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td>Push</td>
+<td>MEM[REG[Y]] = REG[X]; REG[Y]+=2</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td>Peek</td>
+<td>REG[X] = MEM[REG[Y]-2]</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>Swap</td>
+<td>x=POP; y=POP; PUSH x; PUSH y</td>
+</tr>
+<tr class="odd">
+<td>4</td>
+<td>Dup</td>
+<td>x=PEEK; PUSH x</td>
+</tr>
+<tr class="even">
+<td>5</td>
+<td>Rotate</td>
+<td>x=POP; y=POP; z=POP; PUSH x; PUSH z; PUSH y;</td>
+</tr>
+<tr class="odd">
+<td>6</td>
+<td>Add</td>
+<td>x=POP; y=POP; PUSH (x+y)</td>
+</tr>
+<tr class="even">
+<td>7</td>
+<td>Sub</td>
+<td>x=POP; y=POP; PUSH (x-y)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="system">System</h4>
+<p>The <code>System</code> operation performs an action with the host
+system. This usually involves IO, or some actions to control the running
+of the VM. The work of the system operation is deferred to a <em>System
+Handler</em>, and each handler attached to the VM is uniquely identified
+by a 1-bye <em>System Handler Index</em>. There are 2 modes of
+determining this index:</p>
+<p>If X is the <code>Zero</code> register, then the System Handler Index
+is taken from Nibble(Z). As this can only be 16 possible indices, we
+should try to put important system operations at index 0-15. REG[X] is
+taken as an argument to the handler.</p>
+<p>If X is any other register, then the handler index is REG[X], and
+Nibble(Z) is taken as an argument to the handler.</p>
+<p>A handler may read and modify any machine state, it is not restricted
+to just examining the registers passed in. Some calls may depend on
+specific values in registers. This is all dependent on the host, refer
+to host details for the operations performed by each system handler, and
+what the handler indices are.</p>
