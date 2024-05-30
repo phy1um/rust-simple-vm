@@ -18,7 +18,6 @@ impl fmt::Display for MemoryError {
             AddressTranslation(a, e) => write!(f, "translation @{:X}: {}", a, e),
         }
     }
-
 }
 
 impl From<MemoryError> for String {
@@ -36,7 +35,7 @@ pub trait Addressable {
 
     fn read2(&mut self, addr: u32) -> Result<u16, MemoryError> {
         let x0 = self.read(addr)?;
-        let x1 = self.read(addr+1)?;
+        let x1 = self.read(addr + 1)?;
         Ok((x0 as u16) | ((x1 as u16) << 8))
     }
 
@@ -76,10 +75,15 @@ pub struct MemoryMapper {
 
 impl MemoryMapper {
     pub fn new() -> Self {
-        Self{ mapped: Vec::new() }
+        Self { mapped: Vec::new() }
     }
 
-    pub fn map(&mut self, start: usize, size: usize, a: Box<dyn Addressable>) -> Result<(), String> {
+    pub fn map(
+        &mut self,
+        start: usize,
+        size: usize,
+        a: Box<dyn Addressable>,
+    ) -> Result<(), String> {
         self.mapped.push((start, size, RefCell::new(a)));
         Ok(())
     }
@@ -87,8 +91,8 @@ impl MemoryMapper {
     pub fn get_mapped(&mut self, addr: u32) -> Option<(usize, usize)> {
         let mut candidate: Option<(usize, usize)> = None;
         for (i, (start, _, _)) in self.mapped.iter().enumerate() {
-            if *start <= (addr as usize) { 
-                if let Some((c,_)) = candidate {
+            if *start <= (addr as usize) {
+                if let Some((c, _)) = candidate {
                     if *start > c {
                         candidate = Some((*start, i));
                     }
@@ -96,44 +100,44 @@ impl MemoryMapper {
                     candidate = Some((*start, i));
                 }
             }
-        };
+        }
         candidate
     }
 }
 
 impl Addressable for MemoryMapper {
     fn read(&mut self, addr: u32) -> Result<u8, MemoryError> {
-        let (_,i) = self.get_mapped(addr).ok_or(NoMap(addr))?;
+        let (_, i) = self.get_mapped(addr).ok_or(NoMap(addr))?;
         match self.mapped.get(i) {
             Some((start, size, a)) => {
                 let addr_local = addr - (*start as u32);
                 if addr_local >= *size as u32 {
-                    Err(AddressTranslation(addr, Box::new(OutOfBounds(addr_local)))) 
+                    Err(AddressTranslation(addr, Box::new(OutOfBounds(addr_local))))
                 } else {
                     a.try_borrow_mut().unwrap().read(addr_local)
                 }
-            },
+            }
             None => Err(InvalidMap(addr, i)),
         }
     }
 
-    fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {        
-        let (_,i) = self.get_mapped(addr).ok_or(NoMap(addr))?;
+    fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {
+        let (_, i) = self.get_mapped(addr).ok_or(NoMap(addr))?;
         match self.mapped.get(i) {
             Some((start, size, a)) => {
                 let addr_local = addr - (*start as u32);
                 if addr_local >= *size as u32 {
-                    Err(AddressTranslation(addr, Box::new(OutOfBounds(addr_local)))) 
+                    Err(AddressTranslation(addr, Box::new(OutOfBounds(addr_local))))
                 } else {
                     a.try_borrow_mut().unwrap().write(addr_local, value)
                 }
-            },
+            }
             None => Err(InvalidMap(addr, i)),
         }
     }
 
     fn zero_all(&mut self) -> Result<(), MemoryError> {
-        Ok(()) 
+        Ok(())
     }
 }
 

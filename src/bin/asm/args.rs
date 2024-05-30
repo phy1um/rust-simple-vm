@@ -9,7 +9,7 @@ impl fmt::Display for ArgsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ArgsError::ExtraInput => write!(f, "extra input file(s)"),
-            ArgsError::UnknownFlag(s) => write!(f, "unknown flag: {}", s), 
+            ArgsError::UnknownFlag(s) => write!(f, "unknown flag: {}", s),
         }
     }
 }
@@ -32,15 +32,16 @@ impl Args {
 
     pub fn usage(&self) -> String {
         format!(
-"usage: {} [OPTIONS] <input file>
+            "usage: {} [OPTIONS] <input file>
 
 options:
     -h, --help\tShow this message.
     -p, --preprocess-only\tStop after running the preprocessor and print the instructions.
     -x, --program-offset\tAddress to load program at initialzie PC register.
 
-", 
-            self.bin_name)
+",
+            self.bin_name
+        )
     }
 }
 
@@ -78,10 +79,8 @@ pub fn process_cli(args: &[String]) -> Result<Args, ArgsError> {
             if out.input_file.is_some() {
                 return Err(ArgsError::ExtraInput);
             };
-            out.input_file = Some(a.to_string()); 
+            out.input_file = Some(a.to_string());
         }
     }
     Ok(out)
 }
-
-

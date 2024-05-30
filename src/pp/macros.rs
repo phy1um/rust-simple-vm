@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use crate::pp::{PreProcessor};
+use crate::pp::PreProcessor;
 use crate::Instruction;
 
 pub fn setup_std_macros(pp: &mut PreProcessor) {
@@ -37,7 +37,7 @@ pub fn include(_pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, 
     Ok(out)
 }
 
-pub fn defmacro(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>,String> {
+pub fn defmacro(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, String> {
     if input.is_empty() {
         return Err(format!("no arguments"));
     }
@@ -46,7 +46,7 @@ pub fn defmacro(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>,S
     let mut current_line: Vec<String> = Vec::new();
     for &token in &input[1..] {
         if token != "/" {
-            current_line.push(token.to_string());  
+            current_line.push(token.to_string());
         } else {
             lines.push(current_line.join(" "));
             current_line.clear();
@@ -59,7 +59,7 @@ pub fn defmacro(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>,S
     Ok(Vec::new())
 }
 
-pub fn set_pc_offset(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>,String> {
+pub fn set_pc_offset(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, String> {
     if input.len() != 1 {
         return Err(format!("requires exactly 1 argument, got {}", input.len()));
     }
@@ -68,4 +68,3 @@ pub fn set_pc_offset(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<Stri
     pp.instruction_count = offset;
     Ok(Vec::new())
 }
-

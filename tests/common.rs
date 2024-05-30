@@ -16,9 +16,7 @@ macro_rules! assert_reg {
 #[macro_export]
 macro_rules! assert_mem {
     ($vm: expr, $addr:expr, $v:expr) => {{
-        let result = $vm
-            .memory
-            .read2(($addr) as u32)?;
+        let result = $vm.memory.read2(($addr) as u32)?;
         assert!(
             result == $v,
             "expected {:X} @{:X}, got {:X}",
@@ -74,9 +72,11 @@ pub fn run_program_code(m: &mut Machine, program: &[Instruction]) -> Result<(), 
     let program_words: Vec<_> = program.iter().map(|x| x.encode_u16()).collect();
     unsafe {
         let program_bytes = program_words.align_to::<u8>().1;
-        m.memory.load_from_vec(&program_bytes, 0).map_err(|x| x.to_string())?;
+        m.memory
+            .load_from_vec(&program_bytes, 0)
+            .map_err(|x| x.to_string())?;
     }
-    m.set_register(Register::SP, 1024*3);
+    m.set_register(Register::SP, 1024 * 3);
     m.define_handler(SIGHALT, signal_halt);
     while !m.halt {
         m.step()?;

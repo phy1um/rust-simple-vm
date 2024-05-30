@@ -7,7 +7,7 @@ use common::*;
 
 #[test]
 fn test_load() -> Result<(), String> {
-    let mut vm = make_test_vm(1024*5)?;
+    let mut vm = make_test_vm(1024 * 5)?;
     run_with!(
         &mut vm,
         {
@@ -29,7 +29,7 @@ fn test_load() -> Result<(), String> {
 #[test]
 fn test_store() -> Result<(), String> {
     let mut vm = make_test_vm(1024 * 4)?;
-    vm.map(0x0, 1024*5, Box::new(LinearMemory::new(1024*5)))?;
+    vm.map(0x0, 1024 * 5, Box::new(LinearMemory::new(1024 * 5)))?;
     run_with!(
         &mut vm,
         {},

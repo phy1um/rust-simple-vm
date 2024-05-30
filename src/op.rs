@@ -2,8 +2,8 @@ use macros::VmInstruction;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::register::Register;
 use crate::op_fields::*;
+use crate::register::Register;
 
 /**
  * TYPE A
@@ -116,5 +116,4 @@ mod test {
         }
         Ok(())
     }
-    
 }

@@ -1,17 +1,19 @@
-
 use crate::memory::{Addressable, MemoryError};
 
 pub struct MemoryMappedBuffer(Vec<u8>);
 
 impl MemoryMappedBuffer {
     pub fn new(buf: Vec<u8>) -> Self {
-        Self(buf) 
+        Self(buf)
     }
 }
 
 impl Addressable for MemoryMappedBuffer {
     fn read(&mut self, addr: u32) -> Result<u8, MemoryError> {
-        self.0.get(addr as usize).ok_or(MemoryError::OutOfBounds(addr)).copied()
+        self.0
+            .get(addr as usize)
+            .ok_or(MemoryError::OutOfBounds(addr))
+            .copied()
     }
 
     fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {
@@ -27,4 +29,3 @@ impl Addressable for MemoryMappedBuffer {
         self.zero(0, self.0.len() as u32)
     }
 }
-

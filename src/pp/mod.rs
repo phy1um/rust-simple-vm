@@ -3,7 +3,6 @@ use std::fmt;
 
 pub mod macros;
 
-
 pub enum Error {
     UnknownToken(String),
     MacroEval(String, String),
@@ -67,15 +66,22 @@ impl PreProcessor {
     }
 
     pub fn resolve_pass2(&self, p: &ProcessedLine) -> Result<String, Error> {
-        self.reprocess_line(&p.line) 
+        self.reprocess_line(&p.line)
     }
 
     fn reprocess_line(&self, p: &ProcessedLinePart) -> Result<String, Error> {
         match p {
             ProcessedLinePart::Line(s) => Ok(s.to_string()),
             ProcessedLinePart::Unresolved(varname, pre, post) => {
-                let value = self.get_variable(&varname).ok_or(Error::UnknownToken(varname.to_string()))?;
-                Ok(format!("{} {} {}", self.reprocess_line(pre)?, value, self.reprocess_line(post)?))
+                let value = self
+                    .get_variable(&varname)
+                    .ok_or(Error::UnknownToken(varname.to_string()))?;
+                Ok(format!(
+                    "{} {} {}",
+                    self.reprocess_line(pre)?,
+                    value,
+                    self.reprocess_line(post)?
+                ))
             }
         }
     }
@@ -90,7 +96,10 @@ impl PreProcessor {
             if let Some(head) = parts.get(0) {
                 match head.chars().nth(0) {
                     Some(';') => {
-                        res.push(ProcessedLine::from_str(line, self.instruction_count as usize));
+                        res.push(ProcessedLine::from_str(
+                            line,
+                            self.instruction_count as usize,
+                        ));
                         continue;
                     }
                     Some('.') => {
@@ -99,34 +108,42 @@ impl PreProcessor {
                             .get_macro(name)
                             .ok_or(Error::UnknownToken(head[1..].to_string()))?;
                         let macro_res = match func {
-                            Macro::Func(f) => {
-                                f(self, parts[1..].to_vec())
-                                    .map_err(|x| Error::MacroEval(name.to_string(), x))?
-                            },
+                            Macro::Func(f) => f(self, parts[1..].to_vec())
+                                .map_err(|x| Error::MacroEval(name.to_string(), x))?,
                             Macro::Subst(lines) => {
-                                lines.into_iter().map(|line| {
-                                    let mp: Result<Vec<String>,String> = line.split(" ").map(|p| {
-                                        match p.chars().nth(0) {
-                                            Some('!') => {
-                                                match u32::from_str_radix(&p[1..], 10) {
-                                                    Ok(n) => {
-                                                        parts.get((n+1) as usize).ok_or(format!("subst {}: out of bounds", p)).map(|x| x.to_string())
-                                                    },
-                                                    Err(_) => {
-                                                        Ok(p.to_string())
-                                                        // Err(format!("parse {}: {}", p, e))
+                                lines
+                                    .into_iter()
+                                    .map(|line| {
+                                        let mp: Result<Vec<String>, String> = line
+                                            .split(" ")
+                                            .map(|p| {
+                                                match p.chars().nth(0) {
+                                                    Some('!') => {
+                                                        match u32::from_str_radix(&p[1..], 10) {
+                                                            Ok(n) => parts
+                                                                .get((n + 1) as usize)
+                                                                .ok_or(format!(
+                                                                    "subst {}: out of bounds",
+                                                                    p
+                                                                ))
+                                                                .map(|x| x.to_string()),
+                                                            Err(_) => {
+                                                                Ok(p.to_string())
+                                                                // Err(format!("parse {}: {}", p, e))
+                                                            }
+                                                        }
                                                     }
+                                                    _ => Ok(p.to_string()),
                                                 }
-                                            },
-                                            _ => Ok(p.to_string()),
+                                            })
+                                            .collect();
+                                        // TODO: handle error here
+                                        match mp {
+                                            Ok(s) => s.join(" "),
+                                            Err(e) => format!("err: {}", e),
                                         }
-                                    }).collect();
-                                    // TODO: handle error here
-                                    match mp {
-                                        Ok(s) => s.join(" "),
-                                        Err(e) => format!("err: {}", e),
-                                    }
-                                }).collect()
+                                    })
+                                    .collect()
                             }
                         };
                         let b = macro_res.join("\n");
@@ -144,12 +161,12 @@ impl PreProcessor {
                 }
             }
 
-            res.push(ProcessedLine{
-                source_line_number: self.instruction_count as usize, 
+            res.push(ProcessedLine {
+                source_line_number: self.instruction_count as usize,
                 line: self.build_parts(parts),
             });
             self.instruction_count += 1;
-        };
+        }
         Ok(res)
     }
 
@@ -160,12 +177,18 @@ impl PreProcessor {
                 let varname = &parts[i][1..].to_string();
                 match self.get_variable(varname) {
                     Some(x) => line.push(x),
-                    None => return ProcessedLinePart::Unresolved(varname.to_string(), Box::new(ProcessedLinePart::Line(line.join(" "))), Box::new(self.build_parts(parts[i+1..].to_vec()))),
+                    None => {
+                        return ProcessedLinePart::Unresolved(
+                            varname.to_string(),
+                            Box::new(ProcessedLinePart::Line(line.join(" "))),
+                            Box::new(self.build_parts(parts[i + 1..].to_vec())),
+                        )
+                    }
                 }
             } else {
                 line.push(parts[i].to_string());
             }
-        };
+        }
         ProcessedLinePart::Line(line.join(" "))
     }
 

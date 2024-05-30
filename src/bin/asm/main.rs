@@ -1,12 +1,12 @@
 use std::env;
 use std::fs::File;
 use std::io;
-use std::io::{Read, BufReader, Write};
+use std::io::{BufReader, Read, Write};
 use std::path::Path;
 use std::str::FromStr;
 
-use simplevm::pp::PreProcessor;
 use simplevm::pp::macros;
+use simplevm::pp::PreProcessor;
 
 use simplevm::{Instruction, InstructionParseError};
 
@@ -21,17 +21,24 @@ fn main() -> Result<(), String> {
         return Ok(());
     }
 
-    let file = File::open(Path::new(&args.input_file.unwrap())).map_err(|x| format!("failed to open: {}", x))?;
+    let file = File::open(Path::new(&args.input_file.unwrap()))
+        .map_err(|x| format!("failed to open: {}", x))?;
     let mut output: Vec<u8> = Vec::new();
-    
+
     let mut processor = PreProcessor::new();
     macros::setup_std_macros(&mut processor);
     let mut reader = BufReader::new(file);
     let mut content = String::new();
-    reader.read_to_string(&mut content).map_err(|_| "failed to read file".to_string())?;
-    let processed = processor.resolve(&content).map_err(|_| "failed to resolve".to_string())?;
+    reader
+        .read_to_string(&mut content)
+        .map_err(|_| "failed to read file".to_string())?;
+    let processed = processor
+        .resolve(&content)
+        .map_err(|_| "failed to resolve".to_string())?;
     for line in processed {
-        let resolved = processor.resolve_pass2(&line).map_err(|_| format!("failed to resolve line: {}", line.get_line_number()))?;
+        let resolved = processor
+            .resolve_pass2(&line)
+            .map_err(|_| format!("failed to resolve line: {}", line.get_line_number()))?;
         if args.preprocess_only {
             for &b in format!("{}: {}", line.get_line_number(), resolved).as_bytes() {
                 output.push(b);

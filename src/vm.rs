@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::memory::{Addressable, MemoryMapper};
-use crate::op::{Instruction};
+use crate::op::Instruction;
 use crate::op_fields::{StackOp, TestOp};
 use crate::register::{Flag, Register};
 
@@ -29,12 +29,15 @@ impl Default for Machine {
 
 impl Machine {
     pub fn new() -> Self {
-        Self {
-            ..Self::default()
-        }
+        Self { ..Self::default() }
     }
 
-    pub fn map(&mut self, start: usize, size: usize, a: Box<dyn Addressable>) -> Result<(), String> {
+    pub fn map(
+        &mut self,
+        start: usize,
+        size: usize,
+        a: Box<dyn Addressable>,
+    ) -> Result<(), String> {
         self.memory.map(start, size, a)
     }
 
@@ -115,10 +118,7 @@ Flags: {:016b}",
 
     pub fn step(&mut self) -> Result<(), String> {
         let pc = self.get_register(Register::PC);
-        let instruction = self
-            .memory
-            .read2(pc as u32)
-            .map_err(|x| x.to_string())?;
+        let instruction = self.memory.read2(pc as u32).map_err(|x| x.to_string())?;
         self.set_flag(Flag::DidJump, false);
         let op = Instruction::try_from(instruction)?;
         println!("running {}", op);
@@ -180,10 +180,7 @@ Flags: {:016b}",
                 let base = self.get_register(r1);
                 let page = self.get_register(r2);
                 let addr = (base as u32) + ((page as u32) << 16);
-                let w = self
-                    .memory
-                    .read2(addr)
-                    .map_err(|x| x.to_string())?;
+                let w = self.memory.read2(addr).map_err(|x| x.to_string())?;
                 self.set_register(r0, w);
                 Ok(())
             }
@@ -191,7 +188,9 @@ Flags: {:016b}",
                 let base = self.get_register(r0);
                 let page = self.get_register(r1);
                 let addr = (base as u32) + ((page as u32) << 16);
-                self.memory.write2(addr, self.get_register(r2)).map_err(|x| x.to_string())
+                self.memory
+                    .write2(addr, self.get_register(r2))
+                    .map_err(|x| x.to_string())
             }
             Instruction::JumpOffset(b) => {
                 self.set_register(Register::PC, self.get_register(Register::PC) + b.value);

@@ -1,21 +1,20 @@
-use macros::{StringyEnum};
+use macros::StringyEnum;
 use std::fmt;
 use std::str::FromStr;
-
 
 enum CombinedResult<A, B> {
     Left(A),
     Right(B),
 }
 
-impl <A, B> CombinedResult<A, B> {
-    fn from<E>(left: Result<A, E>, right: Result<B, E>) -> Result<CombinedResult<A,B>, E> {
+impl<A, B> CombinedResult<A, B> {
+    fn from<E>(left: Result<A, E>, right: Result<B, E>) -> Result<CombinedResult<A, B>, E> {
         match left {
             Ok(a) => Ok(CombinedResult::Left(a)),
             Err(_) => match right {
                 Ok(b) => Ok(CombinedResult::Right(b)),
                 Err(e) => Err(e),
-            }
+            },
         }
     }
 }
@@ -30,12 +29,13 @@ impl Literal7Bit {
         if value >= 0x80 {
             Err(format!("out of range [0x0, 0x7F]: {:X}", value))
         } else {
-            Ok(Self{value})
+            Ok(Self { value })
         }
     }
 
     pub fn from_str_radix(s: &str, radix: u32) -> Result<Self, String> {
-        let res = CombinedResult::from(u8::from_str_radix(s, radix), i8::from_str_radix(s, radix)).map_err(|_| format!("invalid number {}", s))?;
+        let res = CombinedResult::from(u8::from_str_radix(s, radix), i8::from_str_radix(s, radix))
+            .map_err(|_| format!("invalid number {}", s))?;
         match res {
             CombinedResult::Left(a) => Self::new_checked(a),
             CombinedResult::Right(b) => Self::from_signed(b),
@@ -78,12 +78,14 @@ impl Literal10Bit {
         if value > 0x3ff {
             Err(format!("out of range [0x0, 0x3ff]: {:X}", value))
         } else {
-            Ok(Self{value})
+            Ok(Self { value })
         }
     }
 
     pub fn from_str_radix(s: &str, radix: u32) -> Result<Self, String> {
-        let res = CombinedResult::from(u16::from_str_radix(s, radix), i16::from_str_radix(s, radix)).map_err(|_| format!("invalid number {}", s))?;
+        let res =
+            CombinedResult::from(u16::from_str_radix(s, radix), i16::from_str_radix(s, radix))
+                .map_err(|_| format!("invalid number {}", s))?;
         match res {
             CombinedResult::Left(a) => Self::new_checked(a),
             CombinedResult::Right(b) => Self::from_signed(b),
@@ -116,7 +118,6 @@ impl fmt::Display for Literal10Bit {
     }
 }
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct Literal12Bit {
     pub value: u16,
@@ -127,12 +128,14 @@ impl Literal12Bit {
         if value > 0xfff {
             Err(format!("out of range [0x0, 0xfff]: {:X}", value))
         } else {
-            Ok(Self{value})
+            Ok(Self { value })
         }
     }
 
     pub fn from_str_radix(s: &str, radix: u32) -> Result<Self, String> {
-        let res = CombinedResult::from(u16::from_str_radix(s, radix), i16::from_str_radix(s, radix)).map_err(|_| format!("invalid number {}", s))?;
+        let res =
+            CombinedResult::from(u16::from_str_radix(s, radix), i16::from_str_radix(s, radix))
+                .map_err(|_| format!("invalid number {}", s))?;
         match res {
             CombinedResult::Left(a) => Self::new_checked(a),
             CombinedResult::Right(b) => Self::from_signed(b),
@@ -164,8 +167,6 @@ impl fmt::Display for Literal12Bit {
         write!(f, "{}", self.value)
     }
 }
-
-
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, StringyEnum)]
@@ -239,12 +240,13 @@ impl Nibble {
         if value > 0xf {
             Err(format!("out of range [0x0, 0xF]: {:X}", value))
         } else {
-            Ok(Self{value})
+            Ok(Self { value })
         }
     }
 
     pub fn from_str_radix(s: &str, radix: u32) -> Result<Self, String> {
-        let res = CombinedResult::from(u8::from_str_radix(s, radix), i8::from_str_radix(s, radix)).map_err(|_| format!("invalid number {}", s))?;
+        let res = CombinedResult::from(u8::from_str_radix(s, radix), i8::from_str_radix(s, radix))
+            .map_err(|_| format!("invalid number {}", s))?;
         match res {
             CombinedResult::Left(a) => Self::new_checked(a),
             CombinedResult::Right(b) => Self::from_signed(b),

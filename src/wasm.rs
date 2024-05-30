@@ -1,8 +1,7 @@
-
 use std::str::FromStr;
 
-use wasm_bindgen::prelude::*;
 use crate::*;
+use wasm_bindgen::prelude::*;
 
 struct JSMemCallback {
     on_read: js_sys::Function,
@@ -11,7 +10,7 @@ struct JSMemCallback {
 
 impl JSMemCallback {
     fn new(on_read: js_sys::Function, on_write: js_sys::Function) -> Self {
-       Self { on_read, on_write } 
+        Self { on_read, on_write }
     }
 }
 
@@ -24,7 +23,8 @@ impl Addressable for JSMemCallback {
 
     fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {
         let this = JsValue::null();
-        self.on_write.call2(&this, &JsValue::from(addr), &JsValue::from(value));
+        self.on_write
+            .call2(&this, &JsValue::from(addr), &JsValue::from(value));
         Ok(())
     }
 
@@ -43,7 +43,7 @@ extern "C" {
 }
 
 fn signal_write(_: &mut Machine, v: u16) -> Result<(), String> {
-    log_u16(v); 
+    log_u16(v);
     Ok(())
 }
 
@@ -68,10 +68,17 @@ impl PreProcessor {
 
     #[wasm_bindgen]
     pub fn resolve(&mut self, input: &str) -> Result<Vec<String>, String> {
-        let lines = self.pp.resolve(input).map_err(|_| "failed to resolve".to_string())?;
+        let lines = self
+            .pp
+            .resolve(input)
+            .map_err(|_| "failed to resolve".to_string())?;
         let mut out: Vec<String> = Vec::new();
         for l in lines {
-            out.push(self.pp.resolve_pass2(&l).map_err(|_| format!("error @ line {}", l.get_line_number()))?);
+            out.push(
+                self.pp
+                    .resolve_pass2(&l)
+                    .map_err(|_| format!("error @ line {}", l.get_line_number()))?,
+            );
         }
         Ok(out)
     }
@@ -103,9 +110,15 @@ impl JSMachine {
     }
 
     #[wasm_bindgen]
-    pub fn map_memory_func(&mut self, start: usize, size: usize, 
-            on_read: js_sys::Function, on_write: js_sys::Function) {
-        self.m.map(start, size, Box::new(JSMemCallback::new(on_read, on_write)));
+    pub fn map_memory_func(
+        &mut self,
+        start: usize,
+        size: usize,
+        on_read: js_sys::Function,
+        on_write: js_sys::Function,
+    ) {
+        self.m
+            .map(start, size, Box::new(JSMemCallback::new(on_read, on_write)));
     }
 
     #[wasm_bindgen]
@@ -163,7 +176,11 @@ impl JSMachine {
     pub fn step(&mut self) -> Result<(), String> {
         if let Some(f) = &self.on_run_instruction {
             let this = JsValue::null();
-            let ins = self.m.memory.read2(self.m.get_register(Register::PC) as u32).unwrap();
+            let ins = self
+                .m
+                .memory
+                .read2(self.m.get_register(Register::PC) as u32)
+                .unwrap();
             let _ = f.call1(&this, &JsValue::from(ins));
         };
         self.m.step()
@@ -171,7 +188,7 @@ impl JSMachine {
 
     #[wasm_bindgen]
     pub fn state(&self) -> String {
-        self.m.state() 
+        self.m.state()
     }
 
     #[wasm_bindgen]
@@ -196,4 +213,3 @@ pub fn dissasemble_instruction(i: u16) -> Result<String, String> {
     let ins = Instruction::try_from(i)?;
     Ok(format!("{}", ins))
 }
-
