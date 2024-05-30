@@ -114,7 +114,7 @@ impl PreProcessor {
                                             .map(|p| {
                                                 match p.chars().nth(0) {
                                                     Some('!') => {
-                                                        match u32::from_str_radix(&p[1..], 10) {
+                                                        match p[1..].parse::<u32>() {
                                                             Ok(n) => parts
                                                                 .get((n + 1) as usize)
                                                                 .ok_or(format!(
