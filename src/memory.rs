@@ -7,7 +7,6 @@ pub enum MemoryError {
     AddressTranslation(u32, Box<MemoryError>),
     NoMap(u32),
     InvalidMap(u32, usize),
-
 }
 
 impl fmt::Display for MemoryError {
@@ -20,6 +19,12 @@ impl fmt::Display for MemoryError {
         }
     }
 
+}
+
+impl From<MemoryError> for String {
+    fn from(m: MemoryError) -> Self {
+        format!("{}", m)
+    }
 }
 
 use MemoryError::*;
