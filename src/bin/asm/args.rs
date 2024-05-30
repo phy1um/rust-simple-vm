@@ -51,6 +51,7 @@ impl Default for Args {
             input_file: None,
             preprocess_only: false,
             show_help: false,
+            map_binary_at: 0x0,
         }
     }
 }
@@ -58,7 +59,6 @@ impl Default for Args {
 pub fn process_cli(args: &[String]) -> Result<Args, ArgsError> {
     let mut out = Args::default();
     out.bin_name = args[0].to_string();
-    let mut i = 1;
     for a in &args[1..] {
         if a.starts_with("--") {
             let flag = &a[2..];
