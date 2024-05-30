@@ -18,6 +18,7 @@ pub struct Args {
     pub bin_name: String,
     pub input_file: Option<String>,
     pub preprocess_only: bool,
+    pub map_binary_at: usize,
     show_help: bool,
 }
 
@@ -36,6 +37,7 @@ impl Args {
 options:
     -h, --help\tShow this message.
     -p, --preprocess-only\tStop after running the preprocessor and print the instructions.
+    -x, --program-offset\tAddress to load program at initialzie PC register.
 
 ", 
             self.bin_name)
@@ -56,6 +58,7 @@ impl Default for Args {
 pub fn process_cli(args: &[String]) -> Result<Args, ArgsError> {
     let mut out = Args::default();
     out.bin_name = args[0].to_string();
+    let mut i = 1;
     for a in &args[1..] {
         if a.starts_with("--") {
             let flag = &a[2..];
