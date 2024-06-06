@@ -12,6 +12,20 @@ pub fn is_char(c: char) -> impl Fn(&str) -> Result<(&str, char), String> {
     }
 }
 
+pub fn not_char<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, char), String> + 'a {
+    move |input| {
+        if let Some(c) = input.chars().next() {
+            if !s.contains(c) {
+                Ok((&input[1..], c)) 
+            } else {
+                Err(format!("expected not \"{s}\" got '{c}'"))
+            }
+        } else {
+            Err("empty".to_string())
+        }
+    }
+}
+
 pub fn token<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, &'a str), String> {
     move |input| {
         if let Some(_) = input.strip_prefix(s) {
@@ -94,6 +108,57 @@ mod test {
             assert_eq!(":123", s);
             assert_eq!("xyz", n);
         }
+    }
+
+    #[test]
+    fn test_alphanumeric() {
+        {
+            let (s, n) = alphanumeric("a7").unwrap();
+            assert_eq!("7", s);
+            assert_eq!(n, 'a');
+        }
+        {
+            let (s, n) = alphanumeric("9e").unwrap();
+            assert_eq!("e", s);
+            assert_eq!(n, '9');
+        }
+        {
+            let (s, n) = map(repeat1(alphanumeric), |x| x.iter().collect::<String>())("abc123zxy987").unwrap();
+            assert_eq!("", s);
+            assert_eq!("abc123zxy987", n);
+        }
+        {
+            let (s, n) = map(repeat1(alphanumeric), |x| x.iter().collect::<String>())("a1b2c3::9z").unwrap();
+            assert_eq!("::9z", s);
+            assert_eq!("a1b2c3", n);
+        }
+    }
+
+    #[test]
+    fn test_whitespace() {
+        for c in " \n\r\t".chars() {
+            let str_c = c.to_string();
+            let (s, n) = whitespace(&str_c).unwrap();
+            assert_eq!("", s);
+            assert_eq!(c, n);
+        }
+        {
+            let (s, n) = map(repeat1(whitespace), |x| x.iter().collect::<String>())("\n\n  \t\t").unwrap();
+            assert_eq!("", s);
+            assert_eq!("\n\n  \t\t", n);
+        }
+        {
+            let (s, n) = map(repeat1(whitespace), |x| x.iter().collect::<String>())("   \nabc\n\n").unwrap();
+            assert_eq!("abc\n\n", s);
+            assert_eq!("   \n", n);
+        }
+    }
+
+    #[test]
+    fn test_not_char() {
+        let (s, n) = map(repeat1(not_char("x")), |x| x.iter().collect::<String>())("foox").unwrap();
+        assert_eq!("x", s);
+        assert_eq!("foo", n);
     }
 
 }
