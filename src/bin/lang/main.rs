@@ -1,45 +1,8 @@
-use std::marker::PhantomData;
+pub mod parse;
+pub mod combinator;
 
-trait Parser<S, T, E> {
-    fn run(&self, s: S) -> Result<(S, T), E>;
-}
-
-impl<S, T, E, F> Parser<S, T, E> for F 
-where F: Fn(S) -> Result<(S, T), E>
-{
-    fn run(&self, s: S) -> Result<(S,T), E> {
-        self(s)
-    }
-}
-
-#[derive(Debug, Default)]
-struct Sequence<S, T, E, F> 
-where F: Parser<S, T, E>
-{
-    _t: PhantomData<(S, T, E)>,
-    items: Vec<F>,
-}
-
-impl<S, T, E, F> Sequence<S, T, E, F> 
-where F: Parser<S, T, E>
-{
-    pub fn new(items: Vec<F>) -> Self {
-        Self { items, _t: PhantomData::default() }
-    }
-}
-
-impl<S, T, E, F: Parser<S, T, E>> Parser<S, Vec<T>, E> for Sequence<S, T, E, F> {
-    fn run(&self, s: S) -> Result<(S, Vec<T>), E> {
-        let mut state = s;
-        let mut out = Vec::new();
-        for i in &self.items {
-            let (s, res) = i.run(state)?; 
-            state = s;
-            out.push(res);
-        };
-        Ok((state, out))
-    }
-}
+use crate::parse::Parser;
+use crate::combinator::*;
 
 fn run_parser<S, T, E>(parser: impl Parser<S, T, E>, input: S) -> Result<T, E> 
 {
@@ -63,8 +26,8 @@ fn is_char(c: char) -> impl Fn(&str) -> Result<(&str, char), String> {
 
 fn main() -> Result<(), String> {
     let cmb = Sequence::new(vec![is_char('a'), is_char('o'), is_char('o')]);
-    let c = run_parser(cmb, "aoo bar")?; 
-    println!("got: {}", c.iter().collect::<String>());
+    let c = run_parser(map(cmb, |cs| cs.iter().collect::<String>()), "aoo bar")?; 
+    println!("got: {c}");
     Ok(())
 }
 
