@@ -41,3 +41,36 @@ where F: Parser<S,T,E>,
     }
 }
 
+pub fn repeat0<S: Clone, T, E: Clone + Default, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
+where F: Parser<S, T, E>
+{
+    repeat(0, E::default(), f)
+}
+
+pub fn repeat1<S: Clone, T, E: Clone + Default, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
+where F: Parser<S, T, E>
+{
+    repeat(1, E::default(), f)
+}
+
+fn repeat<S: Clone, T, E: Clone, F>(min_matches: usize, err: E, f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
+where F: Parser<S, T, E>
+{
+    move |input| {
+        let mut out = Vec::new();
+        let mut state = input;
+        loop {
+            if let Ok((s, res)) = f.run(state.clone()) {
+                out.push(res);
+                state = s;
+            } else {
+                return if out.len() < min_matches {
+                    Err(err.clone())
+                } else {
+                    Ok((state, out))
+                };
+            }
+        }
+    }
+}
+
