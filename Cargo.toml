@@ -21,6 +21,9 @@ name = "asm"
 [[bin]]
 name = "dis"
 
+[[bin]]
+name = "lang"
+
 [dependencies.macros]
 path = "lib/macros"
 
