@@ -120,7 +120,7 @@ where F: Parser<S, T, E>
     }
 }
 
-fn wrapped<A, B, C, S, E, F, G, H>(f: F, g: G, h: H) -> impl Fn(S) -> Result<(S, B), E> 
+pub fn wrapped<A, B, C, S, E, F, G, H>(f: F, g: G, h: H) -> impl Fn(S) -> Result<(S, B), E> 
 where F: Parser<S, A, E>,
       G: Parser<S, B, E>,
       H: Parser<S, C, E>,
