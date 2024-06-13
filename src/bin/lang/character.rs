@@ -31,7 +31,8 @@ pub fn token<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, &'a str
         if let Some(_) = input.strip_prefix(s) {
             Ok((&input[s.len()..], s)) 
         } else {
-            Err(format!("expected \"{}\" got \"{}\"", s, &input[0..s.len()]))
+            let max = usize::min(s.len(), input.len());
+            Err(format!("expected \"{}\" got \"{}\"", s, &input[0..max]))
         }
     }
 }

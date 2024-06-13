@@ -65,6 +65,23 @@ fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(&'a str) -> Result<(&'a str, T), S
     }
 }
 
+fn statement_terminated(input: &str) -> Result<(&str, ast::Statement), String> {
+    let (s0, stmt) = statement(input)?;
+    let (s1, _) = skip_whitespace(token(";"))(s0)?;
+    Ok((s1, stmt))
+}
+
+fn function_definition(input: &str) -> Result<(&str, ast::TopLevel), String> {
+    let (s0, return_type) = skip_whitespace(parse_type)(input)?;  
+    let (s1, name) = skip_whitespace(identifier)(s0)?;
+    let (s2, _) = skip_whitespace(token("("))(s1)?;
+    let (s3, _) = skip_whitespace(token(")"))(s2)?;
+    let (s4, body) = wrapped(skip_whitespace(token("{")), repeat1(skip_whitespace(statement_terminated)), skip_whitespace(token("}")))(s3)?;
+    Ok((s4, ast::TopLevel::FunctionDefinition{
+        name, return_type, body, args: Vec::new(),
+    }))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -87,6 +104,13 @@ mod test {
     fn test_declare() {
         let expected = Statement::Declare(Identifier::new("bar"), Type::Char, Some(Box::new(Expression::LiteralChar('a'))));
         assert_eq!(expected, run_parser(statement_variable_declare, "let char bar := 'a'").unwrap());
+    }
+
+    #[test]
+    fn test_function() -> Result<(), String> {
+        let expected = "int foo() {\nlet int a := 7;\na := 99;\n}\n";
+        assert_eq!(expected, run_parser(function_definition, expected)?.to_string());
+        Ok(())
     }
 
 }

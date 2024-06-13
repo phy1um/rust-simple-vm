@@ -75,3 +75,21 @@ impl fmt::Display for Expression {
         }
     }
 }
+
+#[derive(Debug, PartialEq)]
+pub enum TopLevel {
+    FunctionDefinition{name: Identifier, return_type: Type, args: Vec<(Identifier, Type)>, body: Vec<Statement>},
+}
+
+impl fmt::Display for TopLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FunctionDefinition{name, return_type, args, body} => {
+                let arglist = args.iter().map(|(id, arg_type)| format!("{arg_type} {id}")).collect::<Vec<String>>().join(", ");
+                let body = body.iter().map(|s| format!("{s};")).collect::<Vec<String>>().join("\n");
+                write!(f, "{return_type} {name}({}) {{\n{}\n}}\n", arglist, body)
+            }
+        }
+    }
+}
+
