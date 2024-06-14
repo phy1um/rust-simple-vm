@@ -26,10 +26,17 @@ fn expression_literal_char(input: &str) -> Result<(&str, ast::Expression), Strin
     map(wrapped(token("'"), not_char("'"), token("'")), |c| ast::Expression::LiteralChar(c))(input)
 }
 
+pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), String> {
+    let (s0, id) = skip_whitespace(identifier)(input)?;
+    let (s1, args) = wrapped(token("("), repeat0(expression), token(")"))(s0)?;
+    Ok((s1, ast::Expression::FunctionCall(id, args)))
+}
+
 fn expression(input: &str) -> Result<(&str, ast::Expression), String> {
     require(Any::new(vec![
         expression_literal_int,
         expression_literal_char,
+        expression_call,
     ]))(input)
 }
 
@@ -48,6 +55,7 @@ pub fn statement_variable_declare(input: &str) -> Result<(&str, ast::Statement),
     let (s4, expr) = skip_whitespace(expression)(s3)?;
     Ok((s4, ast::Statement::Declare(id, variable_type, Some(Box::new(expr)))))
 }
+
 
 pub fn statement(input: &str) -> Result<(&str, ast::Statement), String> {
     require(Any::new(vec![
@@ -99,6 +107,12 @@ mod test {
     fn test_expression_literal_int() {
         assert_eq!(Expression::LiteralInt(5), run_parser(expression_literal_int, "5").unwrap());
         assert_eq!(Expression::LiteralInt(99), run_parser(expression_literal_int, "99").unwrap());
+    }
+
+    #[test]
+    fn test_expression_call() {
+        let expected = "putch('a')";
+        assert_eq!(expected, run_parser(expression_call, &expected.to_string()).unwrap().to_string());
     }
 
     #[test]
