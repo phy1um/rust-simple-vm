@@ -65,13 +65,15 @@ impl fmt::Display for Statement {
 pub enum Expression {
     LiteralInt(i32),
     LiteralChar(char),
+    FunctionCall(Identifier, Vec<Expression>),
 }
 
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::LiteralInt(i) => write!(f, "{i}"),
-            Self::LiteralChar(c) => write!(f, "{c}"),
+            Self::LiteralChar(c) => write!(f, "'{c}'"),
+            Self::FunctionCall(name, args) => write!(f, "{name}({})", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
         }
     }
 }
