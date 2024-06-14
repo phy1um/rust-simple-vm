@@ -8,8 +8,10 @@ use crate::parse::run_parser;
 use crate::language::*;
 
 fn main() -> Result<(), String> {
-    let c = run_parser(statement, "x := 5")?; 
-    println!("got: {c}");
+    let program = run_parser(parse_ast, "int foo() {\nlet int a := 7;\na := 99;\n}\n")?;
+    for p in program {
+        println!("{p}\n");
+    }
     Ok(())
 }
 
