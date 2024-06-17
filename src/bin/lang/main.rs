@@ -31,7 +31,7 @@ fn main() -> Result<(), String> {
     };
 
     let mut code = Vec::new();
-    reader.read_to_end(&mut code);
+    reader.read_to_end(&mut code).unwrap();
     let code_str = std::str::from_utf8(&code).map_err(|_| "not utf8")?;
 
     let program = run_parser(parse_ast, code_str)?;
