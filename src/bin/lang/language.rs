@@ -80,7 +80,6 @@ fn statement_terminated(input: &str) -> Result<(&str, ast::Statement), String> {
 }
 
 fn function_definition(input: &str) -> Result<(&str, ast::TopLevel), String> {
-    println!("try function definition: {}", input.len());
     let (s0, return_type) = skip_whitespace(parse_type)(input)?;  
     let (s1, name) = skip_whitespace(identifier)(s0)?;
     let (s2, _) = skip_whitespace(token("("))(s1)?;
