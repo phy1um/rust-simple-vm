@@ -12,14 +12,72 @@ pub enum CompilerError {
 }
 
 #[derive(Debug, Default)]
-pub struct Context {
+pub struct Context<'a> {
     symbols: HashMap<String, u32>,
-    functions: HashMap<String, Block>,
+    functions: HashMap<String, Block<'a>>,
     function_defs: HashMap<String, FunctionDefinition>,
     init: Vec<UnresolvedInstruction>,
 }
 
-impl Context {
+#[allow(dead_code)]
+#[derive(Debug)]
+pub enum BlockVariable {
+    Local(usize),
+    Arg(usize),
+    Const(u16),
+    // TODO: Static(usize),
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct BlockScope<'a> {
+    locals: Vec<String>,
+    args: Vec<String>,
+    parent: Option<&'a BlockScope<'a>>,
+}
+
+impl<'a> BlockScope<'a> {
+    pub fn define_local(&mut self, s: &str) -> usize {
+        self.locals.push(s.to_owned());
+        self.locals.len() - 1
+    }
+
+    pub fn define_arg(&mut self, s: &str) {
+        self.args.push(s.to_owned());
+    }
+
+    fn get_local(&self, s: &str) -> Option<usize> {
+        for (i, k) in self.locals.iter().enumerate() {
+            if k == s {
+                return Some(i)
+            }
+        };
+        None
+    }
+
+    fn get_arg(&self, s: &str) -> Option<usize> {
+         for (i, k) in self.args.iter().enumerate() {
+            if k == s {
+                return Some(i)
+            }
+        };
+        None
+    }
+
+    pub fn get(&self, s: &str) -> Option<BlockVariable> {
+        if let Some(i) = self.get_local(s) {
+            Some(BlockVariable::Local(i))
+        } else if let Some(i) = self.get_arg(s) {
+            Some(BlockVariable::Arg(i))
+        } else if let Some(par) = self.parent {
+            par.get(s)
+        } else {
+            None
+        }
+    }
+}
+
+impl Context<'_> {
     pub fn get(&self, s: &Symbol) -> Result<u32, CompilerError> {
         self.symbols.get(&s.0).ok_or(CompilerError::UnknownSymbol(s.clone())).copied()
     }
@@ -50,6 +108,7 @@ impl Context {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum UnresolvedInstruction {
     Instruction(Instruction),
@@ -90,20 +149,22 @@ impl Symbol {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Default)]
-pub struct Block {
+pub struct Block<'a> {
     instructions: Vec<UnresolvedInstruction>, 
-    locals: Vec<String>,
+    scope: BlockScope<'a>,
     offset: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct FunctionDefinition {
     arg_types: Vec<ast::Type>,
     return_type: ast::Type,
 }
 
-impl Block {
+impl Block<'_> {
     pub fn register_labels(&self, ctx: &mut Context, function_offset: u32) {
         for (offset, ins) in self.instructions.iter().enumerate() {
             if let UnresolvedInstruction::Label(s) = ins {
@@ -111,18 +172,9 @@ impl Block {
             }
         }
     }
-
-    pub fn get_local_index(&self, s: &str) -> Option<usize> {
-        for (i, l) in self.locals.iter().enumerate() {
-            if l == s {
-                return Some(i)
-            }
-        };
-        None
-    }
 }
 
-fn compile_body(statements: Vec<ast::Statement>, name: &str, offset: u32) -> Result<Block, CompilerError> {
+fn compile_body<'a>(_x: &mut Context<'a>, statements: Vec<ast::Statement>, name: &str, offset: u32) -> Result<Block<'a>, CompilerError> {
     let mut block = Block {
         offset,
         ..Block::default()
@@ -133,11 +185,10 @@ fn compile_body(statements: Vec<ast::Statement>, name: &str, offset: u32) -> Res
     for s in statements {
         match s {
             ast::Statement::Declare(id, _t, Some(expr)) => {
-                if block.get_local_index(&id.0).is_some() {
+                if block.scope.get(&id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
-                let local_index = block.locals.len();
-                block.locals.push(id.0);
+                let local_index = block.scope.define_local(&id.0);
                 // put expression on top of stack
                 let mut compiled_expr = compile_expression(&mut block, *expr)?;
                 block.instructions.append(&mut compiled_expr);
@@ -151,13 +202,13 @@ fn compile_body(statements: Vec<ast::Statement>, name: &str, offset: u32) -> Res
                         Instruction::Store(Register::B, Register::Zero, Register::A))); 
             }
             ast::Statement::Declare(id, _t, None) => {
-                if block.get_local_index(&id.0).is_some() {
+                if block.scope.get(&id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
-                block.locals.push(id.0);
+                block.scope.define_local(&id.0);
             }
             ast::Statement::Assign(id, expr) => {
-                if let Some(index) = block.get_local_index(&id.0) {
+                if let Some(BlockVariable::Local(index)) = block.scope.get(&id.0) {
                     let mut compiled_expr = compile_expression(&mut block, *expr)?;
                     block.instructions.append(&mut compiled_expr);
                     block.instructions.push(UnresolvedInstruction::Instruction(
@@ -226,7 +277,7 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
    }
 }
 
-pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, CompilerError> {
+pub fn compile<'a>(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context<'a>, CompilerError> {
     let mut ctx = Context::default();
     ctx.load_init(vec![
         UnresolvedInstruction::Instruction(
@@ -266,11 +317,11 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
     for p in program {
         match p {
             ast::TopLevel::FunctionDefinition{name, body, ..} => {
-                let block = compile_body(body, &name.0, program_offset)?;
+                let block = compile_body(&mut ctx, body, &name.0, program_offset)?;
                 block.register_labels(&mut ctx, program_offset);
                 let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
                 let local_count_sym = format!("__internal_{name}_local_count");
-                ctx.define(&Symbol::new(&local_count_sym), block.locals.len() as u32 *2);
+                ctx.define(&Symbol::new(&local_count_sym), block.scope.locals.len() as u32 *2);
                 ctx.functions.insert(name.0, block);
                 program_offset += block_size;
             }
