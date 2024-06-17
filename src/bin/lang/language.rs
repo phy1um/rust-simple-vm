@@ -26,6 +26,10 @@ fn expression_literal_char(input: &str) -> Result<(&str, ast::Expression), Strin
     map(wrapped(token("'"), not_char("'"), token("'")), |c| ast::Expression::LiteralChar(c))(input)
 }
 
+fn expression_variable(input: &str) -> Result<(&str, ast::Expression), String> {
+    map(identifier, |s| ast::Expression::Variable(s.0))(input)
+}
+
 pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), String> {
     let (s0, id) = skip_whitespace(identifier)(input)?;
     let (s1, args) = wrapped(token("("), repeat0(expression), token(")"))(s0)?;
@@ -33,11 +37,12 @@ pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), String> {
 }
 
 fn expression(input: &str) -> Result<(&str, ast::Expression), String> {
-    require(Any::new(vec![
+    Any::new(vec![
         expression_literal_int,
         expression_literal_char,
         expression_call,
-    ]))(input)
+        expression_variable,
+    ]).run(input)
 }
 
 pub fn statement_variable_assign(input: &str) -> Result<(&str, ast::Statement), String> {
@@ -63,11 +68,11 @@ pub fn statement_return(input: &str) -> Result<(&str, ast::Statement), String> {
 }
 
 pub fn statement(input: &str) -> Result<(&str, ast::Statement), String> {
-    require(Any::new(vec![
+    Any::new(vec![
         statement_variable_assign,
         statement_variable_declare,
         statement_return,
-    ]))(input)
+    ]).run(input)
 }
 
 fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(&'a str) -> Result<(&'a str, T), String> 
@@ -97,9 +102,9 @@ fn function_definition(input: &str) -> Result<(&str, ast::TopLevel), String> {
 }
 
 pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), String> {
-    repeat1(require(Any::new(vec![
+    repeat1(Any::new(vec![
         function_definition,
-    ])))(input)
+    ]))(input)
 }
 
 #[cfg(test)]

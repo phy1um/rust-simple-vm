@@ -261,6 +261,25 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
             UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(c as u16).unwrap())),
             UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
         ]),
+        ast::Expression::Variable(s) => {
+            if let Some(v) = block.scope.get(&s) {
+                match v {
+                    BlockVariable::Local(i) => Ok(vec![
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Add(Register::BP, Register::Zero, Register::C)),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::AddImm(Register::C, Literal7Bit::new_checked(i as u8 *2).unwrap())),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Load(Register::C, Register::C, Register::Zero)),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                    ]),
+                    _ => panic!("args unhandled"),
+                }
+            } else {
+                Err(CompilerError::VariableUndefined(s))
+            }
+        }
         ast::Expression::FunctionCall(id, args) => {
             let mut out = Vec::new(); 
             for a in args {

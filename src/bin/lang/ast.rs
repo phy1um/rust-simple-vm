@@ -67,6 +67,7 @@ impl fmt::Display for Statement {
 pub enum Expression {
     LiteralInt(i32),
     LiteralChar(char),
+    Variable(String),
     FunctionCall(Identifier, Vec<Expression>),
 }
 
@@ -75,6 +76,7 @@ impl fmt::Display for Expression {
         match self {
             Self::LiteralInt(i) => write!(f, "{i}"),
             Self::LiteralChar(c) => write!(f, "'{c}'"),
+            Self::Variable(v) => write!(f, "{v}"),
             Self::FunctionCall(name, args) => write!(f, "{name}({})", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
         }
     }

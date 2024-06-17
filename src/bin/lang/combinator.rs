@@ -47,14 +47,16 @@ where F: Parser<S, T, E>
     }
 }
 
-impl<S: Clone, T, E, F: Parser<S, T, E>> Parser<S, Option<T>, E> for Any<S, T, E, F> {
-    fn run(&self, s: S) -> Result<(S, Option<T>), E> {
+impl<S: Clone, T, E: Default, F: Parser<S, T, E>> Parser<S, T, E> for Any<S, T, E, F> {
+    fn run(&self, s: S) -> Result<(S, T), E> {
+        let mut last_err = E::default(); 
         for item in &self.items {
-            if let Ok((sn, res)) = item.run(s.clone()) {
-                return Ok((sn, Some(res)))
+            match item.run(s.clone()) {
+                Ok(x) => return Ok(x),
+                Err(e) => last_err = e,
             };
         };
-        Ok((s, None))
+        Err(last_err)
     }
 }
 
@@ -68,7 +70,7 @@ where F: Parser<S,T,E>,
     }
 }
 
-pub fn require<S, T, E: Default, F>(f: F) -> impl Fn(S) -> Result<(S, T), E>
+pub fn require<S, T, E: Clone, F>(f: F, e: E) -> impl Fn(S) -> Result<(S, T), E>
 where F: Parser<S, Option<T>, E>
 {
     move |input| {
@@ -76,30 +78,12 @@ where F: Parser<S, Option<T>, E>
         if let Some(t) = res {
             Ok((s, t))
         } else {
-            Err(E::default())
+            Err(e.clone())
         }
     }
 }
 
 pub fn repeat0<S: Clone, T, E: Clone + Default, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
-where F: Parser<S, T, E>
-{
-    repeat(0, E::default(), f)
-}
-
-pub fn repeat1<S: Clone, T, E: Clone + Default, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
-where F: Parser<S, T, E>
-{
-    repeat(1, E::default(), f)
-}
-
-pub fn discard<S, T, E, F>(f: F) -> impl Fn(S) -> Result<(S, ()), E> 
-where F: Parser<S, T, E>
-{
-    map(f, |_| ())
-}
-
-fn repeat<S: Clone, T, E: Clone, F>(min_matches: usize, err: E, f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
 where F: Parser<S, T, E>
 {
     move |input| {
@@ -110,14 +94,43 @@ where F: Parser<S, T, E>
                 out.push(res);
                 state = s;
             } else {
-                return if out.len() < min_matches {
-                    Err(err.clone())
-                } else {
-                    Ok((state, out))
-                };
+                return Ok((state, out))
             }
         }
     }
+}
+
+pub fn repeat1<S: Clone, T, E: Clone + Default, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
+where F: Parser<S, T, E>
+{
+    move |input| {
+        let mut out = Vec::new();
+        let mut state = input;
+        let last_err: E;
+        loop {
+            match f.run(state.clone()) {
+                Ok((s, res)) => {
+                    out.push(res);
+                    state = s;
+                }
+                Err(e) => {
+                    last_err = e;
+                    break;
+                }
+            }
+        };
+        if out.len() < 1 {
+            Err(last_err)
+        } else {
+            Ok((state, out))
+        }
+    }
+}
+
+pub fn discard<S, T, E, F>(f: F) -> impl Fn(S) -> Result<(S, ()), E> 
+where F: Parser<S, T, E>
+{
+    map(f, |_| ())
 }
 
 pub fn wrapped<A, B, C, S, E, F, G, H>(f: F, g: G, h: H) -> impl Fn(S) -> Result<(S, B), E> 
