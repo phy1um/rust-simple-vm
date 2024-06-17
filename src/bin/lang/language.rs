@@ -56,11 +56,17 @@ pub fn statement_variable_declare(input: &str) -> Result<(&str, ast::Statement),
     Ok((s4, ast::Statement::Declare(id, variable_type, Some(Box::new(expr)))))
 }
 
+pub fn statement_return(input: &str) -> Result<(&str, ast::Statement), String> {
+    let (s0, _) = skip_whitespace(token("return"))(input)?;
+    let (s1, expr) = skip_whitespace(expression)(s0)?;
+    Ok((s1, ast::Statement::Return(expr)))
+}
 
 pub fn statement(input: &str) -> Result<(&str, ast::Statement), String> {
     require(Any::new(vec![
         statement_variable_assign,
         statement_variable_declare,
+        statement_return,
     ]))(input)
 }
 

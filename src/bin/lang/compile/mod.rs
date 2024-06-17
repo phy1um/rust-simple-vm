@@ -222,7 +222,13 @@ fn compile_body<'a>(_x: &mut Context<'a>, statements: Vec<ast::Statement>, name:
                 } else {
                     return Err(CompilerError::VariableUndefined(id.0.to_string()))
                 }
-
+            }
+            ast::Statement::Return(expr) => {
+                let mut compiled_expr = compile_expression(&mut block, expr)?;
+                block.instructions.append(&mut compiled_expr);
+                // return in the A register
+                block.instructions.push(UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::A, Register::SP, StackOp::Pop)));
             }
         }
     };

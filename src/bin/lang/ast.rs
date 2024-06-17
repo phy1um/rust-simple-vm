@@ -49,6 +49,7 @@ impl fmt::Display for Type {
 pub enum Statement {
     Declare(Identifier, Type, Option<Box<Expression>>),
     Assign(Identifier, Box<Expression>),
+    Return(Expression),
 }
 
 impl fmt::Display for Statement {
@@ -57,6 +58,7 @@ impl fmt::Display for Statement {
             Self::Declare(i, t, Some(expr)) => write!(f, "let {t} {i} := {expr}"),
             Self::Declare(i, t, None) => write!(f, "let {t} {i}"),
             Self::Assign(i, expr) => write!(f, "{i} := {expr}"),
+            Self::Return(expr) => write!(f, "return {expr}"),
         }
     }
 }
