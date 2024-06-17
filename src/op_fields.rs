@@ -19,7 +19,7 @@ impl<A, B> CombinedResult<A, B> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Literal7Bit {
     pub value: u8,
 }
@@ -68,7 +68,7 @@ impl fmt::Display for Literal7Bit {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Literal10Bit {
     pub value: u16,
 }
@@ -118,7 +118,7 @@ impl fmt::Display for Literal10Bit {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Literal12Bit {
     pub value: u16,
 }
@@ -230,7 +230,7 @@ impl TryFrom<u16> for StackOp {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Nibble {
     pub value: u8,
 }

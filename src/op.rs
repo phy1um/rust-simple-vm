@@ -38,7 +38,7 @@ pub trait InstructionPart {
     fn from_instruction(ins: u16) -> Self;
 }
 
-#[derive(Debug, VmInstruction, PartialEq, Eq)]
+#[derive(Debug, VmInstruction, PartialEq, Eq, Clone)]
 pub enum Instruction {
     #[opcode(0xff)]
     // TODO: make u16 more restrictive
