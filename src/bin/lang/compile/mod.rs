@@ -296,12 +296,23 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
                     Instruction::Add(Register::SP, Register::Zero, Register::BP)
                 ),
                 UnresolvedInstruction::Imm(Register::PC, Symbol::new(&id.0)),
+                // functions return in register A, so push this
                 UnresolvedInstruction::Instruction(
                     Instruction::Stack(Register::A, Register::SP, StackOp::Push)
                 ),
             ]);
             Ok(out)
         },
+        ast::Expression::Add(e0, e1) => {
+            let mut out = Vec::new();
+            out.append(&mut compile_expression(block, *e1)?);
+            // expression 1 is on top of stack
+            out.append(&mut compile_expression(block, *e0)?);
+            // stack = [rv0, rv1]
+            out.push(UnresolvedInstruction::Instruction(
+                Instruction::Stack(Register::Zero, Register::SP, StackOp::Add)));
+            Ok(out)
+        }
    }
 }
 

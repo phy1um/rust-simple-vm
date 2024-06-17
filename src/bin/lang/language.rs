@@ -36,7 +36,14 @@ pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), String> {
     Ok((s1, ast::Expression::FunctionCall(id, args)))
 }
 
-fn expression(input: &str) -> Result<(&str, ast::Expression), String> {
+pub fn expression_binop(input: &str) -> Result<(&str, ast::Expression), String> {
+    let (s0, expr0) = skip_whitespace(expression_lhs)(input)?;
+    let (s1, _) = skip_whitespace(token("+"))(s0)?;
+    let (s2, expr1) = skip_whitespace(expression)(s1)?;
+    Ok((s2, ast::Expression::Add(Box::new(expr0), Box::new(expr1))))
+}
+
+fn expression_lhs(input: &str) -> Result<(&str, ast::Expression), String> {
     Any::new(vec![
         expression_literal_int,
         expression_literal_char,
@@ -44,6 +51,14 @@ fn expression(input: &str) -> Result<(&str, ast::Expression), String> {
         expression_variable,
     ]).run(input)
 }
+
+fn expression(input: &str) -> Result<(&str, ast::Expression), String> {
+    Any::new(vec![
+        expression_binop,
+        expression_lhs,
+    ]).run(input)
+}
+
 
 pub fn statement_variable_assign(input: &str) -> Result<(&str, ast::Statement), String> {
     let (s0, id) = identifier(input)?;

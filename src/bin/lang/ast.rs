@@ -3,7 +3,6 @@ use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct Identifier(pub String);
-
 impl Identifier {
     pub fn new(s: &str) -> Self {
         Self(s.to_owned())
@@ -68,6 +67,7 @@ pub enum Expression {
     LiteralInt(i32),
     LiteralChar(char),
     Variable(String),
+    Add(Box<Expression>, Box<Expression>),
     FunctionCall(Identifier, Vec<Expression>),
 }
 
@@ -77,6 +77,7 @@ impl fmt::Display for Expression {
             Self::LiteralInt(i) => write!(f, "{i}"),
             Self::LiteralChar(c) => write!(f, "'{c}'"),
             Self::Variable(v) => write!(f, "{v}"),
+            Self::Add(e0, e1) => write!(f, "{e0} + {e1}"),
             Self::FunctionCall(name, args) => write!(f, "{name}({})", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
         }
     }
