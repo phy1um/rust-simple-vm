@@ -30,14 +30,13 @@ pub fn main() -> Result<(), String> {
         .map_err(|x| format!("read: {}", x))?;
 
     let mut vm = Machine::new();
-    vm.map(0x1000, 0x4000, Box::new(LinearMemory::new(1024 * 5)))?;
+    vm.map(0x1000, 0x4000, Box::new(LinearMemory::new(0x3000)))?;
     vm.map(
-        0x10,
+        0x0,
         program.len(),
         Box::new(MemoryMappedBuffer::new(program)),
     )?;
     vm.set_register(Register::SP, 0x1000);
-    vm.set_register(Register::PC, 0x10);
     vm.define_handler(0xf0, signal_halt);
     while !vm.halt {
         println!("{}", vm.state());
