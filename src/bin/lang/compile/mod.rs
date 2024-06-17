@@ -193,13 +193,13 @@ fn compile_body<'a>(_x: &mut Context<'a>, statements: Vec<ast::Statement>, name:
                 let mut compiled_expr = compile_expression(&mut block, *expr)?;
                 block.instructions.append(&mut compiled_expr);
                 block.instructions.push(UnresolvedInstruction::Instruction(
-                        Instruction::Stack(Register::A, Register::SP, StackOp::Pop)));
+                        Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
                 block.instructions.push(UnresolvedInstruction::Instruction(
                         Instruction::Add(Register::BP, Register::Zero, Register::B)));
                 block.instructions.push(UnresolvedInstruction::Instruction(
                         Instruction::AddImm(Register::B, Literal7Bit::new_checked(local_index as u8 * 2).unwrap())));
                 block.instructions.push(UnresolvedInstruction::Instruction(
-                        Instruction::Store(Register::B, Register::Zero, Register::A))); 
+                        Instruction::Store(Register::B, Register::Zero, Register::C))); 
             }
             ast::Statement::Declare(id, _t, None) => {
                 if block.scope.get(&id.0).is_some() {
@@ -212,13 +212,13 @@ fn compile_body<'a>(_x: &mut Context<'a>, statements: Vec<ast::Statement>, name:
                     let mut compiled_expr = compile_expression(&mut block, *expr)?;
                     block.instructions.append(&mut compiled_expr);
                     block.instructions.push(UnresolvedInstruction::Instruction(
-                            Instruction::Stack(Register::A, Register::SP, StackOp::Pop)));
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
                     block.instructions.push(UnresolvedInstruction::Instruction(
                             Instruction::Add(Register::BP, Register::Zero, Register::B)));
                     block.instructions.push(UnresolvedInstruction::Instruction(
                             Instruction::AddImm(Register::B, Literal7Bit::new_checked(index as u8 * 2).unwrap())));
                     block.instructions.push(UnresolvedInstruction::Instruction(
-                            Instruction::Store(Register::B, Register::Zero, Register::A))); 
+                            Instruction::Store(Register::B, Register::Zero, Register::C))); 
                 } else {
                     return Err(CompilerError::VariableUndefined(id.0.to_string()))
                 }
@@ -247,13 +247,13 @@ fn compile_body<'a>(_x: &mut Context<'a>, statements: Vec<ast::Statement>, name:
 fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     match expr {
         ast::Expression::LiteralInt(i) => Ok(vec![
-            UnresolvedInstruction::Instruction(Instruction::Imm(Register::A, Literal12Bit::new_checked(i as u16).unwrap())),
-            UnresolvedInstruction::Instruction(Instruction::Stack(Register::A, Register::SP, StackOp::Push)),
+            UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(i as u16).unwrap())),
+            UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
 
         ]),
         ast::Expression::LiteralChar(c) => Ok(vec![
-            UnresolvedInstruction::Instruction(Instruction::Imm(Register::A, Literal12Bit::new_checked(c as u16).unwrap())),
-            UnresolvedInstruction::Instruction(Instruction::Stack(Register::A, Register::SP, StackOp::Push)),
+            UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(c as u16).unwrap())),
+            UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
         ]),
         ast::Expression::FunctionCall(id, args) => {
             let mut out = Vec::new(); 
@@ -271,6 +271,9 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
                     Instruction::Add(Register::SP, Register::Zero, Register::BP)
                 ),
                 UnresolvedInstruction::Imm(Register::PC, Symbol::new(&id.0)),
+                UnresolvedInstruction::Instruction(
+                    Instruction::Stack(Register::A, Register::SP, StackOp::Push)
+                ),
             ]);
             Ok(out)
         },
@@ -297,10 +300,10 @@ pub fn compile<'a>(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context<'
         ),
         UnresolvedInstruction::Imm(Register::PC, Symbol::new("main")),
         UnresolvedInstruction::Instruction(
-            Instruction::Imm(Register::A, Literal12Bit::new_checked(0xf0).unwrap())
+            Instruction::Imm(Register::C, Literal12Bit::new_checked(0xf0).unwrap())
         ),
         UnresolvedInstruction::Instruction(
-            Instruction::System(Register::A, Register::Zero, Nibble::default())
+            Instruction::System(Register::C, Register::Zero, Nibble::default())
         ),
     ]);
     for p in &program {
