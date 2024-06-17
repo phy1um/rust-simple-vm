@@ -17,8 +17,12 @@ impl JSMemCallback {
 impl Addressable for JSMemCallback {
     fn read(&mut self, addr: u32) -> Result<u8, MemoryError> {
         let this = JsValue::null();
-        self.on_read.call1(&this, &JsValue::from(addr));
-        Ok(0)
+        if let Ok(res) = self.on_read.call1(&this, &JsValue::from(addr)) {
+            let value = res.as_f64().ok_or(MemoryError::InternalMapperError(addr))?;
+            Ok(value as u8)
+        } else {
+            Err(MemoryError::InternalMapperError(addr))
+        }
     }
 
     fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {
@@ -61,7 +65,7 @@ struct PreProcessor {
 impl PreProcessor {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        let mut pp = pp::PreProcessor::new();
+        let mut pp = pp::PreProcessor::default();
         pp::macros::setup_std_macros(&mut pp);
         Self { pp }
     }
@@ -95,9 +99,8 @@ struct JSMachine {
 #[wasm_bindgen(js_class = VM)]
 impl JSMachine {
     #[wasm_bindgen(constructor)]
-    pub fn new(memory_size: usize, tick_every_secs: f32) -> Self {
+    pub fn new(tick_every_secs: f32) -> Self {
         let mut m = Machine::new();
-        let _ = m.map(0, memory_size, Box::new(LinearMemory::new(memory_size)));
         m.halt = true;
         m.define_handler(0xf0, signal_halt);
         m.define_handler(0x1, signal_write);
@@ -107,6 +110,15 @@ impl JSMachine {
             tick_acc: 0.0,
             on_run_instruction: None,
         }
+    }
+
+    #[wasm_bindgen]
+    pub fn map_memory_array(
+        &mut self,
+        start: usize,
+        size: usize,
+    ) {
+        self.m.map(start, size, Box::new(LinearMemory::new(size)));
     }
 
     #[wasm_bindgen]

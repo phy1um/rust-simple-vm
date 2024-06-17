@@ -7,10 +7,6 @@
     <canvas width=400 height=400 id="canvas"></canvas>
     <div id="inputs">
     <textarea id="program" cols=80 rows=20>
-Imm B 5
-System Zero B 1
-Imm A $f0
-System A A 0
     </textarea>
     <textarea id="binary" cols=80 rows=10></textarea>
     <br>
@@ -26,8 +22,25 @@ System A A 0
     <a href="./help.html">Help?</a>
     <script type="module">
       import init, { VM, PreProcessor, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
+      function makeTraceMem(size) {
+        const buffer = new Uint8Array(size);
+        return [
+          (a) => {
+            const v = buffer[a];
+            console.log(`read  @ ${a}: ${v}`);
+            return v;
+          },
+          (a, v) => {
+            console.log(`write @ ${a}: ${v}`);
+            buffer[a] = v;
+          },
+          buffer
+        ];
+      }
       init().then(() => {
-        const vm = new VM(8*1024, 1/10000);
+        const [rr, ww, bb] = makeTraceMem(0x8000);
+        const vm = new VM(1/10000);
+        vm.map_memory_func(0, 0x8000, rr, ww);
         vm.set_halt(true);
         const lastInstructionText = document.querySelector("#ins");
         const errorText = document.querySelector("#error");
