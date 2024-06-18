@@ -32,7 +32,7 @@ fn expression_variable(input: &str) -> Result<(&str, ast::Expression), String> {
 
 pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), String> {
     let (s0, id) = skip_whitespace(identifier)(input)?;
-    let (s1, args) = wrapped(token("("), repeat0(expression), token(")"))(s0)?;
+    let (s1, args) = wrapped(token("("), allow_empty(delimited(skip_whitespace(expression), skip_whitespace(token(",")))), token(")"))(s0)?;
     Ok((s1, ast::Expression::FunctionCall(id, args)))
 }
 
@@ -105,14 +105,21 @@ fn statement_terminated(input: &str) -> Result<(&str, ast::Statement), String> {
     Ok((s1, stmt))
 }
 
+fn named_arg(input: &str) -> Result<(&str, (ast::Identifier, ast::Type)), String> {
+    let (s0, ty) = skip_whitespace(parse_type)(input)?;  
+    let (s1, name) = skip_whitespace(identifier)(s0)?;
+    Ok((s1, (name, ty)))
+}
+
 fn function_definition(input: &str) -> Result<(&str, ast::TopLevel), String> {
     let (s0, return_type) = skip_whitespace(parse_type)(input)?;  
     let (s1, name) = skip_whitespace(identifier)(s0)?;
     let (s2, _) = skip_whitespace(token("("))(s1)?;
-    let (s3, _) = skip_whitespace(token(")"))(s2)?;
-    let (s4, body) = wrapped(skip_whitespace(token("{")), repeat1(skip_whitespace(statement_terminated)), skip_whitespace(token("}")))(s3)?;
-    Ok((s4, ast::TopLevel::FunctionDefinition{
-        name, return_type, body, args: Vec::new(),
+    let (s3, args) = allow_empty(delimited(named_arg, skip_whitespace(token(","))))(s2)?;
+    let (s4, _) = skip_whitespace(token(")"))(s3)?;
+    let (s5, body) = wrapped(skip_whitespace(token("{")), repeat1(skip_whitespace(statement_terminated)), skip_whitespace(token("}")))(s4)?;
+    Ok((s5, ast::TopLevel::FunctionDefinition{
+        name, return_type, body, args,
     }))
 }
 
@@ -136,8 +143,14 @@ mod test {
 
     #[test]
     fn test_expression_call() {
-        let expected = "putch('a')";
-        assert_eq!(expected, run_parser(expression_call, &expected.to_string()).unwrap().to_string());
+        {
+            let expected = "putch('a')";
+            assert_eq!(expected, run_parser(expression_call, &expected.to_string()).unwrap().to_string());
+        }
+        {
+            let expected = "foo(1, 2, 3)";
+            assert_eq!(expected, run_parser(expression_call, &expected.to_string()).unwrap().to_string());
+        }
     }
 
     #[test]

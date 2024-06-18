@@ -146,6 +146,35 @@ where F: Parser<S, A, E>,
     }
 }
 
+pub fn delimited<A, B, S: Clone, E, F, G>(f: F, delim: G) -> impl Fn(S) -> Result<(S, Vec<A>), E>
+where F: Parser<S, A, E>,
+      G: Parser<S, B, E>,
+{
+    move |input| {
+        let mut out = Vec::new();
+        let mut current_state = input;
+        loop {
+            let (sn, res) = f.run(current_state)?; 
+            out.push(res);
+            match delim.run(sn.clone()) {
+                Ok((snn, _)) => current_state = snn,
+                Err(_) => return Ok((sn, out)),
+            };
+        }
+    }
+}
+
+pub fn allow_empty<S: Clone, T, E, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
+where F: Parser<S, Vec<T>, E>,
+{
+    move |input| {
+        match f.run(input.clone()) {
+            Ok(x) => Ok(x),
+            Err(_) => Ok((input, Vec::new())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -177,8 +206,15 @@ Hello world this is some text. \"").unwrap();
 
     #[test]
     fn test_any() {
-        let (s, n) = require(Any::new(vec![alpha, numeric]))("1").unwrap();
+        let (s, n) = Any::new(vec![alpha, numeric]).run("1").unwrap();
         assert_eq!("", s);
         assert_eq!('1', n);
+    }
+
+    #[test]
+    fn test_delimited() {
+        let (s, n) = delimited(alpha, token(","))("a,b,c,d").unwrap();
+        assert_eq!("", s);
+        assert_eq!(vec!['a', 'b', 'c', 'd'], n);
     }
 }

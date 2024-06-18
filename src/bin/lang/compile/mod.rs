@@ -160,7 +160,7 @@ pub struct Block<'a> {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct FunctionDefinition {
-    arg_types: Vec<ast::Type>,
+    args: Vec<(String, ast::Type)>,
     return_type: ast::Type,
 }
 
@@ -174,12 +174,15 @@ impl Block<'_> {
     }
 }
 
-fn compile_body<'a>(_x: &mut Context<'a>, statements: Vec<ast::Statement>, name: &str, offset: u32) -> Result<Block<'a>, CompilerError> {
+fn compile_body<'a>(ctx: &mut Context<'a>, statements: Vec<ast::Statement>, name: &str, offset: u32) -> Result<Block<'a>, CompilerError> {
     let mut block = Block {
         offset,
         ..Block::default()
     };
     block.instructions.push(UnresolvedInstruction::Label(Symbol::new(name)));
+    for (name, _type) in &ctx.function_defs.get(name).unwrap().args {
+        block.scope.define_arg(name); 
+    }
     let local_count_sym = format!("__internal_{name}_local_count");
     block.instructions.push(UnresolvedInstruction::AddImm(Register::SP, Symbol::new(&local_count_sym)));
     for s in statements {
@@ -274,7 +277,13 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
                         UnresolvedInstruction::Instruction(
                             Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
                     ]),
-                    _ => panic!("args unhandled"),
+                    BlockVariable::Arg(i) => Ok(vec![
+                        UnresolvedInstruction::Instruction(
+                            Instruction::LoadStackOffset(Register::C, Register::BP, Nibble::new_checked(i as u8+3).unwrap())),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                    ]),
+                    _ => panic!("block variable type unhandled"),
                 }
             } else {
                 Err(CompilerError::VariableUndefined(s))
@@ -346,7 +355,7 @@ pub fn compile<'a>(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context<'
         match p {
             ast::TopLevel::FunctionDefinition{name, return_type, args, ..} => {
                 ctx.function_defs.insert(name.0.to_string(), FunctionDefinition{
-                    arg_types: args.iter().map(|(_, ty)| ty.clone()).collect::<Vec<_>>(),
+                    args: args.iter().map(|(name, ty)| (name.to_string(), ty.clone())).collect::<Vec<_>>(),
                     return_type: return_type.clone(),
                 });
             }
@@ -375,6 +384,6 @@ mod test {
 
     #[test]
     fn test_empty_compile() {
-        let _ = compile(Vec::new()).unwrap();
+        let _ = compile(Vec::new(), 0).unwrap();
     }
 }
