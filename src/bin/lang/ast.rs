@@ -49,6 +49,7 @@ pub enum Statement {
     Declare(Identifier, Type, Option<Box<Expression>>),
     Assign(Identifier, Box<Expression>),
     Return(Expression),
+    If{cond: Expression, body: Vec<Statement>, else_body: Option<Vec<Statement>>},
 }
 
 impl fmt::Display for Statement {
@@ -58,6 +59,16 @@ impl fmt::Display for Statement {
             Self::Declare(i, t, None) => write!(f, "let {t} {i}"),
             Self::Assign(i, expr) => write!(f, "{i} := {expr}"),
             Self::Return(expr) => write!(f, "return {expr}"),
+            Self::If{cond, body, else_body} => {
+                if let Some(e) = else_body {
+                    write!(f, "if ({cond}) {{\n{}\n}} else {{\n{}\n}}\n",
+                            body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n"),
+                            e.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n"))
+                } else {
+                    write!(f, "if ({cond}) {{\n{}\n}}\n",
+                        body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n"))
+                }
+            }
         }
     }
 }

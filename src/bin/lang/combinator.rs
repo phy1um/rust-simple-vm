@@ -154,12 +154,16 @@ where F: Parser<S, A, E>,
         let mut out = Vec::new();
         let mut current_state = input;
         loop {
-            let (sn, res) = f.run(current_state)?; 
-            out.push(res);
-            match delim.run(sn.clone()) {
-                Ok((snn, _)) => current_state = snn,
-                Err(_) => return Ok((sn, out)),
-            };
+            match f.run(current_state.clone()) {
+                Ok((sn, res)) => {
+                    out.push(res);
+                    match delim.run(sn.clone()) {
+                        Ok((snn, _)) => current_state = snn,
+                        Err(_) => return Ok((sn, out)),
+                    }
+                }
+                Err(_) => return Ok((current_state, out)),
+            }
         }
     }
 }

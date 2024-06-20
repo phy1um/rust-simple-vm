@@ -82,8 +82,27 @@ pub fn statement_return(input: &str) -> Result<(&str, ast::Statement), String> {
     Ok((s1, ast::Statement::Return(expr)))
 }
 
+pub fn statement_if(input: &str) -> Result<(&str, ast::Statement), String> {
+    let (s0, _) = skip_whitespace(token("if"))(input)?;
+    let (s1, cond) = wrapped(skip_whitespace(token("(")), expression, skip_whitespace(token(")")))(s0)?;
+    let (s2, body) = wrapped(skip_whitespace(token("{")), 
+                             repeat1(skip_whitespace(statement_terminated)),
+                             skip_whitespace(token("}")))(s1)?;     
+    let (sn, else_body) = match skip_whitespace(token("else"))(s2) {
+        Ok((s3, _)) => {
+             let (s4, eb) = wrapped(skip_whitespace(token("{")), 
+                 repeat1(skip_whitespace(statement_terminated)),
+                 skip_whitespace(token("}")))(s3)?;
+             (s4, Some(eb))
+        }
+        Err(_) => (s2, None),
+    };
+    Ok((sn, ast::Statement::If{cond, body, else_body}))
+}
+
 pub fn statement(input: &str) -> Result<(&str, ast::Statement), String> {
     Any::new(vec![
+        statement_if,
         statement_variable_assign,
         statement_variable_declare,
         statement_return,
@@ -170,6 +189,18 @@ mod test {
         let expected = "int foo() {\nlet int a := 7;\na := 99;\n}\n";
         assert_eq!(expected, run_parser(function_definition, expected)?.to_string());
         Ok(())
+    }
+
+    #[test]
+    fn test_if() {
+        {
+            let expected = "if (a) {\nfoo := bar;\nreturn 5;\n}\n";
+            assert_eq!(expected, run_parser(statement_if, expected).unwrap().to_string());
+        }
+        {
+            let expected = "if (a) {\nfoo := bar;\n} else {\nfoo := baz;\n}\n";
+            assert_eq!(expected, run_parser(statement_if, expected).unwrap().to_string());
+        }
     }
 
 }
