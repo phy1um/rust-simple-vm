@@ -151,9 +151,21 @@ fn function_definition(input: &str) -> Result<(&str, ast::TopLevel), String> {
 }
 
 pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), String> {
-    repeat1(Any::new(vec![
+    let mut out = Vec::new();
+    let mut current_state = input;
+    let any = Any::new(vec![
         function_definition,
-    ]))(input)
+    ]);
+    loop {
+        let (state_next, _) = discard(repeat0(whitespace))(current_state)?;
+        if state_next.is_empty() {
+            return Ok((state_next, out))
+        } else {
+            let (snn, res) = any.run(state_next)?; 
+            out.push(res);
+            current_state = snn;
+        }
+    }
 }
 
 #[cfg(test)]
