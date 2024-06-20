@@ -36,11 +36,19 @@ pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), String> {
     Ok((s1, ast::Expression::FunctionCall(id, args)))
 }
 
+pub fn binop(input: &str) -> Result<(&str, ast::BinOp), String> {
+    map(Any::new(vec![
+        token("+"), token("-"), token("*"), token("%"), 
+        token("=="), token(">"), token(">="), token("<"), token("<="),
+        token("!="),
+    ]), |x| ast::BinOp::from_str(x).unwrap()).run(input)
+}
+
 pub fn expression_binop(input: &str) -> Result<(&str, ast::Expression), String> {
     let (s0, expr0) = skip_whitespace(expression_lhs)(input)?;
-    let (s1, _) = skip_whitespace(token("+"))(s0)?;
+    let (s1, op) = skip_whitespace(binop)(s0)?;
     let (s2, expr1) = skip_whitespace(expression)(s1)?;
-    Ok((s2, ast::Expression::Add(Box::new(expr0), Box::new(expr1))))
+    Ok((s2, ast::Expression::BinOp(Box::new(expr0), Box::new(expr1), op)))
 }
 
 fn expression_lhs(input: &str) -> Result<(&str, ast::Expression), String> {
@@ -194,7 +202,7 @@ mod test {
     #[test]
     fn test_if() {
         {
-            let expected = "if (a) {\nfoo := bar;\nreturn 5;\n}\n";
+            let expected = "if (a > 0) {\nfoo := bar;\nreturn 5;\n}\n";
             assert_eq!(expected, run_parser(statement_if, expected).unwrap().to_string());
         }
         {

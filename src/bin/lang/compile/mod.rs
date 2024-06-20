@@ -347,14 +347,18 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
             ]);
             Ok(out)
         },
-        ast::Expression::Add(e0, e1) => {
+        ast::Expression::BinOp(e0, e1, op) => {
             let mut out = Vec::new();
             out.append(&mut compile_expression(block, *e1)?);
             // expression 1 is on top of stack
             out.append(&mut compile_expression(block, *e0)?);
             // stack = [rv0, rv1]
-            out.push(UnresolvedInstruction::Instruction(
-                Instruction::Stack(Register::Zero, Register::SP, StackOp::Add)));
+            match op {
+                ast::BinOp::Add => 
+                    out.push(UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::Zero, Register::SP, StackOp::Add))),
+                _ => panic!("unimplemented binop {op}"),
+            }
             Ok(out)
         }
    }

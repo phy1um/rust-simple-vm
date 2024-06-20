@@ -74,11 +74,61 @@ impl fmt::Display for Statement {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum BinOp {
+    Add,
+    Subtract,
+    Multiply,
+    Mod,
+    Equal,
+    GreaterThan,
+    GreaterThanEqual,
+    LessThan,
+    LessThanEqual,
+    NotEqual,
+}
+
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Add => write!(f, "+"),
+            Self::Subtract => write!(f, "-"),
+            Self::Multiply => write!(f, "*"),
+            Self::Mod => write!(f, "%"),
+            Self::Equal => write!(f, "=="),
+            Self::GreaterThan => write!(f, ">"),
+            Self::GreaterThanEqual => write!(f, ">="),
+            Self::LessThan => write!(f, "<"),
+            Self::LessThanEqual => write!(f, "<="),
+            Self::NotEqual => write!(f, "!="),
+        }
+    }
+}
+
+impl FromStr for BinOp {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "+" => Ok(Self::Add),
+            "-" => Ok(Self::Subtract),
+            "*" => Ok(Self::Multiply),
+            "%" => Ok(Self::Mod),
+            "==" => Ok(Self::Equal),
+            ">" => Ok(Self::GreaterThan),
+            ">=" => Ok(Self::GreaterThanEqual),
+            "<" => Ok(Self::LessThan),
+            "<=" => Ok(Self::LessThanEqual),
+            "!=" => Ok(Self::NotEqual),
+            _ => Err(format!("unknown binop {s}")),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Expression {
     LiteralInt(i32),
     LiteralChar(char),
     Variable(String),
-    Add(Box<Expression>, Box<Expression>),
+    BinOp(Box<Expression>, Box<Expression>, BinOp),
     FunctionCall(Identifier, Vec<Expression>),
 }
 
@@ -88,7 +138,7 @@ impl fmt::Display for Expression {
             Self::LiteralInt(i) => write!(f, "{i}"),
             Self::LiteralChar(c) => write!(f, "'{c}'"),
             Self::Variable(v) => write!(f, "{v}"),
-            Self::Add(e0, e1) => write!(f, "{e0} + {e1}"),
+            Self::BinOp(e0, e1, op) => write!(f, "{e0} {op} {e1}"),
             Self::FunctionCall(name, args) => write!(f, "{name}({})", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
         }
     }
