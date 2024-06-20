@@ -47,18 +47,48 @@ where F: Parser<S, T, E>
     }
 }
 
-impl<S: Clone, T, E: Default, F: Parser<S, T, E>> Parser<S, T, E> for Any<S, T, E, F> {
-    fn run(&self, s: S) -> Result<(S, T), E> {
-        let mut last_err = E::default(); 
+impl<S: Clone, T, E, F: Parser<S, T, E>> Parser<S, Option<T>, E> for Any<S, T, E, F> {
+    fn run(&self, s: S) -> Result<(S, Option<T>), E> {
         for item in &self.items {
             match item.run(s.clone()) {
-                Ok(x) => return Ok(x),
-                Err(e) => last_err = e,
+                Ok((s, t)) => return Ok((s, Some(t))),
+                Err(_) => (),
             };
         };
-        Err(last_err)
+        Ok((s, None))
     }
 }
+
+#[derive(Debug, Default)]
+pub struct AnyCollectErr<S, T, E, F>
+where F: Parser<S, T, E>
+{
+    _t: PhantomData<(S, T, E)>,
+    items: Vec<F>,
+}
+
+impl <S, T, E, F> AnyCollectErr<S, T, E, F> 
+where F: Parser<S, T, E>
+{
+    pub fn new(items: Vec<F>) -> Self {
+        Self {items, _t: PhantomData::default() }
+    }
+}
+
+impl<S: Clone, T, E: Clone, F: Parser<S, T, E>> Parser<S, T, Vec<E>> for AnyCollectErr<S, T, E, F> {
+    fn run(&self, s: S) -> Result<(S, T), Vec<E>> {
+        let mut errs = Vec::new();
+        for item in &self.items {
+            match item.run(s.clone()) {
+                Ok((s, t)) => return Ok((s, t)),
+                Err(e) => errs.push(e),
+            };
+        };
+        Err(errs)
+    }
+}
+
+
 
 pub fn map<S, T, E, U, F, G>(f: F, g: G) -> impl Fn(S) -> Result<(S, U), E> 
 where F: Parser<S,T,E>,
@@ -83,7 +113,7 @@ where F: Parser<S, Option<T>, E>
     }
 }
 
-pub fn repeat0<S: Clone, T, E: Clone + Default, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
+pub fn repeat0<S: Clone, T, E: Clone, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
 where F: Parser<S, T, E>
 {
     move |input| {
@@ -100,7 +130,7 @@ where F: Parser<S, T, E>
     }
 }
 
-pub fn repeat1<S: Clone, T, E: Clone + Default, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
+pub fn repeat1<S: Clone, T, E: Clone, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
 where F: Parser<S, T, E>
 {
     move |input| {
@@ -212,7 +242,7 @@ Hello world this is some text. \"").unwrap();
     fn test_any() {
         let (s, n) = Any::new(vec![alpha, numeric]).run("1").unwrap();
         assert_eq!("", s);
-        assert_eq!('1', n);
+        assert_eq!('1', n.unwrap());
     }
 
     #[test]

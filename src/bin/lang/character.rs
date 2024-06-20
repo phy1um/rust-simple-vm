@@ -1,69 +1,71 @@
-pub fn is_char(c: char) -> impl Fn(&str) -> Result<(&str, char), String> {
+use crate::error::{ParseError, ParseErrorKind};
+
+pub fn is_char(c: char) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
     move |input| {
         if let Some(x) = input.chars().next() {
             if x == c {
                 Ok((&input[1..], c))
             } else {
-                Err(format!("expected '{c}' got '{x}'"))
+                Err(ParseError::new(input, ParseErrorKind::ExpectedChar{expected: c, got: x})) 
             }
         } else {
-            Err("empty".to_string())
+            Err(ParseError::new(input, ParseErrorKind::EndOfInput))
         }
     }
 }
 
-pub fn not_char<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, char), String> + 'a {
+pub fn not_char<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, char), ParseError> + 'a {
     move |input| {
         if let Some(c) = input.chars().next() {
             if !s.contains(c) {
                 Ok((&input[1..], c)) 
             } else {
-                Err(format!("expected not \"{s}\" got '{c}'"))
+                Err(ParseError::new(input, ParseErrorKind::UnexpectedChar(s.to_string(), c)))
             }
         } else {
-            Err("empty".to_string())
+            Err(ParseError::new(input, ParseErrorKind::EndOfInput))
         }
     }
 }
 
-pub fn token<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, &'a str), String> {
+pub fn token<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, &'a str), ParseError> {
     move |input| {
         if let Some(_) = input.strip_prefix(s) {
             Ok((&input[s.len()..], s)) 
         } else {
-            let max = usize::min(s.len(), input.len());
-            Err(format!("expected \"{}\" got \"{}\"", s, &input[0..max]))
+            //let max = usize::min(s.len(), input.len());
+            Err(ParseError::new(input, ParseErrorKind::ExpectedToken(s.to_string())))
         }
     }
 }
 
-pub fn alpha(input: &str) -> Result<(&str, char), String> {
+pub fn alpha(input: &str) -> Result<(&str, char), ParseError> {
     char_predicate(char::is_alphabetic, "alphabetic".to_string())(input)
 }
 
-pub fn numeric(input: &str) -> Result<(&str, char), String> {
+pub fn numeric(input: &str) -> Result<(&str, char), ParseError> {
     char_predicate(char::is_numeric, "numeric".to_string())(input)
 }
 
-pub fn alphanumeric(input: &str) -> Result<(&str, char), String> {
+pub fn alphanumeric(input: &str) -> Result<(&str, char), ParseError> {
     char_predicate(char::is_alphanumeric, "alphanumeric".to_string())(input)
 }
 
-pub fn whitespace(input: &str) -> Result<(&str, char), String> {
+pub fn whitespace(input: &str) -> Result<(&str, char), ParseError> {
     char_predicate(char::is_whitespace, "whitespace".to_string())(input)
 }
 
 
-pub fn char_predicate(f: fn(char) -> bool, name: String) -> impl Fn(&str) -> Result<(&str, char), String> {
+pub fn char_predicate(f: fn(char) -> bool, name: String) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
     move |input| {
         if let Some(c) = input.chars().next() {
             if f(c) {
                 Ok((&input[1..], c))
             } else {
-                Err(format!("expected {name}, got '{c}'"))
+                Err(ParseError::new(input, ParseErrorKind::CharFailedPredicate(c, name.to_string())))
             }
         } else {
-            Err("empty".to_string())
+            Err(ParseError::new(input, ParseErrorKind::EndOfInput))
         }
     }
 }
