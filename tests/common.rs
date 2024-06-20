@@ -63,6 +63,7 @@ pub fn signal_halt(vm: &mut Machine, _: u16) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn run(m: &mut Machine, program: &[Instruction]) -> Result<(), String> {
     m.reset();
     run_program_code(m, program)
