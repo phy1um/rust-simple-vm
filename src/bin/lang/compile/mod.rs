@@ -168,7 +168,7 @@ impl Block<'_> {
     pub fn register_labels(&self, ctx: &mut Context, function_offset: u32) {
         for (offset, ins) in self.instructions.iter().enumerate() {
             if let UnresolvedInstruction::Label(s) = ins {
-                ctx.define(s, function_offset + (offset as u32));
+                ctx.define(s, function_offset + (offset as u32*2));
             }
         }
     }
@@ -191,7 +191,7 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                     Instruction::Test(Register::C, Register::Zero, TestOp::BothZero)
                 ));
                 out.push(UnresolvedInstruction::Instruction(
-                    Instruction::AddIf(Register::PC, Register::Zero, Nibble::new_checked(4).unwrap())
+                    Instruction::AddIf(Register::PC, Register::PC, Nibble::new_checked(4).unwrap())
                 ));
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_false.clone()));
                 // condition == TRUE 
@@ -357,6 +357,23 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
                 ast::BinOp::Add => 
                     out.push(UnresolvedInstruction::Instruction(
                         Instruction::Stack(Register::Zero, Register::SP, StackOp::Add))),
+                ast::BinOp::Subtract => 
+                    out.push(UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::Zero, Register::SP, StackOp::Sub))),
+                ast::BinOp::LessThanEqual => {
+                     out.push(UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::B, Register::SP, StackOp::Pop)));
+                     out.push(UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
+                     out.push(UnresolvedInstruction::Instruction(
+                        Instruction::Test(Register::B, Register::C, TestOp::Lte)));
+                     out.push(UnresolvedInstruction::Instruction(
+                        Instruction::Add(Register::Zero, Register::Zero, Register::C)));
+                     out.push(UnresolvedInstruction::Instruction(
+                        Instruction::AddIf(Register::C, Register::Zero, Nibble::new_checked(1).unwrap())));
+                     out.push(UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::C, Register::SP, StackOp::Push)));
+                }
                 _ => panic!("unimplemented binop {op}"),
             }
             Ok(out)
