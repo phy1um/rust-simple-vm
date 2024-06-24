@@ -261,7 +261,7 @@ Flags: {:016b}",
                     StackOp::Sub => {
                         let a = self.pop(sp)?;
                         let b = self.pop(sp)?;
-                        self.push(sp, a - b)?;
+                        self.push(sp, a.wrapping_sub(b))?;
                     }
                 };
                 Ok(())
