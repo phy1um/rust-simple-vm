@@ -117,3 +117,35 @@ int a(int x, int y) {
     run(&mut vm, &instructions).unwrap();
     assert_eq!(vm.get_register(A), 15);
 }
+
+#[test]
+fn nested_if() {
+   let test = "
+void main() {
+    let int i := a(7);
+    return i;
+}
+
+int a(int x) {
+    if (x <= 9) {
+        if (x <= 8) {
+            if (x <= 7) {
+                return 5;
+            } else {
+                return 99;
+            };
+        } else {
+            return 98;
+        };
+    } else {
+        return 97;
+    };
+}
+   ";
+    let prog = run_parser(parse_ast, test).unwrap();
+    let res = compile(prog, 0).unwrap();
+    let instructions = res.get_instructions().unwrap();
+    let mut vm = make_test_vm(0x8000).unwrap();
+    run(&mut vm, &instructions).unwrap();
+    assert_eq!(vm.get_register(A), 5);
+}

@@ -2,6 +2,11 @@ use simplevm::{Instruction, Register, Literal12Bit, Literal7Bit, Literal10Bit, N
 use crate::ast;
 
 use std::collections::HashMap;
+use rand::{Rng, distributions::Alphanumeric};
+
+fn gensym(r: impl Rng) -> String {
+    r.sample_iter(&Alphanumeric).take(16).map(char::from).collect::<String>() 
+}
 
 #[derive(Debug)]
 pub enum CompilerError {
@@ -182,8 +187,9 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
     for s in statements {
         match s {
             ast::Statement::If{cond, body, else_body} => {
-                let label_true = Symbol::new("LBL_TRUE");
-                let label_out = Symbol::new("LBL_OUT");
+                let block_identifier = gensym(rand::thread_rng());
+                let label_true = Symbol::new(&(block_identifier.to_string() + "_if_lbl_true"));
+                let label_out = Symbol::new(&(block_identifier + "_if_lbl_out"));
                 let mut compiled_cond = compile_expression(block, cond)?;
                 out.append(&mut compiled_cond);
                 // test if condition is FALSY

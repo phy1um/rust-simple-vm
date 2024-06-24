@@ -24,6 +24,9 @@ name = "dis"
 [[bin]]
 name = "lang"
 
+[dependencies]
+rand = "0.8.5"
+
 [dependencies.macros]
 path = "lib/macros"
 
