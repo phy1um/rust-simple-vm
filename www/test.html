@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" /> <title>SimpleVM 16bit by Tom Marks</title>
+    <link rel="stylesheet" href="pico.min.css" />
+  </head>
+
+  <body>
+    <h1>SimpleVM Playground</h1>
+    <a href="https://coding.tommarks.xyz">by Tom Marks</a>
+    <div class="grid">
+      <div>
+        <h2>program view</h2>
+        <textarea id="code-input">     
+          Imm B 5
+          System Zero B 1
+          Imm A $f0
+          System A A 0
+        </textarea>
+        <pre id="code-view"></pre>
+      </div>
+      <div>
+        <h2>vm control</h2>
+        <div id="vm-state" hidden=true>
+          <pre id="vm-registers">A: 0 B: 0 C: 0 M: 0</pre>
+          <div>
+            Last executed: <code id="vm-lastop">N/A</code>
+          </div>
+          <div>
+            Next: <code id="vm-nextop">N/A</code>
+          </div>
+          <div id="vm-err"></div>
+        </div>
+        <div id="control-panel-edit">
+          <a onclick="programStart()" role="button">Build</a>
+          <div class="grid">
+            <label for="vm-memsize">VM Memory Size
+              <input type="text" id="vm-memsize" placeholder="0x8000">
+            </label>
+            <label for="vm-clock">VM Clock Speed
+              <input type="text" id="vm-clock" placeholder="0.0001">
+            </label>
+            <label for="vm-offset">Loaded Program Offset
+              <input type="text" id="vm-offset" placeholder="0">
+            </label>
+          </div>
+          <label for="vm-enable-screen">Enable Screen
+            <input type="checkbox" id="vm-enable-screen">
+          </label>
+          <label for="vm-enable-screen-offset">Map Screen Memory To
+            <input type="text" id="vm-enable-screen-offset">
+          </label>
+          <label for="vm-enable-screen">Enable Terminal Output
+            <input type="checkbox" id="vm-enable-screen">
+          </label>
+          <label for="vm-enable-terminal-offset">Map Terminal Output To
+            <input type="text" id="vm-enable-terminal-offset">
+          </label>
+
+        </div>
+        <div id="control-panel-run" hidden=true>
+          <a onclick="programRun()" role="button">Run</a>
+          <a onclick="step()" role="button">Step</a>
+          <a onclick="resetVM()" role="button">Reset</a>
+          <a onclick="programStop()" role="button">Edit</a>
+        </div>
+        <div id="vm-callstack">
+        </div>
+      </div>
+    </div>
+    <script type="module">
+      import init, { VM, PreProcessor, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
+      init().then(() => {
+        let vmProgramOffset = 0x0;
+        let vmMemorySize = 0x8000;
+        let vmClock = 1/10000;
+        let vm = undefined;
+        let halt = false;
+        let then = 0;
+
+        function valueOrPlaceholder(id) {
+          const x = document.getElementById(id);
+          return x.value || x.placeholder;
+        }
+
+        function animLoop(now) {
+          let dt = (now - then)/1000;
+          try {
+            vm.tick(dt);
+            if (!halt) {
+              document.getElementById("vm-registers").innerText = vm.state();
+              const pc = vm.get_register("PC");
+              const nextOp = vm.read_memory(pc);
+              document.getElementById("vm-nextop").innerText = dissasemble_instruction(nextOp);
+              highlightLine(pc);
+              calculateFrames();
+            } else {
+              document.getElementById("vm-nextop").innerText = "N/A";
+              highlightLine(-1);
+            }
+          } catch (e) {
+           document.getElementById("vm-err").innerText = `Exception: ${e}`; 
+           halt = true;
+          }
+          if(!halt) {
+            requestAnimationFrame(animLoop);
+          }
+        }
+
+        window.resetVM = () => {
+          vm.reset();
+          document.getElementById("vm-registers").innerText = vm.state();
+          const pc = vm.get_register("PC");
+          const nextOp = vm.read_memory(pc);
+          document.getElementById("vm-nextop").innerText = dissasemble_instruction(nextOp);
+          document.getElementById("vm-lastop").innerText = "N/A";
+          highlightLine(pc);
+          calculateFrames();
+          clearErr();
+          halt = true;
+        }
+
+        function initVM() { 
+          document.getElementById("code-input").hidden = true;
+          document.getElementById("code-view").hidden = false;
+          document.getElementById("vm-state").hidden = false;
+          document.getElementById("control-panel-edit").hidden = true;
+          document.getElementById("control-panel-run").hidden = false;
+          document.getElementById("vm-callstack").hidden = false;
+          vmProgramOffset = parseInt(valueOrPlaceholder("vm-offset"), 10);
+          vmMemorySize = parseInt(valueOrPlaceholder("vm-memsize"), 16);
+          vmClock = parseFloat(valueOrPlaceholder("vm-clock"));
+          vm = new VM(vmClock);
+          vm.map_memory_array(0, vmMemorySize);
+          const lastInstructionText = document.querySelector("#vm-lastop");
+          vm.instruction_callback((i) => {
+            lastInstructionText.innerText = dissasemble_instruction(i);
+          });
+          asmAndUpload(vm, document.getElementById("code-input").value, vmProgramOffset);
+          document.getElementById("vm-registers").innerText = vm.state();
+          highlightLine(0);
+          halt = false;
+          clearErr();
+        }
+
+        window.programStart = () => {
+          initVM();
+          vm.set_halt(true);
+        }
+
+        window.programRun = () => {
+          halt = false;
+          vm.set_halt(false);
+          animLoop(performance.now());
+        }
+
+        window.programStop = () => {
+          document.getElementById("code-input").hidden = false;
+          document.getElementById("code-view").hidden = true;
+          document.getElementById("vm-state").hidden = true;
+          document.getElementById("control-panel-edit").hidden = false;
+          document.getElementById("control-panel-run").hidden = true;
+          document.getElementById("vm-callstack").hidden = true;
+          halt = true;
+        }
+
+        window.step = () => {
+          halt=true;
+          try {
+            vm.step();
+          } catch (e) {
+           document.getElementById("vm-err").innerText = `Exception: ${e}`; 
+          }
+          document.getElementById("vm-registers").innerText = vm.state();
+          const pc = vm.get_register("PC");
+          const nextOp = vm.read_memory(pc);
+          document.getElementById("vm-nextop").innerText = dissasemble_instruction(nextOp);
+          highlightLine(pc);
+          calculateFrames();
+        }
+
+        function updateCodeView(codeLines, programOffset) {
+          let offset = programOffset;
+          const buf = [];
+          for (let line of codeLines) {
+            line = line.trim();
+            if (line.length === 0) {
+              continue;
+            }
+            if (line[0] == ';') {
+              buf.push(` -     ${line}`);
+              continue;
+            }
+            if (line[line.length-1] == ':') {
+              buf.push(` -     ${line}`);
+              continue;
+            }
+            let os = `${offset}`.padStart(5, '0');
+            buf.push(`<span class="prog-line" id='prog-line-${offset}'>${os}: ${line}</span>`);
+            offset += 2;
+          }
+          document.getElementById("code-view").innerHTML = buf.join("\n");
+        }
+
+        function asmAndUpload(vm, asm, offset) {
+          const pp = new PreProcessor();
+          const lines = pp.resolve(asm);
+          updateCodeView(lines, offset);
+          const program = [];
+          for (let i in lines) {
+            const line = lines[i].trim();
+            if (line.length == 0 || line[0] == ";") {
+              continue;
+            }
+            const v = assemble_line(line);
+            program.push(v&0xff);
+            program.push((v&0xff00)>>8);
+          }
+          const programBytes = new Uint8Array(program);
+          vm.write_program(programBytes);
+        }
+
+        function highlightLine(i) {
+          const idName = `prog-line-${i}`;
+          for (let i of document.getElementsByClassName("prog-line")) {
+            if (i.id == idName) {
+              i.style.setProperty("color", "red");
+            } else {
+              i.style.color = null;
+            }
+          }
+        }
+
+        function calculateFrames() {
+          let bp = vm.get_register("BP");
+          let frames = [];
+          while (bp != 0) {
+            let pc = vm.read_memory(bp-2); 
+            let bp_prev = vm.read_memory(bp-4); 
+            frames.push({pc, bp: bp_prev});
+            bp = bp_prev;
+          }
+          let frameText = frames.map(x => `<div><code>[ PC: ${x.pc} | BP: ${x.bp} ]</code></div>`).join("");
+          if (frameText.length > 0) {
+            document.getElementById("vm-callstack").innerHTML = "<p>Stack Frames</p>" + frameText;
+          } else {
+            document.getElementById("vm-callstack").innerHTML = "<p>Stack Frames (empty)</p>";
+          }
+        }
+
+        function clearErr() {
+          document.getElementById("vm-err").innerText = "";
+        }
+    });
+    </script>
+    <footer>
+      <a href="help.html">Need help?</a>
+    </footer>
+  </body>
+</html>
