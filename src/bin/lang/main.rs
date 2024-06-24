@@ -7,6 +7,9 @@ mod error;
 
 mod compile;
 
+#[cfg(test)]
+mod tests;
+
 use crate::parse::run_parser;
 use crate::language::*;
 use crate::compile::compile;

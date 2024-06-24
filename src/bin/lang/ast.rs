@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Identifier(pub String);
 impl Identifier {
     pub fn new(s: &str) -> Self {
@@ -73,7 +73,7 @@ impl fmt::Display for Statement {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BinOp {
     Add,
     Subtract,
@@ -123,7 +123,7 @@ impl FromStr for BinOp {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     LiteralInt(i32),
     LiteralChar(char),

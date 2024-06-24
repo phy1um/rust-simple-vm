@@ -14,7 +14,7 @@ pub enum CompilerError {
 #[derive(Debug, Default)]
 pub struct Context<'a> {
     symbols: HashMap<String, u32>,
-    functions: HashMap<String, Block<'a>>,
+    functions: Vec<Block<'a>>,
     function_defs: HashMap<String, FunctionDefinition>,
     init: Vec<UnresolvedInstruction>,
 }
@@ -97,7 +97,7 @@ impl Context<'_> {
                 out.push(c);
             }
         }
-        for (_, func) in &self.functions {
+        for func in &self.functions {
             for ins in &func.instructions {
                  if let Some(c) = ins.resolve(self)? {
                     out.push(c);
@@ -166,9 +166,12 @@ pub struct FunctionDefinition {
 
 impl Block<'_> {
     pub fn register_labels(&self, ctx: &mut Context, function_offset: u32) {
-        for (offset, ins) in self.instructions.iter().enumerate() {
+        let mut offset = 0;
+        for ins in &self.instructions {
             if let UnresolvedInstruction::Label(s) = ins {
-                ctx.define(s, function_offset + (offset as u32*2));
+                ctx.define(s, function_offset + (offset as u32));
+            } else {
+                offset += 2;
             }
         }
     }
@@ -179,7 +182,7 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
     for s in statements {
         match s {
             ast::Statement::If{cond, body, else_body} => {
-                let label_false = Symbol::new("LBL_FALSE");
+                let label_true = Symbol::new("LBL_TRUE");
                 let label_out = Symbol::new("LBL_OUT");
                 let mut compiled_cond = compile_expression(block, cond)?;
                 out.append(&mut compiled_cond);
@@ -191,17 +194,18 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                     Instruction::Test(Register::C, Register::Zero, TestOp::BothZero)
                 ));
                 out.push(UnresolvedInstruction::Instruction(
-                    Instruction::AddIf(Register::PC, Register::PC, Nibble::new_checked(4).unwrap())
+                    Instruction::AddIf(Register::PC, Register::PC, Nibble::new_checked(2).unwrap())
                 ));
-                out.push(UnresolvedInstruction::Imm(Register::PC, label_false.clone()));
-                // condition == TRUE 
-                out.append(&mut compile_block(ctx, block, body)?);
-                out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
+                out.push(UnresolvedInstruction::Imm(Register::PC, label_true.clone()));
                 // condition == FALSE
-                out.push(UnresolvedInstruction::Label(label_false.clone()));
                 if let Some(b) = else_body {
                     out.append(&mut compile_block(ctx, block, b)?);
                 };
+                out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
+                // condition == TRUE 
+                out.push(UnresolvedInstruction::Label(label_true));
+                out.append(&mut compile_block(ctx, block, body)?);
+                out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
                 out.push(UnresolvedInstruction::Label(label_out.clone()));
             }
             ast::Statement::Declare(id, _t, Some(expr)) => {
@@ -326,8 +330,8 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
         }
         ast::Expression::FunctionCall(id, args) => {
             let mut out = Vec::new(); 
-            for a in args {
-                out.append(&mut compile_expression(block, a)?);
+            for a in args.iter().rev() {
+                out.append(&mut compile_expression(block, a.clone())?);
             }
             out.append(&mut vec![
                 UnresolvedInstruction::Instruction(
@@ -426,7 +430,7 @@ pub fn compile<'a>(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context<'
                 let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
                 let local_count_sym = format!("__internal_{name}_local_count");
                 ctx.define(&Symbol::new(&local_count_sym), block.scope.locals.len() as u32 *2);
-                ctx.functions.insert(name.0, block);
+                ctx.functions.push(block);
                 program_offset += block_size;
             }
         }
