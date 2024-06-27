@@ -223,7 +223,7 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                 out.push(UnresolvedInstruction::Instruction(
                         Instruction::AddImm(Register::B, Literal7Bit::new_checked(local_index as u8 * 2).unwrap())));
                 out.push(UnresolvedInstruction::Instruction(
-                        Instruction::Store(Register::B, Register::Zero, Register::C))); 
+                        Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
             }
             ast::Statement::Declare(id, _t, None) => {
                 if block.scope.get(&id.0).is_some() {
@@ -242,7 +242,7 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                     out.push(UnresolvedInstruction::Instruction(
                             Instruction::AddImm(Register::B, Literal7Bit::new_checked(index as u8 * 2).unwrap())));
                     out.push(UnresolvedInstruction::Instruction(
-                            Instruction::Store(Register::B, Register::Zero, Register::C))); 
+                            Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
                 } else {
                     return Err(CompilerError::VariableUndefined(id.0.to_string()))
                 }
@@ -312,7 +312,7 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
                         UnresolvedInstruction::Instruction(
                             Instruction::AddImm(Register::C, Literal7Bit::new_checked(i as u8 *2).unwrap())),
                         UnresolvedInstruction::Instruction(
-                            Instruction::Load(Register::C, Register::C, Register::Zero)),
+                            Instruction::LoadWord(Register::C, Register::C, Register::Zero)),
                         UnresolvedInstruction::Instruction(
                             Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
                     ]),

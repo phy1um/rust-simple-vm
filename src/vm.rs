@@ -223,7 +223,7 @@ Flags: {:016b}",
                 }
                 Ok(())
             }
-            Instruction::Load(r0, r1, r2) => {
+            Instruction::LoadWord(r0, r1, r2) => {
                 let base = self.get_register(r1);
                 let page = self.get_register(r2);
                 let addr = (base as u32) + ((page as u32) << 16);
@@ -231,12 +231,28 @@ Flags: {:016b}",
                 self.set_register(r0, w);
                 Ok(())
             }
-            Instruction::Store(r0, r1, r2) => {
+            Instruction::LoadByte(r0, r1, r2) => {
+                let base = self.get_register(r1);
+                let page = self.get_register(r2);
+                let addr = (base as u32) + ((page as u32) << 16);
+                let w = self.memory.read(addr).map_err(|x| x.to_string())?;
+                self.set_register(r0, w as u16);
+                Ok(())
+            }
+            Instruction::StoreWord(r0, r1, r2) => {
                 let base = self.get_register(r0);
                 let page = self.get_register(r1);
                 let addr = (base as u32) + ((page as u32) << 16);
                 self.memory
                     .write2(addr, self.get_register(r2))
+                    .map_err(|x| x.to_string())
+            }
+            Instruction::StoreByte(r0, r1, r2) => {
+                let base = self.get_register(r0);
+                let page = self.get_register(r1);
+                let addr = (base as u32) + ((page as u32) << 16);
+                self.memory
+                    .write(addr, (self.get_register(r2)&0xff) as u8)
                     .map_err(|x| x.to_string())
             }
             Instruction::JumpOffset(b) => {
