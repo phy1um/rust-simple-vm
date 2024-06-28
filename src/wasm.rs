@@ -23,7 +23,7 @@ impl SignalHandler for JSSignalHandler {
     fn handle(&self, vm: &mut VM, arg: u16) -> Result<(), String> {
         let this = JsValue::null();
         let res = self.handler.call1(&this, &JsValue::from(arg)).map_err(js_error_to_string)?;
-        if res.is_null() {
+        if res.is_undefined() {
             log("no return".to_string());
             Ok(()) 
         } else {
@@ -113,12 +113,10 @@ impl JSMemCallback {
 impl Addressable for JSMemCallback {
     fn read(&mut self, addr: u32) -> Result<u8, MemoryError> {
         let this = JsValue::null();
-        if let Ok(res) = self.on_read.call1(&this, &JsValue::from(addr)) {
-            let value = res.as_f64().ok_or(MemoryError::InternalMapperError(addr))?;
-            Ok(value as u8)
-        } else {
-            Err(MemoryError::InternalMapperError(addr))
-        }
+        let res = self.on_read.call1(&this, &JsValue::from(addr))
+            .map_err(|x| MemoryError::InternalMapperWithMessage(addr, js_error_to_string(x)))?;
+        let value = res.as_f64().ok_or(MemoryError::InternalMapperWithMessage(addr, "result not number".to_string()))?;
+        Ok(value as u8)
     }
 
     fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {
@@ -140,16 +138,6 @@ extern "C" {
 
     #[wasm_bindgen(js_namespace = console, js_name = log)]
     fn log_u16(v: u16);
-}
-
-fn signal_write(_: &mut VM, v: u16) -> Result<(), String> {
-    log_u16(v);
-    Ok(())
-}
-
-fn signal_halt(m: &mut VM, _: u16) -> Result<(), String> {
-    m.halt = true;
-    Ok(())
 }
 
 #[wasm_bindgen]
@@ -198,8 +186,6 @@ impl JSMachine {
     pub fn new(tick_every_secs: f32) -> Self {
         let mut m = Machine::default();
         m.vm.halt = true;
-        m.define_handler(0xf0, signal_halt);
-        m.define_handler(0x1, signal_write);
         Self {
             m,
             tick_rate: tick_every_secs,
