@@ -1,6 +1,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+#[cfg(target_family = "wasm")]
+use serde::{Serialize, Deserialize};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Flag {
@@ -8,7 +11,24 @@ pub enum Flag {
     DidJump = 0b10,
 }
 
+
+#[cfg(not(target_family = "wasm"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Register {
+    Zero,
+    A,
+    B,
+    C,
+    M,
+    SP,
+    PC,
+    BP,
+}
+
+
+#[cfg(target_family = "wasm")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Register {
     Zero,

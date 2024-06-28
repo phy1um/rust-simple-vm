@@ -1,74 +1,251 @@
 <!doctype html>
 <html lang="en-US">
   <head>
-    <meta charset="utf-8" /> <title>tom's simple vm</title>
+    <meta charset="utf-8" /> <title>SimpleVM 16bit by Tom Marks</title>
+    <link rel="stylesheet" href="pico.min.css" />
+    <script src="./hw.js"></script>
   </head>
+
   <body>
-    <canvas width=400 height=400 id="canvas"></canvas>
-    <div id="inputs">
-    <textarea id="program" cols=80 rows=20>
-    </textarea>
-    <textarea id="binary" cols=80 rows=10></textarea>
-    <br>
-    <button id="compile" text="Compile">Compile</button>
-    <button id="loadbin" text="Load Bin">Load Bin</button>
-    <button id="reset" text="Reset">Reset</button>
-    <button id="run" text="Run">Run</button>
-    <button id="step" text="Step">Step</button>
-    </div>
-    <div id="state"></div>
-    <div id="ins"></div>
-    <div id="error"></div>
-    <a href="./help.html">Help?</a>
+    <main class=container>
+      <h1>SimpleVM Playground</h1>
+      <a href="https://coding.tommarks.xyz">by Tom Marks</a>
+      <div class="grid">
+        <div>
+          <h2>program view</h2>
+          <textarea id="code-input" rows=20>Imm B 5
+System Zero B 1
+Imm A $f0
+System A A 0
+          </textarea>
+          <pre id="code-view"></pre>
+        </div>
+        <div>
+          <h2>vm control</h2>
+          <div id="vm-output">
+            <div id="vm-term-container">
+              <p><pre id="vm-term-container-output"></pre></p>
+              <div class=grid id="vm-term-container-input"></div>
+            </div>
+            <div id="vm-canvas-container"></div>
+          </div>
+          <div id="vm-state" hidden=true>
+            <pre id="vm-registers">A: 0 B: 0 C: 0 M: 0</pre>
+            <div>
+              Last executed: <code id="vm-lastop">N/A</code>
+            </div>
+            <div>
+              Next: <code id="vm-nextop">N/A</code>
+            </div>
+            <div id="vm-err"></div>
+          </div>
+          <div id="control-panel-edit">
+            <a onclick="programStart()" role="button">Build</a>
+            <div class="grid">
+              <label for="vm-memsize">VM Memory Size
+                <input type="text" id="vm-memsize" placeholder="0x8000">
+              </label>
+              <label for="vm-clock">VM Clock Speed
+                <input type="text" id="vm-clock" placeholder="0.0001">
+              </label>
+              <label for="vm-offset">Loaded Program Offset
+                <input type="text" id="vm-offset" placeholder="0">
+              </label>
+            </div>
+            <!--
+            <label for="vm-enable-screen">Enable Screen
+              <input type="checkbox" id="vm-enable-screen">
+            </label>
+            <label for="vm-enable-screen-offset">Map Screen Memory To
+              <input type="text" id="vm-enable-screen-offset">
+            </label>
+            -->
+            <label for="vm-enable-terminal">Enable Terminal Output
+              <input type="checkbox" id="vm-enable-terminal">
+            </label>
+            <label for="vm-terminal-addr-offset">Map Terminal Output To
+              <input type="text" id="vm-terminal-addr-offset" placeholder="0xe000">
+            </label>
+
+          </div>
+          <div id="control-panel-run" hidden=true>
+            <a onclick="programRun()" role="button">Run</a>
+            <a onclick="step()" role="button">Step</a>
+            <a onclick="resetVM()" role="button">Reset</a>
+            <a onclick="programStop()" role="button">Edit</a>
+          </div>
+          <div id="vm-callstack">
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer class=container>
+      <a href="help.html">Need help?</a>
+    </footer>
     <script type="module">
-      import init, { VM, PreProcessor, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
-      function makeTraceMem(size) {
-        const buffer = new Uint8Array(size);
-        return [
-          (a) => {
-            const v = buffer[a];
-            console.log(`read  @ ${a}: ${v}`);
-            return v;
-          },
-          (a, v) => {
-            console.log(`write @ ${a}: ${v}`);
-            buffer[a] = v;
-          },
-          buffer
-        ];
-      }
+      import init, { VM, PreProcessor, VMActionSet, assemble_line, dissasemble_instruction } from "./pkg/simplevm.js";
       init().then(() => {
-        const [rr, ww, bb] = makeTraceMem(0x8000);
-        const vm = new VM(1/10000);
-        vm.map_memory_func(0, 0x8000, rr, ww);
-        vm.set_halt(true);
-        const lastInstructionText = document.querySelector("#ins");
-        const errorText = document.querySelector("#error");
-        vm.instruction_callback((i) => {
-          lastInstructionText.innerText = dissasemble_instruction(i);
-        });
-        function clearOutputs() {
-          lastInstructionText.innerText = "";
-          errorText.innerText = "";
+        let vmProgramOffset = 0x0;
+        let vmMemorySize = 0x8000;
+        let vmClock = 1/10000;
+        let vm = undefined;
+        let halt = false;
+        let then = 0;
+
+        function valueOrPlaceholder(id) {
+          const x = document.getElementById(id);
+          return x.value || x.placeholder;
         }
 
-        const programText = document.querySelector("#program");
-        const programBin = document.querySelector("#binary");
+        function animLoop(now) {
+          let dt = (now - then)/1000;
+          try {
+            vm.tick(dt);
+            if (!halt) {
+              document.getElementById("vm-registers").innerText = vm.state();
+              const pc = vm.get_register("PC");
+              const nextOp = vm.read_memory(pc);
+              document.getElementById("vm-nextop").innerText = dissasemble_instruction(nextOp);
+              highlightLine(pc);
+              calculateFrames();
+            } else {
+              document.getElementById("vm-nextop").innerText = "N/A";
+              highlightLine(-1);
+            }
+          } catch (e) {
+           document.getElementById("vm-err").innerText = `Exception: ${e}`; 
+           halt = true;
+          }
+          if(!halt) {
+            requestAnimationFrame(animLoop);
+          }
+        }
 
-        const qs = window.location.search;
-        if (qs.length > 0) {
-          const qsp = new URLSearchParams(qs);
-          const b64 = qsp.get("bin");
-          const program = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        window.resetVM = () => {
           vm.reset();
-          vm.write_program(program);
-          vm.set_halt(false);
-          programBin.value = b64;
-          programText.value = "";
+          document.getElementById("vm-registers").innerText = vm.state();
+          const pc = vm.get_register("PC");
+          const nextOp = vm.read_memory(pc);
+          document.getElementById("vm-nextop").innerText = dissasemble_instruction(nextOp);
+          document.getElementById("vm-lastop").innerText = "N/A";
+          highlightLine(pc);
+          calculateFrames();
+          clearErr();
+          halt = true;
+          vm.set_halt(true);
         }
-        document.querySelector("#compile").onclick = () => {
+
+        function initVM() { 
+          document.getElementById("code-input").hidden = true;
+          document.getElementById("code-view").hidden = false;
+          document.getElementById("vm-state").hidden = false;
+          document.getElementById("control-panel-edit").hidden = true;
+          document.getElementById("control-panel-run").hidden = false;
+          document.getElementById("vm-callstack").hidden = false;
+          vmProgramOffset = parseInt(valueOrPlaceholder("vm-offset"), 10);
+          vmMemorySize = parseInt(valueOrPlaceholder("vm-memsize"), 16);
+          vmClock = parseFloat(valueOrPlaceholder("vm-clock"));
+          vm = new VM(vmClock);
+          vm.map_memory_array(0, vmMemorySize);
+          const lastInstructionText = document.querySelector("#vm-lastop");
+          vm.instruction_callback((i) => {
+            lastInstructionText.innerText = dissasemble_instruction(i);
+          });
+          vm.bind_handler(0xf0, 
+            () => {
+              let vm = new VMActionSet(); 
+              vm.halt();
+              return vm;
+            },
+            () => {},
+          );
+          vm.bind_handler(0x01,
+            (arg) => {
+              console.log(`write: ${arg}`);
+            },
+            () => {},
+          );
+          if (document.querySelector("#vm-enable-terminal:checked")) {
+            const terminalMemoryOffsetValue = document.getElementById("vm-terminal-addr-offset").value || 0xe000;
+            const memoryOffset = parseFloat(terminalMemoryOffsetValue, 16);
+            const tio = new TextIO();
+            tio.bind(vm, memoryOffset);
+            document.getElementById("vm-term-container-output").appendChild(tio.getOutputElement());
+            document.getElementById("vm-term-container-input").appendChild(tio.getInputElement());
+            document.getElementById("vm-term-container-input").appendChild(tio.getInputButton());
+          }
+          asmAndUpload(vm, document.getElementById("code-input").value, vmProgramOffset);
+          document.getElementById("vm-registers").innerText = vm.state();
+          highlightLine(0);
+          halt = false;
+          clearErr();
+        }
+
+        window.programStart = () => {
+          initVM();
+          vm.set_halt(true);
+        }
+
+        window.programRun = () => {
+          halt = false;
+          vm.set_halt(false);
+          animLoop(performance.now());
+        }
+
+        window.programStop = () => {
+          document.getElementById("code-input").hidden = false;
+          document.getElementById("code-view").hidden = true;
+          document.getElementById("vm-state").hidden = true;
+          document.getElementById("control-panel-edit").hidden = false;
+          document.getElementById("control-panel-run").hidden = true;
+          document.getElementById("vm-callstack").hidden = true;
+          document.getElementById("vm-term-container-output").innerHTML = "";
+          document.getElementById("vm-term-container-input").innerHTML = "";
+          halt = true;
+        }
+
+        window.step = () => {
+          halt=true;
+          try {
+            vm.step();
+          } catch (e) {
+           document.getElementById("vm-err").innerText = `Exception: ${e}`; 
+          }
+          document.getElementById("vm-registers").innerText = vm.state();
+          const pc = vm.get_register("PC");
+          const nextOp = vm.read_memory(pc);
+          document.getElementById("vm-nextop").innerText = dissasemble_instruction(nextOp);
+          highlightLine(pc);
+          calculateFrames();
+        }
+
+        function updateCodeView(codeLines, programOffset) {
+          let offset = programOffset;
+          const buf = [];
+          for (let line of codeLines) {
+            line = line.trim();
+            if (line.length === 0) {
+              continue;
+            }
+            if (line[0] == ';') {
+              buf.push(` -     ${line}`);
+              continue;
+            }
+            if (line[0] == ':') {
+              buf.push(` -     ${line}`);
+              continue;
+            }
+            let os = `${offset}`.padStart(5, '0');
+            buf.push(`<span class="prog-line" id='prog-line-${offset}'>${os}: ${line}</span>`);
+            offset += 2;
+          }
+          document.getElementById("code-view").innerHTML = buf.join("\n");
+        }
+
+        function asmAndUpload(vm, asm, offset) {
           const pp = new PreProcessor();
-          const lines = pp.resolve(programText.value);
+          const lines = pp.resolve(asm);
+          updateCodeView(lines, offset);
           const program = [];
           for (let i in lines) {
             const line = lines[i].trim();
@@ -80,125 +257,41 @@
             program.push((v&0xff00)>>8);
           }
           const programBytes = new Uint8Array(program);
-          const b64 = btoa(String.fromCharCode.apply(null, programBytes));
-          programBin.value = b64;
-          vm.reset();
           vm.write_program(programBytes);
-          vm.set_halt(true);
-          clearOutputs();
         }
-        document.querySelector("#loadbin").onclick = () => {
-          const b64 = programBin.value;
-          const program = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-          vm.reset();
-          vm.write_program(program);
-          vm.set_halt(true);
-          clearOutputs();
-          const body = new Array(); 
-          for (let i = 0; i < program.length; i+=2) {
-            const b0 = program[i];
-            const b1 = program[i+1];
-            const txt = dissasemble_instruction(b0 | (b1<<8));
-            body.push(txt);
-          }
-          programText.value = body.join("\n");
-        };
-        document.querySelector("#reset").onclick = () => {
-          vm.reset();
-          vm.set_halt(true);
-          clearOutputs();
-          for(let i in screenBuffer) {
-            screenBuffer[i] = 0;
-          }
-        };
-        document.querySelector("#run").onclick = () => {
-          vm.set_halt(false);
-        };
-        document.querySelector("#step").onclick = () => {
-          vm.set_halt(true);
-          try {
-            vm.step();
-          } catch(e) {
-            console.error(e);
-            errorText.innerText = `${e}`;
-            vm.set_halt(true);
-          }
-        };
 
-
-
-        const uiContainer = document.createElement("pre");
-        document.querySelector("#state").appendChild(uiContainer);
-        const canvas = document.querySelector("#canvas")
-        const ctx = canvas.getContext("2d");
-        const pixelSize = canvas.width/40;
-        const screenHz = 2;
-        const screenBuffer = new Uint8Array(40*40/2);
-        vm.map_memory_func(0x4000, screenBuffer.length,
-          (addr) => {
-            return screenBuffer[addr];
-          },
-          (addr, value) => {
-            screenBuffer[addr] = value;
-          },
-        );
-        let screenHzAcc = 0;
-        const screenColours = [
-          "#000",
-          "rgb(205,49,49)",
-          "rgb(13,188,121)",
-          "rgb(229,229,16)",
-          "rgb(36,114,200)",
-          "rgb(188,63,188)",
-          "rgb(17,168,205)",
-          "rgb(229,229,229)",
-          "rgb(102,102,102)",
-          "rgb(241,76,76)",
-          "rgb(35,209,139)",
-          "rgb(245,245,67)",
-          "rgb(59,142,234)",
-          "rgb(214,112,214)",
-          "rgb(41,184,219)",
-          "rgb(255,255,255)",
-        ];
-         
-        let then = performance.now();
-        const loop = (now) => {
-          requestAnimationFrame(loop);
-          let dt = (now - then)/1000;
-          try {
-            vm.tick(dt);
-          } catch (e) {
-            console.error(e);
-            errorText.innerText = `${e}`;
-            vm.set_halt(true); 
-          }
-          uiContainer.innerText = vm.state();
-          then = now;
-
-          screenHzAcc += dt;
-          if (screenHzAcc > screenHz) {
-            screenHzAcc -= screenHz;
-            ctx.fillStyle = "black";
-            ctx.fillRect(0,0,canvas.width,canvas.height);
-            for (let i = 0; i < 40*40/2; i++) {
-              const m = screenBuffer[i];
-              for (let a = 0; a < 2; a++) {
-                const xx = (2*i+a)%40;
-                const yy = Math.floor((2*i+a)/40);
-                const v = (m>>(4*a))&0xf;
-                if (v == 0) {
-                  continue;
-                }
-                ctx.fillStyle = screenColours[v];
-                ctx.fillRect(xx*pixelSize, yy*pixelSize, pixelSize, pixelSize);
-              }
+        function highlightLine(i) {
+          const idName = `prog-line-${i}`;
+          for (let i of document.getElementsByClassName("prog-line")) {
+            if (i.id == idName) {
+              i.style.setProperty("color", "red");
+            } else {
+              i.style.color = null;
             }
           }
-        };
-        loop(performance.now());
-      });
+        }
+
+        function calculateFrames() {
+          let bp = vm.get_register("BP");
+          let frames = [];
+          while (bp != 0) {
+            let pc = vm.read_memory(bp-2); 
+            let bp_prev = vm.read_memory(bp-4); 
+            frames.push({pc, bp: bp_prev});
+            bp = bp_prev;
+          }
+          let frameText = frames.map(x => `<div><code>[ PC: ${x.pc} | BP: ${x.bp} ]</code></div>`).join("");
+          if (frameText.length > 0) {
+            document.getElementById("vm-callstack").innerHTML = "<p>Stack Frames</p>" + frameText;
+          } else {
+            document.getElementById("vm-callstack").innerHTML = "<p>Stack Frames (empty)</p>";
+          }
+        }
+
+        function clearErr() {
+          document.getElementById("vm-err").innerText = "";
+        }
+    });
     </script>
   </body>
 </html>
-

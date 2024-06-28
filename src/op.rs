@@ -61,9 +61,9 @@ pub enum Instruction {
     ShiftRightArithmetic(Register, Register, Nibble),
     // TODO: and, or, xor, not
     #[opcode(0x8)]
-    Load(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
+    LoadWord(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
     #[opcode(0x9)]
-    Store(Register, Register, Register), // RAM[R1 | (R2<<16)] = R0
+    StoreWord(Register, Register, Register), // RAM[R1 | (R2<<16)] = R0
     #[opcode(0xa)]
     JumpOffset(Literal10Bit),
     #[opcode(0x10)]
@@ -80,6 +80,12 @@ pub enum Instruction {
     LoadStackOffset(Register, Register, Nibble),
     #[opcode(0xf)]
     System(Register, Register, Nibble),
+
+    #[opcode(0x12)]
+    LoadByte(Register, Register, Register),
+    #[opcode(0x13)]
+    StoreByte(Register, Register, Register),
+
 }
 
 #[cfg(test)]
