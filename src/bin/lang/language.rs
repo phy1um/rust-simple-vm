@@ -113,9 +113,19 @@ pub fn statement_if(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     Ok((sn, ast::Statement::If{cond, body, else_body}))
 }
 
+fn statement_while(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+    let (s0, _) = skip_whitespace(token("while"))(input)?;
+    let (s1, cond) = wrapped(skip_whitespace(token("(")), expression, skip_whitespace(token(")")))(s0)?;
+    let (sn, body) = wrapped(skip_whitespace(token("{")), 
+                             repeat1(skip_whitespace(statement_terminated)),
+                             skip_whitespace(token("}")))(s1)?;     
+    Ok((sn, ast::Statement::While{cond, body}))
+}
+
 pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     AnyCollectErr::new(vec![
         statement_if,
+        statement_while,
         statement_variable_assign,
         statement_variable_declare,
         statement_return,
@@ -229,6 +239,18 @@ mod test {
         {
             let expected = "if (i <= 1) {\nfoo := bar;\nreturn 5;\n}\n";
             assert_eq!(expected, run_parser(statement_if, expected).unwrap().to_string());
+        }
+    }
+
+    #[test]
+    fn test_while() {
+        {
+            let expected = "while (l < 0) {\nfoo := bar;\nreturn foo;\n}\n";
+            assert_eq!(expected, run_parser(statement_while, expected).unwrap().to_string());
+        }
+        {
+            let expected = "while (a <= 10) {\na := a + 1;\n}\n";
+            assert_eq!(expected, run_parser(statement_while, expected).unwrap().to_string());
         }
     }
 

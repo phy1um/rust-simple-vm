@@ -37,20 +37,28 @@ fn main() -> Result<(), String> {
     let mut code = Vec::new();
     reader.read_to_end(&mut code).unwrap();
     let code_str = std::str::from_utf8(&code).map_err(|_| "not utf8")?;
+    let dump_asm = true;
 
     match run_parser(parse_ast, code_str) {
         Ok(program) => {
             let res = compile(program, LOADED_PROGRAM_OFFSET).map_err(|x| format!("compiling: {x:?}"))?;
-            let instructions = res.get_instructions().map_err(|x| format!("resolving: {x:?}"))?;
-            let mut output: Vec<u8> = Vec::new();
-            for i in instructions {
-                let raw_instruction: u16 = i.encode_u16();
-                // assumption: >>8 needs to mask for u16
-                output.push((raw_instruction & 0xff) as u8);
-                output.push((raw_instruction >> 8) as u8);
+            if dump_asm {
+                let instructions_txt = res.get_lines_unresolved().map_err(|x| format!("{x:?}"))?
+                    .join("\n");
+                let mut stdout = stdout().lock();    
+                stdout.write_all(&instructions_txt.as_bytes()).map_err(|x| format!("{x}"))?
+            } else {
+                let instructions = res.get_instructions().map_err(|x| format!("resolving: {x:?}"))?;
+                let mut output: Vec<u8> = Vec::new();
+                for i in instructions {
+                    let raw_instruction: u16 = i.encode_u16();
+                    // assumption: >>8 needs to mask for u16
+                    output.push((raw_instruction & 0xff) as u8);
+                    output.push((raw_instruction >> 8) as u8);
+                }
+                let mut stdout = stdout().lock();
+                stdout.write_all(&output).map_err(|x| format!("{}", x))?;
             }
-            let mut stdout = stdout().lock();
-            stdout.write_all(&output).map_err(|x| format!("{}", x))?;
         }
         Err(e) => println!("compiler error:\n{}", e)
     };

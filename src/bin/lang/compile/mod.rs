@@ -1,6 +1,7 @@
 use simplevm::{Instruction, Register, Literal12Bit, Literal7Bit, Literal10Bit, Nibble, StackOp, TestOp};
 use crate::ast;
 
+use std::fmt;
 use std::collections::HashMap;
 use rand::{Rng, distributions::Alphanumeric};
 
@@ -95,6 +96,19 @@ impl Context<'_> {
         self.init = prog;
     }
 
+    pub fn get_lines_unresolved(&self) -> Result<Vec<String>, CompilerError> {
+        let mut out = Vec::new();
+        for ins in &self.init {
+            out.push(ins.to_string());
+        }
+        for func in &self.functions {
+            for ins in &func.instructions {
+                out.push(ins.to_string());
+            }
+        }
+        Ok(out)
+    }
+
     pub fn get_instructions(&self) -> Result<Vec<Instruction>, CompilerError> {
         let mut out = Vec::new();
         for ins in &self.init {
@@ -124,6 +138,19 @@ pub enum UnresolvedInstruction {
     Label(Symbol),
 }
 
+impl fmt::Display for UnresolvedInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Instruction(i) => write!(f, "{i}"),
+            Self::Imm(r, s) => write!(f, "Imm {r} !{s}"),
+            Self::AddImm(r, s) => write!(f, "AddImm {r} !{s}"),
+            Self::AddImmSigned(r, s) => write!(f, "AddImmSigned {r} !{s}"),
+            Self::JumpOffset(s) => write!(f, "JumpOffset !{s}"),
+            Self::Label(s) => write!(f, ":{s}"),
+        }
+    }
+}
+
 impl UnresolvedInstruction {
     pub fn resolve(&self, ctx: &Context) -> Result<Option<Instruction>, CompilerError> {
         match self {
@@ -147,6 +174,12 @@ impl UnresolvedInstruction {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symbol(pub String);
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl Symbol {
     pub fn new(s: &str) -> Self {
@@ -186,6 +219,27 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
     let mut out = Vec::new();
     for s in statements {
         match s {
+            ast::Statement::While{cond, body}=> {
+                let block_identifier = gensym(rand::thread_rng());
+                let label_test = Symbol::new(&(block_identifier.to_string() + "_while_lbl_test"));
+                let label_out = Symbol::new(&(block_identifier + "_while_lbl_out"));
+                let mut compiled_cond = compile_expression(block, cond)?;
+                out.push(UnresolvedInstruction::Label(label_test.clone()));
+                out.append(&mut compiled_cond);
+                out.push(UnresolvedInstruction::Instruction(
+                    Instruction::Stack(Register::C, Register::SP, StackOp::Pop)
+                ));
+                out.push(UnresolvedInstruction::Instruction(
+                    Instruction::Test(Register::C, Register::Zero, TestOp::EitherNonZero)
+                ));
+                out.push(UnresolvedInstruction::Instruction(
+                    Instruction::AddIf(Register::PC, Register::PC, Nibble::new_checked(2).unwrap())
+                ));
+                out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
+                out.append(&mut compile_block(ctx, block, body)?);
+                out.push(UnresolvedInstruction::Imm(Register::PC, label_test.clone()));
+                out.push(UnresolvedInstruction::Label(label_out));
+            }
             ast::Statement::If{cond, body, else_body} => {
                 let block_identifier = gensym(rand::thread_rng());
                 let label_true = Symbol::new(&(block_identifier.to_string() + "_if_lbl_true"));

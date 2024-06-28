@@ -165,7 +165,7 @@ impl PreProcessor {
             out.push(
                 self.pp
                     .resolve_pass2(&l)
-                    .map_err(|_| format!("error @ line {}", l.get_line_number()))?,
+                    .map_err(|x| format!("error @ line {}: {x}", l.get_line_number()))?,
             );
         }
         Ok(out)

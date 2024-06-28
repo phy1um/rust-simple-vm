@@ -149,3 +149,49 @@ int a(int x) {
     run(&mut vm, &instructions).unwrap();
     assert_eq!(vm.get_register(A), 5);
 }
+
+#[test]
+fn while_loop() {
+   let test = "
+void main() {
+    let int a := 1;
+    while (a <= 10) {
+      a := a + 1;
+    };
+    return a;
+}
+
+   ";
+    let prog = run_parser(parse_ast, test).unwrap();
+    let res = compile(prog, 0).unwrap();
+    let instructions = res.get_instructions().unwrap();
+    let mut vm = make_test_vm(0x8000).unwrap();
+    run(&mut vm, &instructions).unwrap();
+    assert_eq!(vm.get_register(A), 11);
+}
+
+#[test]
+fn nested_while_loop() {
+   let test = "
+void main() {
+    let int a := 1;
+    let int b := 1;
+    let int c := 0;
+    while (a <= 10) {
+      while (b <= 10) {
+        b := b + 1;
+        c := c + 1;
+      };
+      a := a + 1;
+    };
+    return c;
+}
+
+   ";
+    let prog = run_parser(parse_ast, test).unwrap();
+    let res = compile(prog, 0).unwrap();
+    let instructions = res.get_instructions().unwrap();
+    let mut vm = make_test_vm(0x8000).unwrap();
+    run(&mut vm, &instructions).unwrap();
+    assert_eq!(vm.get_register(A), 99);
+}

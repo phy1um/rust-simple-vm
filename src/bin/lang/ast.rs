@@ -50,6 +50,7 @@ pub enum Statement {
     Assign(Identifier, Box<Expression>),
     Return(Expression),
     If{cond: Expression, body: Vec<Statement>, else_body: Option<Vec<Statement>>},
+    While{cond: Expression, body: Vec<Statement>},
 }
 
 impl fmt::Display for Statement {
@@ -69,6 +70,8 @@ impl fmt::Display for Statement {
                         body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n"))
                 }
             }
+            Self::While{cond, body} => write!(f, "while ({cond}) {{\n{}\n}}\n", 
+                body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n")),
         }
     }
 }
