@@ -1,0 +1,28 @@
+[package]
+name = "simplevm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.4"
+js-sys = "0.3.69"
+
+[[bin]]
+name = "vm"
+
+[[bin]]
+name = "asm"
+
+[[bin]]
+name = "dis"
+
+[dependencies.macros]
+path = "lib/macros"
+
