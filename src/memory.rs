@@ -8,6 +8,7 @@ pub enum MemoryError {
     NoMap(u32),
     InvalidMap(u32, usize),
     InternalMapperError(u32),
+    InternalMapperWithMessage(u32, String),
 }
 
 impl fmt::Display for MemoryError {
@@ -18,6 +19,7 @@ impl fmt::Display for MemoryError {
             InvalidMap(a, i) => write!(f, "invalid mapping index: {:X}, {}", a, i),
             AddressTranslation(a, e) => write!(f, "translation @{:X}: {}", a, e),
             InternalMapperError(a) => write!(f, "internal mapper error @{:X}", a),
+            InternalMapperWithMessage(a, s) => write!(f, "internal mapper error @{:X}: {s}", a),
         }
     }
 }
