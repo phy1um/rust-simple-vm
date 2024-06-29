@@ -177,12 +177,13 @@ void main() {
     let int a := 1;
     let int b := 1;
     let int c := 0;
-    while (a <= 10) {
-      while (b <= 10) {
+    while (a <= 9) {
+      a := a + 1;
+      b := 0;
+      while (b <= 9) {
         b := b + 1;
         c := c + 1;
       };
-      a := a + 1;
     };
     return c;
 }
@@ -193,5 +194,5 @@ void main() {
     let instructions = res.get_instructions().unwrap();
     let mut vm = make_test_vm(0x8000).unwrap();
     run(&mut vm, &instructions).unwrap();
-    assert_eq!(vm.get_register(A), 99);
+    assert_eq!(vm.get_register(A), 90);
 }
