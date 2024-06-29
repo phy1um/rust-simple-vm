@@ -175,8 +175,8 @@ void main() {
 fn nested_while_loop() {
    let test = "
 void main() {
-    let int a := 1;
-    let int b := 1;
+    let int a := 0;
+    let int b := 0;
     let int c := 0;
     while (a <= 9) {
       a := a + 1;
@@ -195,5 +195,5 @@ void main() {
     let instructions = res.get_instructions().unwrap();
     let mut vm = make_test_vm(0x8000).unwrap();
     run(&mut vm, &instructions).unwrap();
-    assert_eq!(vm.get_register(A), 90);
+    assert_eq!(vm.get_register(A), 100);
 }
