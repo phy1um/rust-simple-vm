@@ -2,10 +2,12 @@ pub mod parse;
 pub mod combinator;
 pub mod character;
 pub mod ast;
+
 mod language;
 mod error;
-
 mod compile;
+
+mod args;
 
 #[cfg(test)]
 mod tests;
@@ -13,6 +15,8 @@ mod tests;
 use crate::parse::run_parser;
 use crate::language::*;
 use crate::compile::compile;
+
+use crate::args::{process_cli, OutputFormat};
 
 use std::io::{Write, Read, stdin, stdout};
 use std::env;
@@ -22,27 +26,28 @@ use std::path::Path;
 const LOADED_PROGRAM_OFFSET: u32 = 0x0;
 
 fn main() -> Result<(), String> {
-    let args: Vec<_> = env::args().collect();
-    if args.len() != 2 {
-        panic!("usage: {} <input>", args[0]);
+    let args = process_cli(&env::args().collect::<Vec<_>>()).map_err(|x| format!("processing cli: {x}"))?;
+    if !args.validate() {
+        println!("{}", args.usage());
+        return Ok(());
     }
 
-    let mut reader: Box<dyn Read> = match args[1].as_ref() {
+    let target_file = args.target_files.get(0).unwrap();
+    let mut reader: Box<dyn Read> = match target_file.as_ref() {
         "-" => Box::new(stdin()),
         _ => {
-            Box::new(File::open(Path::new(&args[1])).map_err(|x| format!("failed to open: {}", x))?)
+            Box::new(File::open(Path::new(&target_file)).map_err(|x| format!("failed to open: {}", x))?)
         }
     };
 
     let mut code = Vec::new();
     reader.read_to_end(&mut code).unwrap();
     let code_str = std::str::from_utf8(&code).map_err(|_| "not utf8")?;
-    let dump_asm = true;
 
     match run_parser(parse_ast, code_str) {
         Ok(program) => {
             let res = compile(program, LOADED_PROGRAM_OFFSET).map_err(|x| format!("compiling: {x:?}"))?;
-            if dump_asm {
+            if args.output_format == OutputFormat::AnnotatedAsm {
                 let instructions_txt = res.get_lines_unresolved().map_err(|x| format!("{x:?}"))?
                     .join("\n");
                 let mut stdout = stdout().lock();    
