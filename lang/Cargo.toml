@@ -6,3 +6,9 @@ edition = "2021"
 [dependencies]
 rand = "0.8.5"
 simplevm = { path = "../vm" }
+
+[lib]
+crate-type = ["lib"]
+
+[[bin]]
+name = "main"

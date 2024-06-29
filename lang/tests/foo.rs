@@ -1,6 +1,7 @@
 use simplevm::Register::*;
 
-use crate::*;
+use lang::*;
+
 mod common;
 use common::*;
 

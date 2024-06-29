@@ -1,22 +1,8 @@
-pub mod parse;
-pub mod combinator;
-pub mod character;
-pub mod ast;
+use lang::parse::run_parser;
+use lang::language::*;
+use lang::compile::compile;
 
-mod language;
-mod error;
-mod compile;
-
-mod args;
-
-#[cfg(test)]
-mod tests;
-
-use crate::parse::run_parser;
-use crate::language::*;
-use crate::compile::compile;
-
-use crate::args::{process_cli, OutputFormat};
+use lang::args::{process_cli, OutputFormat};
 
 use std::io::{Write, Read, stdin, stdout};
 use std::env;
