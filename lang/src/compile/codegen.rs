@@ -1,13 +1,16 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use simplevm::{Instruction, Register, Literal12Bit, Literal7Bit, Nibble, StackOp, TestOp};
 
 use crate::compile::context::{Context, FunctionDefinition};
-use crate::compile::block::{Block, BlockVariable};
+use crate::compile::block::{Block, BlockVariable, BlockScope};
 use crate::compile::error::CompilerError;
 use crate::compile::resolve::{UnresolvedInstruction, Symbol};
 use crate::ast;
 use crate::compile::util::*;
 
-fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: Vec<ast::Statement>) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
+fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::Statement>) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     let mut out = Vec::new();
     for s in statements {
         match s {
@@ -15,8 +18,8 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                 let block_identifier = gensym(rand::thread_rng());
                 let label_test = Symbol::new(&(block_identifier.to_string() + "_while_lbl_test"));
                 let label_out = Symbol::new(&(block_identifier + "_while_lbl_out"));
-                let mut compiled_cond = compile_expression(block, cond)?;
                 out.push(UnresolvedInstruction::Label(label_test.clone()));
+                let mut compiled_cond = compile_expression(&mut scope, cond)?;
                 out.append(&mut compiled_cond);
                 out.push(UnresolvedInstruction::Instruction(
                     Instruction::Stack(Register::C, Register::SP, StackOp::Pop)
@@ -28,7 +31,8 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                     Instruction::AddIf(Register::PC, Register::PC, Nibble::new_checked(2).unwrap())
                 ));
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
-                out.append(&mut compile_block(ctx, block, body)?);
+                let child_scope = scope.child();
+                out.append(&mut compile_block(ctx, child_scope, body)?);
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_test.clone()));
                 out.push(UnresolvedInstruction::Label(label_out));
             }
@@ -36,7 +40,7 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                 let block_identifier = gensym(rand::thread_rng());
                 let label_true = Symbol::new(&(block_identifier.to_string() + "_if_lbl_true"));
                 let label_out = Symbol::new(&(block_identifier + "_if_lbl_out"));
-                let mut compiled_cond = compile_expression(block, cond)?;
+                let mut compiled_cond = compile_expression(&mut scope, cond)?;
                 out.append(&mut compiled_cond);
                 // test if condition is FALSY
                 out.push(UnresolvedInstruction::Instruction(
@@ -51,22 +55,24 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_true.clone()));
                 // condition == FALSE
                 if let Some(b) = else_body {
-                    out.append(&mut compile_block(ctx, block, b)?);
+                    let child_scope = scope.child();
+                    out.append(&mut compile_block(ctx, child_scope, b)?);
                 };
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
                 // condition == TRUE 
                 out.push(UnresolvedInstruction::Label(label_true));
-                out.append(&mut compile_block(ctx, block, body)?);
+                let child_scope = scope.child();
+                out.append(&mut compile_block(ctx, child_scope, body)?);
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
                 out.push(UnresolvedInstruction::Label(label_out.clone()));
             }
             ast::Statement::Declare(id, _t, Some(expr)) => {
-                if block.scope.get(&id.0).is_some() {
+                if scope.get(&id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
-                let local_index = block.scope.define_local(&id.0);
+                let local_index = scope.define_local(&id.0);
                 // put expression on top of stack
-                let mut compiled_expr = compile_expression(block, *expr)?;
+                let mut compiled_expr = compile_expression(&mut scope, *expr)?;
                 out.append(&mut compiled_expr);
                 out.push(UnresolvedInstruction::Instruction(
                         Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
@@ -78,14 +84,14 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                         Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
             }
             ast::Statement::Declare(id, _t, None) => {
-                if block.scope.get(&id.0).is_some() {
+                if scope.get(&id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
-                block.scope.define_local(&id.0);
+                scope.define_local(&id.0);
             }
             ast::Statement::Assign(id, expr) => {
-                if let Some(BlockVariable::Local(index)) = block.scope.get(&id.0) {
-                    let mut compiled_expr = compile_expression(block, *expr)?;
+                if let Some(BlockVariable::Local(index)) = scope.get(&id.0) {
+                    let mut compiled_expr = compile_expression(&mut scope, *expr)?;
                     out.append(&mut compiled_expr);
                     out.push(UnresolvedInstruction::Instruction(
                             Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
@@ -100,7 +106,7 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
                 }
             }
             ast::Statement::Return(expr) => {
-                let mut compiled_expr = compile_expression(block, expr)?;
+                let mut compiled_expr = compile_expression(&mut scope, expr)?;
                 out.append(&mut compiled_expr);
                 // return in the A register
                 out.push(UnresolvedInstruction::Instruction(
@@ -111,40 +117,44 @@ fn compile_block<'a>(ctx: &mut Context<'a>, block: &mut Block<'a>, statements: V
     Ok(out)
 }
 
-fn compile_body<'a>(ctx: &mut Context<'a>, statements: Vec<ast::Statement>, name: &str, offset: u32) -> Result<Block<'a>, CompilerError> {
+fn compile_body(ctx: &mut Context, statements: Vec<ast::Statement>, name: &str, offset: u32) -> Result<Block, CompilerError> {
     let mut block = Block {
         offset,
         ..Block::default()
     };
     block.instructions.push(UnresolvedInstruction::Label(Symbol::new(name)));
     for (name, _type) in &ctx.function_defs.get(name).unwrap().args {
-        block.scope.define_arg(name); 
+        block.define_arg(name); 
     }
     // function setup
     let local_count_sym = format!("__internal_{name}_local_count");
     block.instructions.push(UnresolvedInstruction::AddImm(Register::SP, Symbol::new(&local_count_sym)));
-    let mut compiled = compile_block(ctx, &mut block, statements)?;
-    block.instructions.append(&mut compiled);
-    // function exit
-    // load return address -> C
-    block.instructions.push(UnresolvedInstruction::Instruction(
-            Instruction::LoadStackOffset(Register::C, Register::BP, Nibble::new_checked(1).unwrap()))); 
-    // load previous SP = BP - 2
-    block.instructions.push(UnresolvedInstruction::Instruction(
-            Instruction::Add(Register::BP, Register::Zero, Register::SP)));
-    block.instructions.push(UnresolvedInstruction::Instruction(
-            Instruction::AddImmSigned(Register::SP, Literal7Bit::from_signed(-2).unwrap())));
-    // load previous BP
-    block.instructions.push(UnresolvedInstruction::Instruction(
-            Instruction::LoadStackOffset(Register::BP, Register::BP, Nibble::new_checked(2).unwrap()))); 
-    block.instructions.push(UnresolvedInstruction::Instruction(
-            Instruction::AddImm(Register::C, Literal7Bit::new_checked(6).unwrap())));
-    block.instructions.push(UnresolvedInstruction::Instruction(
-            Instruction::Add(Register::C, Register::Zero, Register::PC)));
-    Ok(block)
+    let cell = Rc::new(RefCell::new(block));
+    let mut compiled = compile_block(ctx, BlockScope::new(cell.clone()), statements)?;
+    {
+        let mut block = cell.take();
+        block.instructions.append(&mut compiled);
+        // function exit
+        // load return address -> C
+        block.instructions.push(UnresolvedInstruction::Instruction(
+                Instruction::LoadStackOffset(Register::C, Register::BP, Nibble::new_checked(1).unwrap()))); 
+        // load previous SP = BP - 2
+        block.instructions.push(UnresolvedInstruction::Instruction(
+                Instruction::Add(Register::BP, Register::Zero, Register::SP)));
+        block.instructions.push(UnresolvedInstruction::Instruction(
+                Instruction::AddImmSigned(Register::SP, Literal7Bit::from_signed(-2).unwrap())));
+        // load previous BP
+        block.instructions.push(UnresolvedInstruction::Instruction(
+                Instruction::LoadStackOffset(Register::BP, Register::BP, Nibble::new_checked(2).unwrap()))); 
+        block.instructions.push(UnresolvedInstruction::Instruction(
+                Instruction::AddImm(Register::C, Literal7Bit::new_checked(6).unwrap())));
+        block.instructions.push(UnresolvedInstruction::Instruction(
+                Instruction::Add(Register::C, Register::Zero, Register::PC)));
+        Ok(block)
+    }
 }
 
-fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
+fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     match expr {
         ast::Expression::LiteralInt(i) => Ok(vec![
             UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(i as u16).unwrap())),
@@ -156,7 +166,7 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
             UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
         ]),
         ast::Expression::Variable(s) => {
-            if let Some(v) = block.scope.get(&s) {
+            if let Some(v) = scope.get(&s) {
                 match v {
                     BlockVariable::Local(i) => Ok(vec![
                         UnresolvedInstruction::Instruction(
@@ -183,7 +193,7 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
         ast::Expression::FunctionCall(id, args) => {
             let mut out = Vec::new(); 
             for a in args.iter().rev() {
-                out.append(&mut compile_expression(block, a.clone())?);
+                out.append(&mut compile_expression(scope, a.clone())?);
             }
             out.append(&mut vec![
                 UnresolvedInstruction::Instruction(
@@ -205,9 +215,9 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
         },
         ast::Expression::BinOp(e0, e1, op) => {
             let mut out = Vec::new();
-            out.append(&mut compile_expression(block, *e1)?);
+            out.append(&mut compile_expression(scope, *e1)?);
             // expression 1 is on top of stack
-            out.append(&mut compile_expression(block, *e0)?);
+            out.append(&mut compile_expression(scope, *e0)?);
             // stack = [rv0, rv1]
             match op {
                 ast::BinOp::Add => 
@@ -237,7 +247,7 @@ fn compile_expression(block: &mut Block, expr: ast::Expression) -> Result<Vec<Un
    }
 }
 
-pub fn compile<'a>(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context<'a>, CompilerError> {
+pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, CompilerError> {
     let mut ctx = Context::default();
     ctx.load_init(vec![
         UnresolvedInstruction::Instruction(
@@ -281,7 +291,7 @@ pub fn compile<'a>(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context<'
                 block.register_labels(&mut ctx, program_offset);
                 let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
                 let local_count_sym = format!("__internal_{name}_local_count");
-                ctx.define(&Symbol::new(&local_count_sym), block.scope.locals.len() as u32 *2);
+                ctx.define(&Symbol::new(&local_count_sym), block.local_count as u32 *2);
                 ctx.functions.push(block);
                 program_offset += block_size;
             }

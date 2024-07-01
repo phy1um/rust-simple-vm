@@ -14,14 +14,14 @@ pub struct FunctionDefinition {
 }
 
 #[derive(Debug, Default)]
-pub struct Context<'a> {
+pub struct Context {
     pub symbols: HashMap<String, u32>,
-    pub functions: Vec<Block<'a>>,
+    pub functions: Vec<Block>,
     pub function_defs: HashMap<String, FunctionDefinition>,
     pub init: Vec<UnresolvedInstruction>,
 }
 
-impl Context<'_> {
+impl Context {
     pub fn get(&self, s: &Symbol) -> Result<u32, CompilerError> {
         self.symbols.get(&s.0).ok_or(CompilerError::UnknownSymbol(s.clone())).copied()
     }
