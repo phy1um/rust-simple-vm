@@ -4,6 +4,11 @@
     <meta charset="utf-8" /> <title>SimpleVM 16bit by Tom Marks</title>
     <link rel="stylesheet" href="pico.min.css" />
     <script src="./hw.js"></script>
+  <style>
+    canvas {
+      image-rendering: pixelated;
+    }
+  </style>
   </head>
 
   <body>
@@ -27,7 +32,9 @@ System A A 0
               <p><pre id="vm-term-container-output"></pre></p>
               <div class=grid id="vm-term-container-input"></div>
             </div>
-            <div id="vm-canvas-container"></div>
+            <div id="vm-canvas-container" hidden=true>
+              <canvas id="monitor-target" width=400 height=400 style="image-rendering: pixelated;"/>
+            </div>
           </div>
           <div id="vm-state" hidden=true>
             <pre id="vm-registers">A: 0 B: 0 C: 0 M: 0</pre>
@@ -52,19 +59,17 @@ System A A 0
                 <input type="text" id="vm-offset" placeholder="0">
               </label>
             </div>
-            <!--
             <label for="vm-enable-screen">Enable Screen
               <input type="checkbox" id="vm-enable-screen">
             </label>
             <label for="vm-enable-screen-offset">Map Screen Memory To
-              <input type="text" id="vm-enable-screen-offset">
+              <input type="text" id="vm-screen-addr-offset" placeholder="0xc000">
             </label>
-            -->
             <label for="vm-enable-terminal">Enable Terminal Output
               <input type="checkbox" id="vm-enable-terminal">
             </label>
             <label for="vm-terminal-addr-offset">Map Terminal Output To
-              <input type="text" id="vm-terminal-addr-offset" placeholder="0xe000">
+              <input type="text" id="vm-terminal-addr-offset" placeholder="0xf000">
             </label>
 
           </div>
@@ -91,6 +96,7 @@ System A A 0
         let vm = undefined;
         let halt = false;
         let then = 0;
+        let monitor = undefined;
 
         function valueOrPlaceholder(id) {
           const x = document.getElementById(id);
@@ -133,6 +139,9 @@ System A A 0
           clearErr();
           halt = true;
           vm.set_halt(true);
+          if (monitor) {
+            monitor.clear();
+          }
         }
 
         function initVM() { 
@@ -166,14 +175,33 @@ System A A 0
             () => {},
           );
           if (document.querySelector("#vm-enable-terminal:checked")) {
-            const terminalMemoryOffsetValue = document.getElementById("vm-terminal-addr-offset").value || 0xe000;
-            const memoryOffset = parseFloat(terminalMemoryOffsetValue, 16);
+            const terminalMemoryOffsetValue = document.getElementById("vm-terminal-addr-offset").value || "0xf000";
+            const memoryOffset = parseInt(terminalMemoryOffsetValue, 16);
             const tio = new TextIO();
             tio.bind(vm, memoryOffset);
             document.getElementById("vm-term-container-output").appendChild(tio.getOutputElement());
             document.getElementById("vm-term-container-input").appendChild(tio.getInputElement());
             document.getElementById("vm-term-container-input").appendChild(tio.getInputButton());
           }
+          if (document.querySelector("#vm-enable-screen:checked")) {
+            const terminalMemoryOffsetValue = document.getElementById("vm-screen-addr-offset").value || "0xc000";
+            const memoryOffset = parseInt(terminalMemoryOffsetValue, 16);
+            monitor = new Monitor(40, 40);
+            monitor.mapBufferTo(vm, memoryOffset);
+            document.getElementById("vm-canvas-container").hidden = false;
+            const ctx = document.getElementById("monitor-target").getContext("2d");
+            const update = () => {
+              if (monitor) {
+                ctx.fillStyle = "black";
+                ctx.fillRect(0, 0, 400, 400);
+                const img = monitor.getImage(); 
+                ctx.drawImage(img, 0, 0, 400, 400);
+                setTimeout(update, 100);
+              }
+            }
+            update();
+          }
+
           asmAndUpload(vm, document.getElementById("code-input").value, vmProgramOffset);
           document.getElementById("vm-registers").innerText = vm.state();
           highlightLine(0);
@@ -252,9 +280,14 @@ System A A 0
             if (line.length == 0 || line[0] == ";") {
               continue;
             }
-            const v = assemble_line(line);
-            program.push(v&0xff);
-            program.push((v&0xff00)>>8);
+            try {
+              const v = assemble_line(line);
+              program.push(v&0xff);
+              program.push((v&0xff00)>>8);
+            } catch (e) {
+              console.error(`error on line ${i}: ${line} - ${e}`);
+              throw e;
+            }
           }
           const programBytes = new Uint8Array(program);
           vm.write_program(programBytes);
