@@ -1,10 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::str::FromStr;
 
-use simplevm::{Instruction, Register, Literal12Bit, Literal7Bit, Nibble, StackOp, TestOp};
+use simplevm::{Instruction, InstructionParseError, Register, Literal12Bit, Literal7Bit, Nibble, StackOp, TestOp};
+use simplevm::pp;
+use simplevm::pp::PreProcessor;
 
 use crate::compile::context::{Context, FunctionDefinition};
-use crate::compile::block::{Block, BlockVariable, BlockScope};
+use crate::compile::block::{Block, BlockVariable, BlockScope, LoopLabels};
 use crate::compile::error::CompilerError;
 use crate::compile::resolve::{UnresolvedInstruction, Symbol};
 use crate::ast;
@@ -14,6 +17,20 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
     let mut out = Vec::new();
     for s in statements {
         match s {
+            ast::Statement::Break => {
+                if let Some(LoopLabels{ref bottom, ..}) = scope.loop_labels {
+                    out.push(UnresolvedInstruction::Imm(Register::PC, bottom.clone()));
+                } else {
+                    return Err(CompilerError::BreakNotInLoop)
+                }
+            }
+            ast::Statement::Continue => {
+                if let Some(LoopLabels{ref top, ..}) = scope.loop_labels {
+                    out.push(UnresolvedInstruction::Imm(Register::PC, top.clone()));
+                } else {
+                    return Err(CompilerError::ContinueNotInLoop)
+                }
+            }
             ast::Statement::While{cond, body}=> {
                 let block_identifier = gensym(rand::thread_rng());
                 let label_test = Symbol::new(&(block_identifier.to_string() + "_while_lbl_test"));
@@ -31,7 +48,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                     Instruction::AddIf(Register::PC, Register::PC, Nibble::new_checked(2).unwrap())
                 ));
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
-                let child_scope = scope.child();
+                let child_scope = scope.child_in_loop(label_test.clone(), label_out.clone());
                 out.append(&mut compile_block(ctx, child_scope, body)?);
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_test.clone()));
                 out.push(UnresolvedInstruction::Label(label_out));
@@ -281,6 +298,12 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
                     return_type: return_type.clone(),
                 });
             }
+            ast::TopLevel::InlineAsm{name, args, ..} => {
+                ctx.function_defs.insert(name.0.to_string(), FunctionDefinition{
+                    args: args.iter().map(|(name, ty)| (name.to_string(), ty.clone())).collect::<Vec<_>>(),
+                    return_type: ast::Type::Int,
+                });
+            }
         }
     };
     let mut program_offset: u32 = offset + ctx.init.iter().map(|x| x.size()).sum::<u32>();
@@ -294,6 +317,48 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
                 ctx.define(&Symbol::new(&local_count_sym), block.local_count as u32 *2);
                 ctx.functions.push(block);
                 program_offset += block_size;
+            }
+            ast::TopLevel::InlineAsm{name, body, args} => {
+                let mut pp = PreProcessor::default();  
+                let lines = pp.resolve(&body).map_err(|x| CompilerError::InlineAsm(x.to_string()))?;
+                let lines_str = lines.iter().map(|x| pp.resolve_pass2(x)).collect::<Result<Vec<String>, pp::Error>>().map_err(|x| CompilerError::InlineAsm(x.to_string()))?;
+                let mut block = Block::default(); 
+                for line in lines_str {
+                    match Instruction::from_str(&line) {
+                        Ok(instruction) => {
+                            block.instructions.push(UnresolvedInstruction::Instruction(instruction)); 
+                        }
+                        Err(InstructionParseError::Fail(s)) => 
+                            return Err(CompilerError::InlineAsm(format!("failed to parse instruction: {line}: {s}"))),
+                        _ => return Err(CompilerError::InlineAsm(format!("failed to parse instruction: {line}"))), 
+                    }
+                }
+                // function exit
+                // load return address -> C
+                block.instructions.push(UnresolvedInstruction::Instruction(
+                        Instruction::LoadStackOffset(Register::C, Register::BP, Nibble::new_checked(1).unwrap()))); 
+                // load previous SP = BP - 2
+                block.instructions.push(UnresolvedInstruction::Instruction(
+                        Instruction::Add(Register::BP, Register::Zero, Register::SP)));
+                block.instructions.push(UnresolvedInstruction::Instruction(
+                        Instruction::AddImmSigned(Register::SP, Literal7Bit::from_signed(-2).unwrap())));
+                // load previous BP
+                block.instructions.push(UnresolvedInstruction::Instruction(
+                        Instruction::LoadStackOffset(Register::BP, Register::BP, Nibble::new_checked(2).unwrap()))); 
+                block.instructions.push(UnresolvedInstruction::Instruction(
+                        Instruction::AddImm(Register::C, Literal7Bit::new_checked(6).unwrap())));
+                block.instructions.push(UnresolvedInstruction::Instruction(
+                        Instruction::Add(Register::C, Register::Zero, Register::PC)));
+
+                    // TODO: copy this for function defs rather than lookup in compile_body
+                for (name, _type) in args {
+                    block.define_arg(&name.0); 
+                }
+                block.offset = program_offset;
+                let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
+                program_offset += block_size;
+                ctx.define(&Symbol::new(&name.0), block.offset);
+                ctx.functions.push(block);
             }
         }
     };

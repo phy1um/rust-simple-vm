@@ -6,6 +6,8 @@ use crate::compile::block::Block;
 
 use simplevm::Instruction;
 
+use std::fmt;
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct FunctionDefinition {
@@ -20,6 +22,24 @@ pub struct Context {
     pub function_defs: HashMap<String, FunctionDefinition>,
     pub init: Vec<UnresolvedInstruction>,
 }
+
+impl fmt::Display for Context {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "context:\n")?;
+        write!(f, " symbols: [{}]\n", self.symbols.iter()
+            .map(|(k,v)| format!("{k}={v}"))
+            .collect::<Vec<_>>()
+            .join(", "))?;
+        write!(f, " function defs: [\n")?;
+        for (func, def) in &self.function_defs {
+            write!(f, "  {} {func}({})\n", 
+                def.return_type, 
+                def.args.iter().map(|(x, _)| x.to_owned()).collect::<Vec<_>>().join(", "))?;
+        }
+        write!(f, " ]")
+    }
+}
+
 
 impl Context {
     pub fn get(&self, s: &Symbol) -> Result<u32, CompilerError> {

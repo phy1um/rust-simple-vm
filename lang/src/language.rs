@@ -12,6 +12,7 @@ fn parse_type(input: &str) -> Result<(&str, ast::Type), ParseError> {
     Ok((s, tt))
 }
 
+// TODO: underscore :)
 fn identifier(input: &str) -> Result<(&str, ast::Identifier), ParseError> {
     let (s0, fst) = alpha(input)?;
     let (s1, rest) = repeat0(alphanumeric)(s0)?;
@@ -122,6 +123,15 @@ fn statement_while(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     Ok((sn, ast::Statement::While{cond, body}))
 }
 
+
+pub fn statement_continue(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+        map(skip_whitespace(token("continue")), |_| ast::Statement::Continue)(input)
+}
+
+pub fn statement_break(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+        map(skip_whitespace(token("break")), |_| ast::Statement::Break)(input)
+}
+
 pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     AnyCollectErr::new(vec![
         statement_if,
@@ -129,6 +139,8 @@ pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
         statement_variable_assign,
         statement_variable_declare,
         statement_return,
+        statement_continue,
+        statement_break,
     ]).run(input).map_err(|v| ParseError::from_errs(input, v).tag("STMT"))
 }
 
@@ -165,6 +177,20 @@ fn function_definition(input: &str) -> Result<(&str, ast::TopLevel), ParseError>
     }))
 }
 
+fn inline_asm(input: &str) -> Result<(&str, ast::TopLevel), ParseError> {
+    let (s0, _) = skip_whitespace(token("asm!"))(input)?;
+    let (s1, name) = skip_whitespace(identifier)(s0)?;
+    let (s2, _) = skip_whitespace(token("("))(s1)?;
+    let (s3, args) = allow_empty(delimited(named_arg, skip_whitespace(token(","))))(s2)?;
+    let (s4, _) = skip_whitespace(token(")"))(s3)?;
+    let (s5, body) = wrapped(skip_whitespace(token("{")), repeat1(not_char("{}")), skip_whitespace(token("}")))(s4)?;
+    Ok((s5, ast::TopLevel::InlineAsm{
+        name, body: body.iter().collect::<String>(), args,
+    }))
+}
+
+
+
 pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), ParseError> {
     let mut out = Vec::new();
     let mut current_state = input;
@@ -176,6 +202,7 @@ pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), ParseError> 
             let (snn, res) = 
                 AnyCollectErr::new(vec![
                     function_definition,
+                    inline_asm,
                 ]).run(state_next).map_err(|x| ParseError::from_errs(current_state, x))?; 
             out.push(res);
             current_state = snn;
@@ -259,6 +286,14 @@ mod test {
         {
             let expected = "i <= 1";
             assert_eq!(expected, run_parser(expression_binop, expected).unwrap().to_string());
+        }
+    }
+
+    #[test]
+    fn test_inline_asm() {
+        {
+            let expected = "asm! foobar(int a, int b) {\nAdd A B A\nSub A B A\n}\n";
+            assert_eq!(expected, run_parser(inline_asm, expected).unwrap().to_string());
         }
     }
 

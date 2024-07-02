@@ -6,6 +6,9 @@ pub enum CompilerError {
     UnknownSymbol(Symbol),
     VariableAlreadyDefined(String),
     VariableUndefined(String),
+    BreakNotInLoop,
+    ContinueNotInLoop,
+    InlineAsm(String),
 }
 
 

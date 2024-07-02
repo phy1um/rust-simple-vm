@@ -49,6 +49,8 @@ pub enum Statement {
     Declare(Identifier, Type, Option<Box<Expression>>),
     Assign(Identifier, Box<Expression>),
     Return(Expression),
+    Break,
+    Continue,
     If{cond: Expression, body: Vec<Statement>, else_body: Option<Vec<Statement>>},
     While{cond: Expression, body: Vec<Statement>},
 }
@@ -72,6 +74,8 @@ impl fmt::Display for Statement {
             }
             Self::While{cond, body} => write!(f, "while ({cond}) {{\n{}\n}}\n", 
                 body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n")),
+            Self::Break => write!(f, "break"),
+            Self::Continue => write!(f, "continue"),
         }
     }
 }
@@ -150,6 +154,7 @@ impl fmt::Display for Expression {
 #[derive(Debug, PartialEq)]
 pub enum TopLevel {
     FunctionDefinition{name: Identifier, return_type: Type, args: Vec<(Identifier, Type)>, body: Vec<Statement>},
+    InlineAsm{name: Identifier, args: Vec<(Identifier, Type)>, body: String},
 }
 
 impl fmt::Display for TopLevel {
@@ -159,6 +164,10 @@ impl fmt::Display for TopLevel {
                 let arglist = args.iter().map(|(id, arg_type)| format!("{arg_type} {id}")).collect::<Vec<String>>().join(", ");
                 let body = body.iter().map(|s| format!("{s};")).collect::<Vec<String>>().join("\n");
                 write!(f, "{return_type} {name}({}) {{\n{}\n}}\n", arglist, body)
+            }
+            Self::InlineAsm{name, args, body} => {
+                let arglist = args.iter().map(|(id, arg_type)| format!("{arg_type} {id}")).collect::<Vec<String>>().join(", ");
+                write!(f, "asm! {name}({}) {{{body}}}\n", arglist)
             }
         }
     }

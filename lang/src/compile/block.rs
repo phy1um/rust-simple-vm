@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::compile::resolve::UnresolvedInstruction;
+use crate::compile::resolve::{UnresolvedInstruction, Symbol};
 use crate::compile::context::Context;
 
 #[allow(dead_code)]
@@ -13,10 +13,16 @@ pub enum BlockVariable {
     // TODO: Static(usize),
 }
 
-#[allow(dead_code)]
+#[derive(Debug)]
+pub struct LoopLabels {
+    pub top: Symbol,
+    pub bottom: Symbol,
+}
+
 #[derive(Debug, Default)]
 pub struct BlockScope {
     parent_func: Rc<RefCell<Block>>,
+    pub loop_labels: Option<LoopLabels>,
     pub locals: Vec<(String, usize)>,
 }
 
@@ -24,13 +30,23 @@ impl BlockScope {
     pub fn new(parent_func: Rc<RefCell<Block>>) -> Self {
         Self {
             parent_func, 
-            locals: Vec::new(),
+            ..Self::default()
         }
     }
+
     pub fn child(&self) -> Self {
         Self {
             parent_func: self.parent_func.clone(),
             locals: self.locals.clone(),
+            ..Self::default()
+        }
+    }
+
+    pub fn child_in_loop(&self, top: Symbol, bottom: Symbol) -> Self {
+        Self {
+            parent_func: self.parent_func.clone(),
+            locals: self.locals.clone(),
+            loop_labels: Some(LoopLabels{top, bottom}),
         }
     }
 
