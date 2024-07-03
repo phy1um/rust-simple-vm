@@ -13,10 +13,14 @@
       <div class="grid">
         <div>
           <h2>program view</h2>
-          <textarea id="code-input" rows=20>Imm B 5
-System Zero B 1
+          <textarea id="code-input" rows=20>; load immediate values and do arithmetic
+Imm B 5
+Imm A 7
+Add A B A
+; load 0xf0 into A
 Imm A $f0
-System A A 0
+; system call 0xf0, halt the program
+System A Zero 0
           </textarea>
           <pre id="code-view"></pre>
         </div>
