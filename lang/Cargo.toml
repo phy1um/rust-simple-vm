@@ -11,4 +11,4 @@ simplevm = { path = "../vm" }
 crate-type = ["lib"]
 
 [[bin]]
-name = "main"
+name = "lang"
