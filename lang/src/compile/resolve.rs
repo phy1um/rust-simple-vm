@@ -3,6 +3,8 @@ use std::fmt;
 
 use crate::compile::context::Context;
 use crate::compile::error::CompilerError;
+use crate::compile::block::{BlockScope, BlockVariable};
+use crate::ast;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symbol(pub String);
@@ -64,4 +66,103 @@ impl UnresolvedInstruction {
 
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Type {
+    Int,
+    Char,
+    Void,
+    UncheckedInt,
+}
 
+impl Type {
+    fn max(&self, other: &Self) -> Self {
+        // bias LHS
+        if self.size_bytes() >= other.size_bytes() {
+            *self
+        } else {
+            *other
+        }
+    }
+
+    fn size_bytes(&self) -> usize {
+        match self {
+            Self::Int => 2,
+            Self::Char => 1,
+            Self::Void => 0,
+            Self::UncheckedInt => 2,
+        }
+    }
+
+    pub fn can_assign_from(&self, other: &Self) -> bool {
+        self.size_bytes() >= other.size_bytes() 
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Int => write!(f, "int"),
+            Self::Char => write!(f, "char"),
+            Self::Void => write!(f, "void"),
+            Self::UncheckedInt => write!(f, "int"),
+        }
+    }
+}
+
+impl From<ast::Type> for Type {
+    fn from(value: ast::Type) -> Self {
+        match value {
+            ast::Type::Int => Self::Int,
+            ast::Type::Char => Self::Char,
+            ast::Type::Void => Self::Void,
+        }
+    }
+}
+
+
+pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Type {
+    match expr {
+        ast::Expression::LiteralInt(_) => Type::Int, 
+        ast::Expression::LiteralChar(_) => Type::Char, 
+        ast::Expression::Variable(name) => {
+            if let Some(bv) = scope.get(&name) {
+                match bv {
+                    BlockVariable::Local(_, t) => t,
+                    BlockVariable::Arg(_, t) => t,
+                    BlockVariable::Const(_) => Type::Int,
+                }
+            } else if let Some(_) = ctx.symbols.get(name) {
+                Type::Int 
+            } else {
+                // undefined variables become void to maximize error info?
+                // alternate: cast to unchecked ints which cast to anything
+                Type::Void
+            }
+        }
+        ast::Expression::FunctionCall(name, _) => {
+            if let Some(def) = ctx.function_defs.get(&name.0) {
+                def.return_type 
+            } else {
+                Type::Void
+            }
+        }
+        ast::Expression::BinOp(a, b, op) => {
+            let type_a = type_of(ctx, scope, a);
+            let type_b = type_of(ctx, scope, b);
+            match op {
+                ast::BinOp::Add 
+                    | ast::BinOp::Subtract 
+                    | ast::BinOp::Multiply 
+                    => type_a.max(&type_b),
+                ast::BinOp::Mod => type_a,
+                ast::BinOp::Equal
+                    | ast::BinOp::NotEqual
+                    | ast::BinOp::GreaterThan
+                    | ast::BinOp::GreaterThanEqual
+                    | ast::BinOp::LessThan
+                    | ast::BinOp::LessThanEqual
+                    => Type::Int,
+            }
+        }
+    }
+}

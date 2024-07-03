@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use crate::ast;
-use crate::compile::resolve::{Symbol, UnresolvedInstruction};
+use crate::compile::resolve::{Symbol, UnresolvedInstruction, Type};
 use crate::compile::error::CompilerError;
 use crate::compile::block::Block;
 
@@ -11,8 +10,8 @@ use std::fmt;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct FunctionDefinition {
-    pub args: Vec<(String, ast::Type)>,
-    pub return_type: ast::Type,
+    pub args: Vec<(String, Type)>,
+    pub return_type: Type,
 }
 
 #[derive(Debug, Default)]

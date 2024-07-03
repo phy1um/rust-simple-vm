@@ -1,4 +1,4 @@
-use crate::compile::resolve::Symbol;
+use crate::compile::resolve::{Symbol, Type};
 
 #[derive(Debug)]
 pub enum CompilerError {
@@ -9,6 +9,7 @@ pub enum CompilerError {
     BreakNotInLoop,
     ContinueNotInLoop,
     InlineAsm(String),
+    TypeAssign{from: Type, to: Type},
 }
 
 

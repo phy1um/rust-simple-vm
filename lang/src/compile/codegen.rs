@@ -9,7 +9,7 @@ use simplevm::pp::PreProcessor;
 use crate::compile::context::{Context, FunctionDefinition};
 use crate::compile::block::{Block, BlockVariable, BlockScope, LoopLabels};
 use crate::compile::error::CompilerError;
-use crate::compile::resolve::{UnresolvedInstruction, Symbol};
+use crate::compile::resolve::{UnresolvedInstruction, Symbol, Type, type_of};
 use crate::ast;
 use crate::compile::util::*;
 
@@ -83,10 +83,18 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
                 out.push(UnresolvedInstruction::Label(label_out.clone()));
             }
-            ast::Statement::Declare(id, _t, Some(expr)) => {
+            ast::Statement::Declare(id, t, Some(expr)) => {
                 if scope.get(&id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
+
+                // type check
+                let expr_type = type_of(ctx, &scope, &expr);
+                let tt: Type = t.into();
+                if !tt.can_assign_from(&expr_type) {
+                    return Err(CompilerError::TypeAssign{from: expr_type, to: tt});
+                }
+
                 let local_index = scope.define_local(&id.0);
                 // put expression on top of stack
                 let mut compiled_expr = compile_expression(&mut scope, *expr)?;
@@ -107,7 +115,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 scope.define_local(&id.0);
             }
             ast::Statement::Assign(id, expr) => {
-                if let Some(BlockVariable::Local(index)) = scope.get(&id.0) {
+                if let Some(BlockVariable::Local(index, _)) = scope.get(&id.0) {
                     let mut compiled_expr = compile_expression(&mut scope, *expr)?;
                     out.append(&mut compiled_expr);
                     out.push(UnresolvedInstruction::Instruction(
@@ -185,7 +193,7 @@ fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<V
         ast::Expression::Variable(s) => {
             if let Some(v) = scope.get(&s) {
                 match v {
-                    BlockVariable::Local(i) => Ok(vec![
+                    BlockVariable::Local(i, _) => Ok(vec![
                         UnresolvedInstruction::Instruction(
                             Instruction::Add(Register::BP, Register::Zero, Register::C)),
                         UnresolvedInstruction::Instruction(
@@ -195,7 +203,7 @@ fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<V
                         UnresolvedInstruction::Instruction(
                             Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
                     ]),
-                    BlockVariable::Arg(i) => Ok(vec![
+                    BlockVariable::Arg(i, _) => Ok(vec![
                         UnresolvedInstruction::Instruction(
                             Instruction::LoadStackOffset(Register::C, Register::BP, Nibble::new_checked(i as u8+3).unwrap())),
                         UnresolvedInstruction::Instruction(
@@ -294,14 +302,14 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
         match p {
             ast::TopLevel::FunctionDefinition{name, return_type, args, ..} => {
                 ctx.function_defs.insert(name.0.to_string(), FunctionDefinition{
-                    args: args.iter().map(|(name, ty)| (name.to_string(), ty.clone())).collect::<Vec<_>>(),
-                    return_type: return_type.clone(),
+                    args: args.iter().map(|(name, ty)| (name.to_string(), ty.clone().into())).collect::<Vec<_>>(),
+                    return_type: return_type.clone().into(),
                 });
             }
             ast::TopLevel::InlineAsm{name, args, ..} => {
                 ctx.function_defs.insert(name.0.to_string(), FunctionDefinition{
-                    args: args.iter().map(|(name, ty)| (name.to_string(), ty.clone())).collect::<Vec<_>>(),
-                    return_type: ast::Type::Int,
+                    args: args.iter().map(|(name, ty)| (name.to_string(), ty.clone().into())).collect::<Vec<_>>(),
+                    return_type: Type::Int,
                 });
             }
         }

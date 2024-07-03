@@ -1,14 +1,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::compile::resolve::{UnresolvedInstruction, Symbol};
+use crate::compile::resolve::{UnresolvedInstruction, Symbol, Type};
 use crate::compile::context::Context;
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub enum BlockVariable {
-    Local(usize),
-    Arg(usize),
+    Local(usize, Type),
+    Arg(usize, Type),
     Const(u16),
     // TODO: Static(usize),
 }
@@ -78,9 +78,9 @@ impl BlockScope {
 
     pub fn get(&self, s: &str) -> Option<BlockVariable> {
         if let Some(i) = self.get_local(s) {
-            Some(BlockVariable::Local(i))
+            Some(BlockVariable::Local(i, Type::Int))
         } else if let Some(i) = self.get_arg(s) {
-            Some(BlockVariable::Arg(i))
+            Some(BlockVariable::Arg(i, Type::Int))
         } else {
             None
         }
