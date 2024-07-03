@@ -34,7 +34,7 @@ It does not support negative numbers, you will end up with a positive
 ` [ 0 X X X Y Y Y P | P P P P Z Z Z Z ] `
 
 These instructions operate on up to 3 registers in X, Y and Z. P is an
-opcode, which is described in the table below. C is sometimes interpreted as
+opcode, which is described in the table below. Z is sometimes interpreted as
 a 4bit nibble, or as a selector to `Stack` and `Test` instructions - like a 
 secondary opcode.
 
@@ -48,23 +48,27 @@ position, then Y, then X.
 
 ##### Opcodes
 * Add (0x1):
-  - `REG[C] = REG[X] + REG[Y]`
+  - `REG[Z] = REG[X] + REG[Y]`
 * Sub (0x2):
-  - `REG[C] = REG[X] - REG[Y]`
+  - `REG[Z] = REG[X] - REG[Y]`
 * AddImm (0x3):
   - `REG[X] += Lit7Bit(Y,Z)`
 * AddImmSigned (0x4): 
   - `REG[X] += Lit7Bit(Y,Z)`
-  - Interpret Lit7Bit(B,C) as a signed 7bit 2s compliment number, then sign extend this to 16bits before performing addition
+  - Interpret Lit7Bit(Y,Z) as a signed 7bit 2s compliment number, then sign extend this to 16bits before performing addition
 * ShiftLeft (0x5):
   - `REG[Y] = REG[X] << Nibble(Z)`
 * ShiftRightLogical (0x6):
   - `REG[Y] = REG[X] >> Nibble(Z)`
 * ShiftRightArithmetic (0x7): 
   - `REG[Y] = REG[X] >> Nibble(Z)`
-* Load (0x8): 
+* LoadByte (0x8): 
   - `REG[X] = MEM[REG[Y] + REG[Z]<<16]`
-* Store (0x9): 
+* StoreByte (0x9): 
+  - `MEM[REG[Y] + REG(Z)<<16] = REG[X]`
+* LoadWord (0x8): 
+  - `REG[X] = MEM[REG[Y] + REG[Z]<<16]`
+* StoreWord (0x9): 
   - `MEM[REG[Y] + REG(Z)<<16] = REG[X]`
 * JumpOffset (0xa): 
   - `REG[PC] += Lit10Bit(X,Y,Z)`
