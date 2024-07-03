@@ -7,10 +7,8 @@
     <h1>Help</h1>
     <h2>Memory Map</h2>
     <pre>
-Main memory: 0x0 -&gt; 0x2000
-Screen buffer(40px x 40px): 0x400 -&gt; 0x590
+Main memory: 0x0 -&gt; 0x8000
 
-Each byte in the screen buffer represents 2x 4bit pixels. 
     </pre>
     <h2>System Handlers</h2>
     <pre>
@@ -22,7 +20,9 @@ Each byte in the screen buffer represents 2x 4bit pixels.
       <li>Comments start with ";", these lines are ignored</li>
       <li>Labels start with ":" and must go on their own line. They become variables equal to the 
         value of the offset of the next instruction.</li>
-      <li>Variable references are prefixed with "!", eg "!n" to substitute the variable "n"</li>
+      <li>Variable references are prefixed with "!", eg "!n" to substitute the variable "n".
+        This includes labels, jumping to label <code>foo</code> is done with
+        <code>Imm PC !foo</code></li>
       <li>Macro invocations start with "."
         <ul>
           <li>`.defvar` defines a variable that can be referenced later</li>
