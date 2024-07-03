@@ -26,7 +26,7 @@ It does not support negative numbers, you will end up with a positive
 <h4 id="type-b-everything-else">Type B (everything else):</h4>
 <p><code>[ 0 X X X Y Y Y P | P P P P Z Z Z Z ]</code></p>
 <p>These instructions operate on up to 3 registers in X, Y and Z. P is
-an opcode, which is described in the table below. C is sometimes
+an opcode, which is described in the table below. Z is sometimes
 interpreted as a 4bit nibble, or as a selector to <code>Stack</code> and
 <code>Test</code> instructions - like a secondary opcode.</p>
 <p>Sometimes fields X, Y and Z are combined into 4, 7 and 10 bit
@@ -41,11 +41,11 @@ significant position, then Y, then X.</p>
 <ul class="incremental">
 <li>Add (0x1):
 <ul class="incremental">
-<li><code>REG[C] = REG[X] + REG[Y]</code></li>
+<li><code>REG[Z] = REG[X] + REG[Y]</code></li>
 </ul></li>
 <li>Sub (0x2):
 <ul class="incremental">
-<li><code>REG[C] = REG[X] - REG[Y]</code></li>
+<li><code>REG[Z] = REG[X] - REG[Y]</code></li>
 </ul></li>
 <li>AddImm (0x3):
 <ul class="incremental">
@@ -54,7 +54,7 @@ significant position, then Y, then X.</p>
 <li>AddImmSigned (0x4):
 <ul class="incremental">
 <li><code>REG[X] += Lit7Bit(Y,Z)</code></li>
-<li>Interpret Lit7Bit(B,C) as a signed 7bit 2s compliment number, then
+<li>Interpret Lit7Bit(Y,Z) as a signed 7bit 2s compliment number, then
 sign extend this to 16bits before performing addition</li>
 </ul></li>
 <li>ShiftLeft (0x5):
@@ -69,11 +69,19 @@ sign extend this to 16bits before performing addition</li>
 <ul class="incremental">
 <li><code>REG[Y] = REG[X] &gt;&gt; Nibble(Z)</code></li>
 </ul></li>
-<li>Load (0x8):
+<li>LoadByte (0x8):
 <ul class="incremental">
 <li><code>REG[X] = MEM[REG[Y] + REG[Z]&lt;&lt;16]</code></li>
 </ul></li>
-<li>Store (0x9):
+<li>StoreByte (0x9):
+<ul class="incremental">
+<li><code>MEM[REG[Y] + REG(Z)&lt;&lt;16] = REG[X]</code></li>
+</ul></li>
+<li>LoadWord (0x8):
+<ul class="incremental">
+<li><code>REG[X] = MEM[REG[Y] + REG[Z]&lt;&lt;16]</code></li>
+</ul></li>
+<li>StoreWord (0x9):
 <ul class="incremental">
 <li><code>MEM[REG[Y] + REG(Z)&lt;&lt;16] = REG[X]</code></li>
 </ul></li>
