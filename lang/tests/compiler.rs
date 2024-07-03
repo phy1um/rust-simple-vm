@@ -197,3 +197,134 @@ void main() {
     run(&mut vm, &instructions).unwrap();
     assert_eq!(vm.get_register(A), 100);
 }
+
+#[test]
+fn break_loop() {
+   let test = "
+void main() {
+    let int a := 0;
+    while (a <= 5) {
+        a := a + 1;
+        break;
+    };
+    return a;
+}
+
+   ";
+    let prog = run_parser(parse_ast, test).unwrap();
+    let res = compile(prog, 0).unwrap();
+    let instructions = res.get_instructions().unwrap();
+    let mut vm = make_test_vm(0x8000).unwrap();
+    run(&mut vm, &instructions).unwrap();
+    assert_eq!(vm.get_register(A), 1);
+}
+
+#[test]
+fn break_nested_loop() {
+   let test = "
+void main() {
+    let int a := 0;
+    let int c := 0;
+    while (a <= 3) {
+        a := a + 1;
+        c := c + 1;
+        let int b := 0;
+        while (b <= 2) {
+            b := b + 1;
+            c := c + b;
+            break;
+        };
+    };
+    return c;
+}
+
+   ";
+    let prog = run_parser(parse_ast, test).unwrap();
+    let res = compile(prog, 0).unwrap();
+    let instructions = res.get_instructions().unwrap();
+    let mut vm = make_test_vm(0x8000).unwrap();
+    run(&mut vm, &instructions).unwrap();
+    assert_eq!(vm.get_register(A), 8);
+}
+
+#[test]
+fn continue_loop() {
+   let test = "
+void main() {
+    let int a := 0;
+    let int c := 0;
+    while (a <= 3) {
+        a := a + 1;
+        c := c + 1;
+        continue;
+        let int b := 0;
+        while (b <= 2) {
+            b := b + 1;
+            c := c + b;
+        };
+    };
+    return c;
+}
+
+   ";
+    let prog = run_parser(parse_ast, test).unwrap();
+    let res = compile(prog, 0).unwrap();
+    let instructions = res.get_instructions().unwrap();
+    let mut vm = make_test_vm(0x8000).unwrap();
+    run(&mut vm, &instructions).unwrap();
+    assert_eq!(vm.get_register(A), 4);
+}
+
+#[test]
+fn continue_nested_loop() {
+   let test = "
+void main() {
+    let int a := 0;
+    let int c := 0;
+    while (a <= 3) {
+        a := a + 1;
+        c := c + 1;
+        let int b := 0;
+        while (b <= 2) {
+            b := b + 1;
+            continue;
+            c := c + b;
+        };
+    };
+    return c;
+}
+   ";
+    let prog = run_parser(parse_ast, test).unwrap();
+    let res = compile(prog, 0).unwrap();
+    let instructions = res.get_instructions().unwrap();
+    let mut vm = make_test_vm(0x8000).unwrap();
+    run(&mut vm, &instructions).unwrap();
+    assert_eq!(vm.get_register(A), 4);
+}
+
+#[test]
+fn inline_asm() {
+   let test = "
+void main() {
+    let int a := 7;
+    let int b := addnums(a, 11);
+    return b;
+}
+
+asm! addnums(int a, int b) {
+    LoadStackOffset A SP 3    
+    LoadStackOffset B SP 4    
+    Add A B A
+}
+
+   ";
+    let prog = run_parser(parse_ast, test).unwrap();
+    let res = compile(prog, 0).unwrap();
+    println!("{res}");
+    let instructions = res.get_instructions().unwrap();
+    let mut vm = make_test_vm(0x8000).unwrap();
+    run(&mut vm, &instructions).unwrap();
+    assert_eq!(vm.get_register(A), 18);
+}
+
+
