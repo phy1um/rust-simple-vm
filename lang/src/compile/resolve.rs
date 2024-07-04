@@ -94,7 +94,7 @@ impl Type {
     }
 
     pub fn can_assign_from(&self, other: &Self) -> bool {
-        self.size_bytes() >= other.size_bytes() 
+        *other != Type::Void && self.size_bytes() >= other.size_bytes() 
     }
 }
 
