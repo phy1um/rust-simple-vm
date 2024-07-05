@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::str::FromStr;
+use std::collections::HashMap;
 
 use simplevm::{Instruction, InstructionParseError, Register, Literal12Bit, Literal7Bit, Nibble, StackOp, TestOp};
 use simplevm::pp;
@@ -36,7 +37,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 let label_test = Symbol::new(&(block_identifier.to_string() + "_while_lbl_test"));
                 let label_out = Symbol::new(&(block_identifier + "_while_lbl_out"));
                 out.push(UnresolvedInstruction::Label(label_test.clone()));
-                let mut compiled_cond = compile_expression(&mut scope, cond)?;
+                let mut compiled_cond = compile_expression(ctx, &mut scope, cond)?;
                 out.append(&mut compiled_cond);
                 out.push(UnresolvedInstruction::Instruction(
                     Instruction::Stack(Register::C, Register::SP, StackOp::Pop)
@@ -57,7 +58,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 let block_identifier = gensym(rand::thread_rng());
                 let label_true = Symbol::new(&(block_identifier.to_string() + "_if_lbl_true"));
                 let label_out = Symbol::new(&(block_identifier + "_if_lbl_out"));
-                let mut compiled_cond = compile_expression(&mut scope, cond)?;
+                let mut compiled_cond = compile_expression(ctx, &mut scope, cond)?;
                 out.append(&mut compiled_cond);
                 // test if condition is FALSY
                 out.push(UnresolvedInstruction::Instruction(
@@ -84,7 +85,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 out.push(UnresolvedInstruction::Label(label_out.clone()));
             }
             ast::Statement::Declare(id, t, Some(expr)) => {
-                if scope.get(&id.0).is_some() {
+                if scope.get(ctx, &id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
 
@@ -97,7 +98,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
 
                 let local_index = scope.define_local(&id.0);
                 // put expression on top of stack
-                let mut compiled_expr = compile_expression(&mut scope, *expr)?;
+                let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                 out.append(&mut compiled_expr);
                 out.push(UnresolvedInstruction::Instruction(
                         Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
@@ -109,29 +110,50 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                         Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
             }
             ast::Statement::Declare(id, _t, None) => {
-                if scope.get(&id.0).is_some() {
+                if scope.get(ctx, &id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
                 scope.define_local(&id.0);
             }
             ast::Statement::Assign(id, expr) => {
-                if let Some(BlockVariable::Local(index, _)) = scope.get(&id.0) {
-                    let mut compiled_expr = compile_expression(&mut scope, *expr)?;
-                    out.append(&mut compiled_expr);
-                    out.push(UnresolvedInstruction::Instruction(
-                            Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
-                    out.push(UnresolvedInstruction::Instruction(
-                            Instruction::Add(Register::BP, Register::Zero, Register::B)));
-                    out.push(UnresolvedInstruction::Instruction(
-                            Instruction::AddImm(Register::B, Literal7Bit::new_checked(index as u8 * 2).unwrap())));
-                    out.push(UnresolvedInstruction::Instruction(
-                            Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
+                if let Some(bv) = scope.get(ctx, &id.0) {
+                    match bv {
+                        BlockVariable::Local(index, _) => {
+                            let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
+                            out.append(&mut compiled_expr);
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::Add(Register::BP, Register::Zero, Register::B)));
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::AddImm(Register::B, Literal7Bit::new_checked(index as u8 * 2).unwrap())));
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
+                        }
+                        BlockVariable::Global(addr, t) => {
+                            // type check
+                            let expr_type = type_of(ctx, &scope, &expr);
+                            let tt: Type = t.into();
+                            if !tt.can_assign_from(&expr_type) {
+                                return Err(CompilerError::TypeAssign{from: expr_type, to: tt});
+                            }
+
+                            let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
+                            out.append(&mut compiled_expr);
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
+                            out.extend(load_address_to(addr, Register::B, Register::M));
+                            out.push(UnresolvedInstruction::Instruction(
+                                        Instruction::StoreWord(Register::B, Register::Zero, Register::C)));
+                        }
+                        _ => todo!("unimplemented"),
+                    }
                 } else {
                     return Err(CompilerError::VariableUndefined(id.0.to_string()))
                 }
             }
             ast::Statement::Return(expr) => {
-                let mut compiled_expr = compile_expression(&mut scope, expr)?;
+                let mut compiled_expr = compile_expression(ctx, &mut scope, expr)?;
                 out.append(&mut compiled_expr);
                 // return in the A register
                 out.push(UnresolvedInstruction::Instruction(
@@ -179,7 +201,7 @@ fn compile_body(ctx: &mut Context, statements: Vec<ast::Statement>, name: &str, 
     }
 }
 
-fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
+fn compile_expression(ctx: &Context, scope: &mut BlockScope, expr: ast::Expression) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     match expr {
         ast::Expression::LiteralInt(i) => Ok(vec![
             UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(i as u16).unwrap())),
@@ -191,7 +213,7 @@ fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<V
             UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
         ]),
         ast::Expression::Variable(s) => {
-            if let Some(v) = scope.get(&s) {
+            if let Some(v) = scope.get(ctx, &s) {
                 match v {
                     BlockVariable::Local(i, _) => Ok(vec![
                         UnresolvedInstruction::Instruction(
@@ -209,6 +231,15 @@ fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<V
                         UnresolvedInstruction::Instruction(
                             Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
                     ]),
+                    BlockVariable::Global(addr, _) => {
+                        let mut out = Vec::new();
+                        out.extend(load_address_to(addr, Register::B, Register::M));
+                        out.push(UnresolvedInstruction::Instruction(
+                            Instruction::LoadWord(Register::C, Register::B, Register::Zero)));
+                        out.push(UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)));
+                        Ok(out)
+                    }
                     _ => panic!("block variable type unhandled"),
                 }
             } else {
@@ -218,7 +249,7 @@ fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<V
         ast::Expression::FunctionCall(id, args) => {
             let mut out = Vec::new(); 
             for a in args.iter().rev() {
-                out.append(&mut compile_expression(scope, a.clone())?);
+                out.append(&mut compile_expression(ctx, scope, a.clone())?);
             }
             out.append(&mut vec![
                 UnresolvedInstruction::Instruction(
@@ -240,9 +271,9 @@ fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<V
         },
         ast::Expression::BinOp(e0, e1, op) => {
             let mut out = Vec::new();
-            out.append(&mut compile_expression(scope, *e1)?);
+            out.append(&mut compile_expression(ctx, scope, *e1)?);
             // expression 1 is on top of stack
-            out.append(&mut compile_expression(scope, *e0)?);
+            out.append(&mut compile_expression(ctx, scope, *e0)?);
             // stack = [rv0, rv1]
             match op {
                 ast::BinOp::Add => 
@@ -272,8 +303,8 @@ fn compile_expression(scope: &mut BlockScope, expr: ast::Expression) -> Result<V
    }
 }
 
-pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, CompilerError> {
-    let mut ctx = Context::default();
+pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, (Context, CompilerError)> {
+    let mut ctx = Context::new(offset as usize);
     ctx.load_init(vec![
         UnresolvedInstruction::Instruction(
             Instruction::Imm(Register::SP, Literal12Bit::new_checked(0x3ff).unwrap())
@@ -298,6 +329,7 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
             Instruction::System(Register::C, Register::Zero, Nibble::default())
         ),
     ]);
+    let mut global_map: HashMap<String, Type> = HashMap::new();
     for p in &program {
         match p {
             ast::TopLevel::FunctionDefinition{name, return_type, args, ..} => {
@@ -312,13 +344,23 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
                     return_type: Type::Int,
                 });
             }
+            ast::TopLevel::GlobalVariable{name, var_type} => {
+                global_map.insert(name.0.to_string(), var_type.clone().into());
+            }
         }
     };
-    let mut program_offset: u32 = offset + ctx.init.iter().map(|x| x.size()).sum::<u32>();
+    // global definition pass
+    let global_page_size = global_map.values().fold(0, |acc, t| acc + t.size_bytes());
+    for (k, t) in global_map.iter() {
+        ctx.define_global(k, *t);
+    }
+    // codegen pass
+    ctx.program_start_offset = offset + (global_page_size as u32);
+    let mut program_offset: u32 = offset + (global_page_size as u32) + ctx.init.iter().map(|x| x.size()).sum::<u32>();
     for p in program {
         match p {
             ast::TopLevel::FunctionDefinition{name, body, ..} => {
-                let block = compile_body(&mut ctx, body, &name.0, program_offset)?;
+                let block = compile_body(&mut ctx, body, &name.0, program_offset).map_err(|x| (ctx.clone(), x))?;
                 block.register_labels(&mut ctx, program_offset);
                 let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
                 let local_count_sym = format!("__internal_{name}_local_count");
@@ -328,8 +370,8 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
             }
             ast::TopLevel::InlineAsm{name, body, args} => {
                 let mut pp = PreProcessor::default();  
-                let lines = pp.resolve(&body).map_err(|x| CompilerError::InlineAsm(x.to_string()))?;
-                let lines_str = lines.iter().map(|x| pp.resolve_pass2(x)).collect::<Result<Vec<String>, pp::Error>>().map_err(|x| CompilerError::InlineAsm(x.to_string()))?;
+                let lines = pp.resolve(&body).map_err(|x| (ctx.clone(), CompilerError::InlineAsm(x.to_string())))?;
+                let lines_str = lines.iter().map(|x| pp.resolve_pass2(x)).collect::<Result<Vec<String>, pp::Error>>().map_err(|x| (ctx.clone(), CompilerError::InlineAsm(x.to_string())))?;
                 let mut block = Block::default(); 
                 for line in lines_str {
                     match Instruction::from_str(&line) {
@@ -337,8 +379,8 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
                             block.instructions.push(UnresolvedInstruction::Instruction(instruction)); 
                         }
                         Err(InstructionParseError::Fail(s)) => 
-                            return Err(CompilerError::InlineAsm(format!("failed to parse instruction: {line}: {s}"))),
-                        _ => return Err(CompilerError::InlineAsm(format!("failed to parse instruction: {line}"))), 
+                            return Err((ctx.clone(), CompilerError::InlineAsm(format!("failed to parse instruction: {line}: {s}")))),
+                        _ => return Err((ctx.clone(), CompilerError::InlineAsm(format!("failed to parse instruction: {line}")))), 
                     }
                 }
                 // function exit
@@ -368,9 +410,35 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, Comp
                 ctx.define(&Symbol::new(&name.0), block.offset);
                 ctx.functions.push(block);
             }
+            ast::TopLevel::GlobalVariable{..} => {},
         }
     };
     Ok(ctx)
 }
 
-
+fn load_address_to(addr: usize, target_register: Register, _page_register: Register) -> Vec<UnresolvedInstruction> {
+    let mut out = Vec::new();
+    if addr <= 0xfff {
+        out.push(UnresolvedInstruction::Instruction(
+                Instruction::Imm(
+                    target_register, 
+                    Literal12Bit::new_checked(addr as u16).unwrap())));
+    } else if addr <= 0xffff {
+        out.push(UnresolvedInstruction::Instruction(
+                Instruction::Imm(
+                    target_register, 
+                    Literal12Bit::new_checked((addr&0xfff0) as u16 >> 4).unwrap())));
+        out.push(UnresolvedInstruction::Instruction(
+                Instruction::ShiftLeft(
+                    target_register,
+                    target_register,
+                    Nibble::new_checked(4).unwrap())));
+        out.push(UnresolvedInstruction::Instruction(
+                Instruction::AddImm(
+                    target_register,
+                    Literal7Bit::new_checked((addr&0xf) as u8).unwrap())));
+    } else {
+        todo!("paged addressing not implemented");
+    }
+    out
+}

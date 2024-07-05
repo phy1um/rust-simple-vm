@@ -22,7 +22,7 @@ impl Symbol {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnresolvedInstruction {
     Instruction(Instruction),
     Imm(Register, Symbol),
@@ -84,7 +84,7 @@ impl Type {
         }
     }
 
-    fn size_bytes(&self) -> usize {
+    pub fn size_bytes(&self) -> usize {
         match self {
             Self::Int => 2,
             Self::Char => 1,
@@ -125,11 +125,12 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
         ast::Expression::LiteralInt(_) => Type::Int, 
         ast::Expression::LiteralChar(_) => Type::Char, 
         ast::Expression::Variable(name) => {
-            if let Some(bv) = scope.get(&name) {
+            if let Some(bv) = scope.get(ctx, &name) {
                 match bv {
                     BlockVariable::Local(_, t) => t,
                     BlockVariable::Arg(_, t) => t,
                     BlockVariable::Const(_) => Type::Int,
+                    BlockVariable::Global(_, t) => t,
                 }
             } else if let Some(_) = ctx.symbols.get(name) {
                 Type::Int 

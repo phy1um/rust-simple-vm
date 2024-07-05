@@ -189,7 +189,13 @@ fn inline_asm(input: &str) -> Result<(&str, ast::TopLevel), ParseError> {
     }))
 }
 
-
+fn global_variable(input: &str) -> Result<(&str, ast::TopLevel), ParseError> {
+    let (s0, _) = skip_whitespace(token("global"))(input)?;
+    let (s1, var_type) = skip_whitespace(parse_type)(s0)?;  
+    let (s2, name) = skip_whitespace(identifier)(s1)?;
+    let (s3, _) = skip_whitespace(token(";"))(s2)?;
+    Ok((s3, ast::TopLevel::GlobalVariable{name, var_type}))
+}
 
 pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), ParseError> {
     let mut out = Vec::new();
@@ -203,6 +209,7 @@ pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), ParseError> 
                 AnyCollectErr::new(vec![
                     function_definition,
                     inline_asm,
+                    global_variable,
                 ]).run(state_next).map_err(|x| ParseError::from_errs(current_state, x))?; 
             out.push(res);
             current_state = snn;
@@ -294,6 +301,14 @@ mod test {
         {
             let expected = "asm! foobar(int a, int b) {\nAdd A B A\nSub A B A\n}\n";
             assert_eq!(expected, run_parser(inline_asm, expected).unwrap().to_string());
+        }
+    }
+
+    #[test]
+    fn test_global() {
+        {
+            let expected = "global char foo;\n";
+            assert_eq!(expected, run_parser(global_variable, expected).unwrap().to_string());
         }
     }
 
