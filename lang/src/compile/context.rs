@@ -8,18 +8,28 @@ use simplevm::Instruction;
 use std::fmt;
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionDefinition {
     pub args: Vec<(String, Type)>,
     pub return_type: Type,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
+pub struct Global {
+    pub address: usize,   
+    pub var_type: Type,
+}
+
+#[derive(Debug, Default, Clone)]
 pub struct Context {
     pub symbols: HashMap<String, u32>,
     pub functions: Vec<Block>,
     pub function_defs: HashMap<String, FunctionDefinition>,
+    pub globals: HashMap<String, Global>,
     pub init: Vec<UnresolvedInstruction>,
+    global_head: usize,
+    pub global_base: usize,
+    pub program_start_offset: u32,
 }
 
 impl fmt::Display for Context {
@@ -35,18 +45,38 @@ impl fmt::Display for Context {
                 def.return_type, 
                 def.args.iter().map(|(x, _)| x.to_owned()).collect::<Vec<_>>().join(", "))?;
         }
-        write!(f, " ]")
+        write!(f, " ]\n")?;
+        write!(f, "globals: [{}]\n",
+            self.globals.iter()
+                .map(|(k, g)| format!("{k}={:?}", g))
+                .collect::<Vec<_>>()
+                .join(", "))?;
+        write!(f, "globals start @ {}\n", self.global_base)?;
+        write!(f, "program start @ {}\n", self.program_start_offset)
     }
 }
 
 
 impl Context {
+    pub fn new(global_base: usize) -> Self {
+        Self {
+            global_base,
+            ..Self::default()
+        }
+    }
+
     pub fn get(&self, s: &Symbol) -> Result<u32, CompilerError> {
         self.symbols.get(&s.0).ok_or(CompilerError::UnknownSymbol(s.clone())).copied()
     }
 
     pub fn define(&mut self, s: &Symbol, v: u32) {
         self.symbols.insert(s.0.to_owned(), v);
+    }
+
+    pub fn define_global(&mut self, s: &str, t: Type) {
+        let offset = self.global_head;
+        self.global_head += t.size_bytes();
+        self.globals.insert(s.to_string(), Global{address: self.global_base + offset, var_type: t});
     }
 
     pub fn load_init(&mut self, prog: Vec<UnresolvedInstruction>) {

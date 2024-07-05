@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::compile::resolve::{UnresolvedInstruction, Symbol, Type};
-use crate::compile::context::Context;
+use crate::compile::context::{Context, Global};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -10,6 +10,7 @@ pub enum BlockVariable {
     Local(usize, Type),
     Arg(usize, Type),
     Const(u16),
+    Global(usize, Type),
     // TODO: Static(usize),
 }
 
@@ -76,19 +77,23 @@ impl BlockScope {
         None
     }
 
-    pub fn get(&self, s: &str) -> Option<BlockVariable> {
+    pub fn get(&self, ctx: &Context, s: &str) -> Option<BlockVariable> {
         if let Some(i) = self.get_local(s) {
             Some(BlockVariable::Local(i, Type::Int))
         } else if let Some(i) = self.get_arg(s) {
             Some(BlockVariable::Arg(i, Type::Int))
         } else {
-            None
+            if let Some(Global{address, var_type}) = ctx.globals.get(s) {
+                Some(BlockVariable::Global(*address, *var_type))
+            } else {
+                None
+            }
         }
     }
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Block {
     pub instructions: Vec<UnresolvedInstruction>, 
     pub offset: u32,

@@ -155,6 +155,7 @@ impl fmt::Display for Expression {
 pub enum TopLevel {
     FunctionDefinition{name: Identifier, return_type: Type, args: Vec<(Identifier, Type)>, body: Vec<Statement>},
     InlineAsm{name: Identifier, args: Vec<(Identifier, Type)>, body: String},
+    GlobalVariable{name: Identifier, var_type: Type},
 }
 
 impl fmt::Display for TopLevel {
@@ -169,6 +170,8 @@ impl fmt::Display for TopLevel {
                 let arglist = args.iter().map(|(id, arg_type)| format!("{arg_type} {id}")).collect::<Vec<String>>().join(", ");
                 write!(f, "asm! {name}({}) {{{body}}}\n", arglist)
             }
+            Self::GlobalVariable{name, var_type} => 
+                write!(f, "global {var_type} {name};\n"),
         }
     }
 }
