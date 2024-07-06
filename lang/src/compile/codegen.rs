@@ -212,6 +212,38 @@ fn compile_expression(ctx: &Context, scope: &mut BlockScope, expr: ast::Expressi
             UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(c as u16).unwrap())),
             UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
         ]),
+        ast::Expression::AddressOf(s) => {
+            if let Some(v) = scope.get(ctx, &s.0) {
+                match v {
+                    BlockVariable::Local(i, _) => Ok(vec![ 
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Add(Register::BP, Register::Zero, Register::C)),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::AddImm(Register::C, Literal7Bit::new_checked(i as u8 *2).unwrap())),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                    ]),
+                    BlockVariable::Arg(i, _) => Ok(vec![
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Add(Register::BP, Register::Zero, Register::C)),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::AddImmSigned(Register::C, Literal7Bit::from_signed(-2 * (i as i8 + 3)).unwrap())),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                    ]),
+                    BlockVariable::Global(addr, _) => {
+                        let mut out = Vec::new();
+                        out.extend(load_address_to(addr, Register::C, Register::Zero));
+                        out.push(UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)));
+                        Ok(out)
+                    }
+                    _ => todo!("address of var no implemented: {v:?}"),
+                }
+            } else {
+                Err(CompilerError::VariableUndefined(s.to_string()))
+            }
+        }
         ast::Expression::Variable(s) => {
             if let Some(v) = scope.get(ctx, &s) {
                 match v {
@@ -352,7 +384,7 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, (Con
     // global definition pass
     let global_page_size = global_map.values().fold(0, |acc, t| acc + t.size_bytes());
     for (k, t) in global_map.iter() {
-        ctx.define_global(k, *t);
+        ctx.define_global(k, t.clone());
     }
     // codegen pass
     ctx.program_start_offset = offset + (global_page_size as u32);

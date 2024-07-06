@@ -6,12 +6,28 @@ use crate::error::{ParseError, ParseErrorKind};
 
 use std::str::FromStr;
 
-fn parse_type(input: &str) -> Result<(&str, ast::Type), ParseError> {
-    let (s, res) = map(repeat1(alpha), |x| x.iter().collect::<String>())(input)?;
-    let tt = ast::Type::from_str(&res).map_err(|_s| ParseError::new(input, ParseErrorKind::ExpectedType))?;
-    Ok((s, tt))
+fn parse_type_raw(input: &str) -> Result<(&str, ast::Type), ParseError> {
+    let (s0, res) = map(repeat1(alpha), |x| x.iter().collect::<String>())(input)?;
+    Ok((s0, match res.as_ref() {
+        "void" => ast::Type::Void,
+        "int" => ast::Type::Int,
+        "char" => ast::Type::Char,
+        _ => todo!("support user types: {}", res),
+    }))
 }
 
+fn parse_type(input: &str) -> Result<(&str, ast::Type), ParseError> {
+    match skip_whitespace(token("*"))(input) {
+        Ok((s, _)) => {
+            let (sn, inner) = parse_type(s)?;
+            Ok((sn, ast::Type::Pointer(Box::new(inner))))
+        }
+        Err(_) => {
+            parse_type_raw(input).map_err(|_s| ParseError::new(input, ParseErrorKind::ExpectedType))
+        }
+    }
+}
+//
 // TODO: underscore :)
 fn identifier(input: &str) -> Result<(&str, ast::Identifier), ParseError> {
     let (s0, fst) = alpha(input)?;
@@ -30,6 +46,12 @@ fn expression_literal_char(input: &str) -> Result<(&str, ast::Expression), Parse
 
 fn expression_variable(input: &str) -> Result<(&str, ast::Expression), ParseError> {
     map(identifier, |s| ast::Expression::Variable(s.0))(input)
+}
+
+fn expression_address_of(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+    let (s0, _) = skip_whitespace(token("&"))(input)?;
+    let (s1, name) = identifier(s0)?;
+    Ok((s1, ast::Expression::AddressOf(name)))
 }
 
 pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), ParseError> {
@@ -62,6 +84,7 @@ fn expression_lhs(input: &str) -> Result<(&str, ast::Expression), ParseError> {
         expression_literal_int,
         expression_literal_char,
         expression_call,
+        expression_address_of,
         expression_variable,
     ]), ParseError::new(input, ParseErrorKind::ExpectedExpressionLHS)).run(input)
 }
@@ -207,9 +230,9 @@ pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), ParseError> 
         } else {
             let (snn, res) = 
                 AnyCollectErr::new(vec![
-                    function_definition,
                     inline_asm,
                     global_variable,
+                    function_definition,
                 ]).run(state_next).map_err(|x| ParseError::from_errs(current_state, x))?; 
             out.push(res);
             current_state = snn;

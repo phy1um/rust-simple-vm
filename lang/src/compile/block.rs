@@ -84,7 +84,7 @@ impl BlockScope {
             Some(BlockVariable::Arg(i, Type::Int))
         } else {
             if let Some(Global{address, var_type}) = ctx.globals.get(s) {
-                Some(BlockVariable::Global(*address, *var_type))
+                Some(BlockVariable::Global(*address, var_type.clone()))
             } else {
                 None
             }

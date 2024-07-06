@@ -20,18 +20,7 @@ pub enum Type {
     Int,
     Char,
     Void,
-}
-
-impl FromStr for Type {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "int" => Ok(Self::Int),
-            "char" => Ok(Self::Char),
-            "void" => Ok(Self::Void),
-            x => Err(format!("unknown type {x}"))
-        }
-    }
+    Pointer(Box<Type>),
 }
 
 impl fmt::Display for Type {
@@ -40,6 +29,7 @@ impl fmt::Display for Type {
             Self::Int => write!(f, "int"),
             Self::Char => write!(f, "char"),
             Self::Void => write!(f, "void"),
+            Self::Pointer(t) => write!(f, "*{t}"),
         }
     }
 }
@@ -135,6 +125,7 @@ pub enum Expression {
     LiteralInt(i32),
     LiteralChar(char),
     Variable(String),
+    AddressOf(Identifier),
     BinOp(Box<Expression>, Box<Expression>, BinOp),
     FunctionCall(Identifier, Vec<Expression>),
 }
@@ -145,6 +136,7 @@ impl fmt::Display for Expression {
             Self::LiteralInt(i) => write!(f, "{i}"),
             Self::LiteralChar(c) => write!(f, "'{c}'"),
             Self::Variable(v) => write!(f, "{v}"),
+            Self::AddressOf(i) => write!(f, "&{i}"),
             Self::BinOp(e0, e1, op) => write!(f, "{e0} {op} {e1}"),
             Self::FunctionCall(name, args) => write!(f, "{name}({})", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
         }
