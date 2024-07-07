@@ -27,7 +27,7 @@ fn parse_type(input: &str) -> Result<(&str, ast::Type), ParseError> {
         }
     }
 }
-//
+
 // TODO: underscore :)
 fn identifier(input: &str) -> Result<(&str, ast::Identifier), ParseError> {
     let (s0, fst) = alpha(input)?;
@@ -104,6 +104,14 @@ pub fn statement_variable_assign(input: &str) -> Result<(&str, ast::Statement), 
     Ok((s2, ast::Statement::Assign(id, Box::new(expr))))
 }
 
+pub fn statement_variable_assign_deref(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+    let (s0, _) = skip_whitespace(token("*"))(input)?;
+    let (s1, lhs) = skip_whitespace(wrapped(token("("), expression, token(")")))(s0)?;
+    let (s2, _) = skip_whitespace(token(":="))(s1)?;
+    let (s3, rhs) = skip_whitespace(expression)(s2)?;
+    Ok((s3, ast::Statement::AssignDeref{lhs, rhs}))
+}
+
 pub fn statement_variable_declare(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     let (s0, _) = skip_whitespace(token("let"))(input)?;
     let (s1, variable_type) = skip_whitespace(parse_type)(s0)?;
@@ -159,6 +167,7 @@ pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     AnyCollectErr::new(vec![
         statement_if,
         statement_while,
+        statement_variable_assign_deref,
         statement_variable_assign,
         statement_variable_declare,
         statement_return,
@@ -268,6 +277,12 @@ mod test {
     fn test_assignment() {
         let expected = Statement::Assign(Identifier::new("foo"), Box::new(Expression::LiteralInt(88)));
         assert_eq!(expected, run_parser(statement_variable_assign, "foo    :=       \n 88").unwrap());
+    }
+
+    #[test]
+    fn test_assign_deref() {
+        let expected = "*(x + 1) := 57";
+        assert_eq!(expected, run_parser(statement_variable_assign_deref, expected).unwrap().to_string());
     }
 
     #[test]

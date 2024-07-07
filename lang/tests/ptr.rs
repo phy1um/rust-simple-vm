@@ -19,3 +19,18 @@ void main() {
     assert_eq!(vm.get_register(A), 2);
 }
 
+#[test]
+fn assign_deref() {
+   let test = "
+global int foo;
+
+void main() {
+    let *int b := &foo;
+    *(b) := 77;
+    return foo;
+}
+   ";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 77);
+}
+

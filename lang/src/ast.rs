@@ -38,6 +38,7 @@ impl fmt::Display for Type {
 pub enum Statement {
     Declare(Identifier, Type, Option<Box<Expression>>),
     Assign(Identifier, Box<Expression>),
+    AssignDeref{lhs: Expression, rhs: Expression},
     Return(Expression),
     Break,
     Continue,
@@ -51,6 +52,7 @@ impl fmt::Display for Statement {
             Self::Declare(i, t, Some(expr)) => write!(f, "let {t} {i} := {expr}"),
             Self::Declare(i, t, None) => write!(f, "let {t} {i}"),
             Self::Assign(i, expr) => write!(f, "{i} := {expr}"),
+            Self::AssignDeref{lhs, rhs} => write!(f, "*({lhs}) := {rhs}"),
             Self::Return(expr) => write!(f, "return {expr}"),
             Self::If{cond, body, else_body} => {
                 if let Some(e) = else_body {

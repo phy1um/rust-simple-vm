@@ -151,6 +151,18 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                     return Err(CompilerError::VariableUndefined(id.0.to_string()))
                 }
             }
+            ast::Statement::AssignDeref{lhs, rhs} => {
+                let compiled_addr = compile_expression(ctx, &mut scope, lhs)?; 
+                let compiled_value = compile_expression(ctx, &mut scope, rhs)?; 
+                out.extend(compiled_addr);
+                out.extend(compiled_value);
+                out.push(UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::B, Register::SP, StackOp::Pop)));
+                out.push(UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
+                out.push(UnresolvedInstruction::Instruction(
+                            Instruction::StoreWord(Register::C, Register::Zero, Register::B)));
+            }
             ast::Statement::Return(expr) => {
                 let mut compiled_expr = compile_expression(ctx, &mut scope, expr)?;
                 out.append(&mut compiled_expr);
