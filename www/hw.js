@@ -1,3 +1,105 @@
+const COLOURS = [
+  [0,0,0],
+  [205,49,49],
+  [13,188,121],
+  [229,229,16],
+  [36,114,200],
+  [188,63,188],
+  [17,168,205],
+  [229,229,229],
+  [102,102,102],
+  [241,76,76],
+  [35,209,139],
+  [245,245,67],
+  [59,142,234],
+  [214,112,214],
+  [41,184,219],
+  [255,255,255],
+];
+
+class Monitor {
+  constructor(pixelWidth, pixelHeight) {
+    this._w = pixelWidth;
+    this._h = pixelHeight;
+    this._modeTiled = false;
+    this._bpp = 8;
+    this._buffer = new Uint8Array(this.screenBufferByteSize());
+    this._img = new ImageData(pixelWidth, pixelHeight);
+    this._innerCanvas = document.createElement("canvas");
+    this._innerCanvas.width = pixelWidth;
+    this._innerCanvas.height = pixelHeight;
+    this._innerCanvas.style.imageRendering =  "pixel-perfect";
+  }
+
+  clear() {
+    for (let i = 0; i < this._buffer.length; i++) {
+      this._buffer[i] = 0;
+    }
+  }
+
+  screenBufferByteSize() {
+    if (this._modeTiled) {
+      console.error("unimplemented");
+      return 0;
+    } else {
+      return Math.floor(this._w * this._h * (this._bpp/8));
+    }
+  }
+
+  mapBufferTo(vm, addr) {
+    vm.map_memory_func(
+      addr, 
+      this.screenBufferByteSize(), 
+      (a) => this._read(a),
+      (a, v) => this._write(a, v),
+    );
+  }
+
+  _read(addr) {
+    return this._buffer[addr];
+  }
+
+  _write(addr, value) {
+    this._buffer[addr] = value;
+  }
+
+  _getPal(i) {
+    return COLOURS[i%COLOURS.length];
+  }
+
+  _renderToImage() {
+    for (let y = 0; y < this._h; y++) {
+      for (let x = 0; x < this._w; x++) {
+        if (this._bpp == 8) {
+          const i = y*this._w + x;
+          const col = this._getPal(this._buffer[i]);
+          this._img.data[4*i + 0] = col[0];
+          this._img.data[4*i + 1] = col[1];
+          this._img.data[4*i + 2] = col[2];
+          this._img.data[4*i + 3] = 255;
+        } else if (this._bpp == 4) {
+          const i = y*this._w + x;
+          const local_index = y*Math.floor(this._w/2) + Math.floor(x/2);
+          let bufferByte = this._buffer[local_index];
+          let nibble = x%2==0 ? bufferByte&0xf : (bufferByte>>4)&0xf;
+          const col = this._getPal(nibble);
+          this._img.data[4*i + 0] = col[0];
+          this._img.data[4*i + 1] = col[1];
+          this._img.data[4*i + 2] = col[2];
+          this._img.data[4*i + 3] = 255;
+        } else {
+          throw new Error(`unimplemented bpp: ${this._bpp}`);
+        }
+      }
+    }
+  }
+
+  getImage() {
+    this._renderToImage();
+    this._innerCanvas.getContext("2d").putImageData(this._img, 0, 0);
+    return this._innerCanvas;
+  }
+}
 
 class TextIO {
   constructor() {
