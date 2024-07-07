@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::str::FromStr;
-use std::collections::HashMap;
 
 use simplevm::{Instruction, InstructionParseError, Register, Literal12Bit, Literal7Bit, Nibble, StackOp, TestOp};
 use simplevm::pp;
@@ -361,7 +360,7 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, (Con
             Instruction::System(Register::C, Register::Zero, Nibble::default())
         ),
     ]);
-    let mut global_map: HashMap<String, Type> = HashMap::new();
+    let mut global_map: Vec<(String, Type)> = Vec::new();
     for p in &program {
         match p {
             ast::TopLevel::FunctionDefinition{name, return_type, args, ..} => {
@@ -377,12 +376,12 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, (Con
                 });
             }
             ast::TopLevel::GlobalVariable{name, var_type} => {
-                global_map.insert(name.0.to_string(), var_type.clone().into());
+                global_map.push((name.0.to_string(), var_type.clone().into()));
             }
         }
     };
     // global definition pass
-    let global_page_size = global_map.values().fold(0, |acc, t| acc + t.size_bytes());
+    let global_page_size = global_map.iter().fold(0, |acc, (_, t)| acc + t.size_bytes());
     for (k, t) in global_map.iter() {
         ctx.define_global(k, t.clone());
     }
