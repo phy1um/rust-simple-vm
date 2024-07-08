@@ -34,9 +34,12 @@ fn main() -> Result<(), String> {
         Ok(program) => {
             let res = compile(program, LOADED_PROGRAM_OFFSET).map_err(|x| format!("compiling: {x:?}"))?;
             if args.output_format == OutputFormat::AnnotatedAsm {
+                let mut stdout = stdout().lock();    
+                let symbol_defs = res.symbols.iter().map(|(k, v)| format!(".defvar {k} {v}\n"))
+                    .collect::<Vec<_>>().join("");
+                stdout.write_all(&symbol_defs.as_bytes()).map_err(|x| format!("{x}"))?;
                 let instructions_txt = res.get_lines_unresolved().map_err(|x| format!("{x:?}"))?
                     .join("\n");
-                let mut stdout = stdout().lock();    
                 stdout.write_all(&instructions_txt.as_bytes()).map_err(|x| format!("{x}"))?
             } else {
                 let instructions = res.get_instructions().map_err(|x| format!("resolving: {x:?}"))?;
