@@ -128,6 +128,7 @@ pub enum Expression {
     LiteralChar(char),
     Variable(String),
     AddressOf(Identifier),
+    Deref(Box<Expression>),
     BinOp(Box<Expression>, Box<Expression>, BinOp),
     FunctionCall(Identifier, Vec<Expression>),
 }
@@ -139,6 +140,7 @@ impl fmt::Display for Expression {
             Self::LiteralChar(c) => write!(f, "'{c}'"),
             Self::Variable(v) => write!(f, "{v}"),
             Self::AddressOf(i) => write!(f, "&{i}"),
+            Self::Deref(i) => write!(f, "*{i}"),
             Self::BinOp(e0, e1, op) => write!(f, "{e0} {op} {e1}"),
             Self::FunctionCall(name, args) => write!(f, "{name}({})", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
         }

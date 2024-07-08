@@ -60,6 +60,12 @@ pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), ParseErro
     Ok((s1, ast::Expression::FunctionCall(id, args)))
 }
 
+pub fn expression_deref(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+    let (s0, _) = skip_whitespace(token("*"))(input)?;
+    let (sn, expr) = expression(s0)?;
+    Ok((sn, ast::Expression::Deref(Box::new(expr))))
+}
+
 pub fn binop(input: &str) -> Result<(&str, ast::BinOp), ParseError> {
     map(
         require(Any::new(vec![
@@ -91,6 +97,7 @@ fn expression_lhs(input: &str) -> Result<(&str, ast::Expression), ParseError> {
 
 fn expression(input: &str) -> Result<(&str, ast::Expression), ParseError> {
     require(Any::new(vec![
+        expression_deref,
         expression_binop,
         expression_lhs,
     ]), ParseError::new(input, ParseErrorKind::ExpectedExpression).tag("expression")).run(input)
@@ -284,6 +291,14 @@ mod test {
         let expected = "*(x + 1) := 57";
         assert_eq!(expected, run_parser(statement_variable_assign_deref, expected).unwrap().to_string());
     }
+
+    #[test]
+    fn test_expr_deref() {
+        let expected = "*foobar";
+        assert_eq!(expected, run_parser(expression_deref, expected).unwrap().to_string());
+    }
+
+
 
     #[test]
     fn test_declare() {

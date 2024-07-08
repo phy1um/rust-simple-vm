@@ -85,6 +85,14 @@ impl Type {
         }
     }
 
+    pub fn is_pointer(&self) -> bool {
+        if let Self::Pointer(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn size_bytes(&self) -> usize {
         match self {
             Self::Int => 2,
@@ -124,7 +132,7 @@ impl From<ast::Type> for Type {
     }
 }
 
-
+// TODO: maybe this should return an error
 pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Type {
     match expr {
         ast::Expression::LiteralInt(_) => Type::Int, 
@@ -158,6 +166,14 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
                 Type::Pointer(Box::new(Type::Int))
             } else {
                 panic!("cannot take addr of {name}");
+            }
+        }
+        ast::Expression::Deref(expr) => {
+            let inner_type = type_of(ctx, scope, expr);
+            if let Type::Pointer(t) = inner_type {
+                *t.clone()
+            } else {
+                Type::Void
             }
         }
         ast::Expression::FunctionCall(name, _) => {

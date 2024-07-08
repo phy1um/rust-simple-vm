@@ -24,7 +24,7 @@ pub struct LoopLabels {
 pub struct BlockScope {
     parent_func: Rc<RefCell<Block>>,
     pub loop_labels: Option<LoopLabels>,
-    pub locals: Vec<(String, usize)>,
+    pub locals: Vec<(String, usize, Type)>,
 }
 
 impl BlockScope {
@@ -51,17 +51,17 @@ impl BlockScope {
         }
     }
 
-    pub fn define_local(&mut self, s: &str) -> usize {
+    pub fn define_local(&mut self, s: &str, t: &Type) -> usize {
         let mut fn_block = self.parent_func.borrow_mut();
         let index = fn_block.next_local_index();
-        self.locals.push((s.to_owned(), index));
+        self.locals.push((s.to_owned(), index, t.clone()));
         index
     }
 
-    fn get_local(&self, s: &str) -> Option<usize> {
-        for (k, i) in &self.locals {
+    fn get_local(&self, s: &str) -> Option<(usize, Type)> {
+        for (k, i, t) in &self.locals {
             if k == s {
-                return Some(*i)
+                return Some((*i, t.clone()))
             }
         };
         None
@@ -78,8 +78,8 @@ impl BlockScope {
     }
 
     pub fn get(&self, ctx: &Context, s: &str) -> Option<BlockVariable> {
-        if let Some(i) = self.get_local(s) {
-            Some(BlockVariable::Local(i, Type::Int))
+        if let Some((i, t)) = self.get_local(s) {
+            Some(BlockVariable::Local(i, t))
         } else if let Some(i) = self.get_arg(s) {
             Some(BlockVariable::Arg(i, Type::Int))
         } else {

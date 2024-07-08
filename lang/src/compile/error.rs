@@ -10,6 +10,7 @@ pub enum CompilerError {
     ContinueNotInLoop,
     InlineAsm(String),
     TypeAssign{from: Type, to: Type},
+    DerefInvalidType(Type),
 }
 
 

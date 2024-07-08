@@ -95,7 +95,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                     return Err(CompilerError::TypeAssign{from: expr_type, to: tt});
                 }
 
-                let local_index = scope.define_local(&id.0);
+                let local_index = scope.define_local(&id.0, &tt);
                 // put expression on top of stack
                 let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                 out.append(&mut compiled_expr);
@@ -108,11 +108,11 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 out.push(UnresolvedInstruction::Instruction(
                         Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
             }
-            ast::Statement::Declare(id, _t, None) => {
+            ast::Statement::Declare(id, t, None) => {
                 if scope.get(ctx, &id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
-                scope.define_local(&id.0);
+                scope.define_local(&id.0, &(t.into()));
             }
             ast::Statement::Assign(id, expr) => {
                 if let Some(bv) = scope.get(ctx, &id.0) {
@@ -223,6 +223,29 @@ fn compile_expression(ctx: &Context, scope: &mut BlockScope, expr: ast::Expressi
             UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(c as u16).unwrap())),
             UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
         ]),
+        ast::Expression::Deref(e) => {
+            let inner_type = type_of(ctx, scope, &e);
+            if !inner_type.is_pointer() {
+                println!("{:?}", scope);
+                return Err(CompilerError::DerefInvalidType(inner_type));
+            }
+            let mut out = Vec::new();
+            out.extend(compile_expression(ctx, scope, *e)?);
+            out.push(UnresolvedInstruction::Instruction(
+                Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
+            if inner_type.size_bytes() == 1 {
+                out.push(UnresolvedInstruction::Instruction(
+                    Instruction::LoadByte(Register::C, Register::C, Register::Zero)));
+            } else if inner_type.size_bytes() == 2 {
+                out.push(UnresolvedInstruction::Instruction(
+                    Instruction::LoadWord(Register::C, Register::C, Register::Zero)));
+            } else {
+                todo!("i don't know how to handle this case");
+            }
+            out.push(UnresolvedInstruction::Instruction(
+                Instruction::Stack(Register::C, Register::SP, StackOp::Push)));
+            Ok(out)
+        }
         ast::Expression::AddressOf(s) => {
             if let Some(v) = scope.get(ctx, &s.0) {
                 match v {
