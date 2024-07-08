@@ -6,10 +6,26 @@ use crate::error::{ParseError, ParseErrorKind};
 
 use std::str::FromStr;
 
+fn parse_type_raw(input: &str) -> Result<(&str, ast::Type), ParseError> {
+    let (s0, res) = map(repeat1(alpha), |x| x.iter().collect::<String>())(input)?;
+    Ok((s0, match res.as_ref() {
+        "void" => ast::Type::Void,
+        "int" => ast::Type::Int,
+        "char" => ast::Type::Char,
+        _ => todo!("support user types: {}", res),
+    }))
+}
+
 fn parse_type(input: &str) -> Result<(&str, ast::Type), ParseError> {
-    let (s, res) = map(repeat1(alpha), |x| x.iter().collect::<String>())(input)?;
-    let tt = ast::Type::from_str(&res).map_err(|_s| ParseError::new(input, ParseErrorKind::ExpectedType))?;
-    Ok((s, tt))
+    match skip_whitespace(token("*"))(input) {
+        Ok((s, _)) => {
+            let (sn, inner) = parse_type(s)?;
+            Ok((sn, ast::Type::Pointer(Box::new(inner))))
+        }
+        Err(_) => {
+            parse_type_raw(input).map_err(|_s| ParseError::new(input, ParseErrorKind::ExpectedType))
+        }
+    }
 }
 
 // TODO: underscore :)
@@ -32,10 +48,22 @@ fn expression_variable(input: &str) -> Result<(&str, ast::Expression), ParseErro
     map(identifier, |s| ast::Expression::Variable(s.0))(input)
 }
 
+fn expression_address_of(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+    let (s0, _) = skip_whitespace(token("&"))(input)?;
+    let (s1, name) = identifier(s0)?;
+    Ok((s1, ast::Expression::AddressOf(name)))
+}
+
 pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), ParseError> {
     let (s0, id) = skip_whitespace(identifier)(input)?;
     let (s1, args) = wrapped(token("("), allow_empty(delimited(skip_whitespace(expression), skip_whitespace(token(",")))), token(")"))(s0)?;
     Ok((s1, ast::Expression::FunctionCall(id, args)))
+}
+
+pub fn expression_deref(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+    let (s0, _) = skip_whitespace(token("*"))(input)?;
+    let (sn, expr) = expression(s0)?;
+    Ok((sn, ast::Expression::Deref(Box::new(expr))))
 }
 
 pub fn binop(input: &str) -> Result<(&str, ast::BinOp), ParseError> {
@@ -62,12 +90,14 @@ fn expression_lhs(input: &str) -> Result<(&str, ast::Expression), ParseError> {
         expression_literal_int,
         expression_literal_char,
         expression_call,
+        expression_address_of,
         expression_variable,
     ]), ParseError::new(input, ParseErrorKind::ExpectedExpressionLHS)).run(input)
 }
 
 fn expression(input: &str) -> Result<(&str, ast::Expression), ParseError> {
     require(Any::new(vec![
+        expression_deref,
         expression_binop,
         expression_lhs,
     ]), ParseError::new(input, ParseErrorKind::ExpectedExpression).tag("expression")).run(input)
@@ -79,6 +109,14 @@ pub fn statement_variable_assign(input: &str) -> Result<(&str, ast::Statement), 
     let (s1, _) = skip_whitespace(token(":="))(s0)?;
     let (s2, expr) = skip_whitespace(expression)(s1)?;
     Ok((s2, ast::Statement::Assign(id, Box::new(expr))))
+}
+
+pub fn statement_variable_assign_deref(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+    let (s0, _) = skip_whitespace(token("*"))(input)?;
+    let (s1, lhs) = skip_whitespace(wrapped(token("("), expression, token(")")))(s0)?;
+    let (s2, _) = skip_whitespace(token(":="))(s1)?;
+    let (s3, rhs) = skip_whitespace(expression)(s2)?;
+    Ok((s3, ast::Statement::AssignDeref{lhs, rhs}))
 }
 
 pub fn statement_variable_declare(input: &str) -> Result<(&str, ast::Statement), ParseError> {
@@ -136,6 +174,7 @@ pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     AnyCollectErr::new(vec![
         statement_if,
         statement_while,
+        statement_variable_assign_deref,
         statement_variable_assign,
         statement_variable_declare,
         statement_return,
@@ -207,9 +246,9 @@ pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), ParseError> 
         } else {
             let (snn, res) = 
                 AnyCollectErr::new(vec![
-                    function_definition,
                     inline_asm,
                     global_variable,
+                    function_definition,
                 ]).run(state_next).map_err(|x| ParseError::from_errs(current_state, x))?; 
             out.push(res);
             current_state = snn;
@@ -246,6 +285,20 @@ mod test {
         let expected = Statement::Assign(Identifier::new("foo"), Box::new(Expression::LiteralInt(88)));
         assert_eq!(expected, run_parser(statement_variable_assign, "foo    :=       \n 88").unwrap());
     }
+
+    #[test]
+    fn test_assign_deref() {
+        let expected = "*(x + 1) := 57";
+        assert_eq!(expected, run_parser(statement_variable_assign_deref, expected).unwrap().to_string());
+    }
+
+    #[test]
+    fn test_expr_deref() {
+        let expected = "*foobar";
+        assert_eq!(expected, run_parser(expression_deref, expected).unwrap().to_string());
+    }
+
+
 
     #[test]
     fn test_declare() {

@@ -66,11 +66,12 @@ impl UnresolvedInstruction {
 
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Int,
     Char,
     Void,
+    Pointer(Box<Type>),
     UncheckedInt,
 }
 
@@ -78,9 +79,17 @@ impl Type {
     fn max(&self, other: &Self) -> Self {
         // bias LHS
         if self.size_bytes() >= other.size_bytes() {
-            *self
+            self.clone()
         } else {
-            *other
+            other.clone()
+        }
+    }
+
+    pub fn is_pointer(&self) -> bool {
+        if let Self::Pointer(_) = self {
+            true
+        } else {
+            false
         }
     }
 
@@ -89,6 +98,8 @@ impl Type {
             Self::Int => 2,
             Self::Char => 1,
             Self::Void => 0,
+            // TODO: long pointer?
+            Self::Pointer(_) => 2,
             Self::UncheckedInt => 2,
         }
     }
@@ -104,6 +115,7 @@ impl fmt::Display for Type {
             Self::Int => write!(f, "int"),
             Self::Char => write!(f, "char"),
             Self::Void => write!(f, "void"),
+            Self::Pointer(t) => write!(f, "*{t}"),
             Self::UncheckedInt => write!(f, "int"),
         }
     }
@@ -115,11 +127,12 @@ impl From<ast::Type> for Type {
             ast::Type::Int => Self::Int,
             ast::Type::Char => Self::Char,
             ast::Type::Void => Self::Void,
+            ast::Type::Pointer(t) => Self::Pointer(Box::new((*t).into())),
         }
     }
 }
 
-
+// TODO: maybe this should return an error
 pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Type {
     match expr {
         ast::Expression::LiteralInt(_) => Type::Int, 
@@ -140,9 +153,32 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
                 Type::Void
             }
         }
+        ast::Expression::AddressOf(name) => {
+             if let Some(bv) = scope.get(ctx, &name.0) {
+                Type::Pointer(Box::new(match bv {
+                    BlockVariable::Local(_, t) => t,
+                    BlockVariable::Arg(_, t) => t,
+                    // TODO: wtf do we do here
+                    BlockVariable::Const(_) => Type::Int,
+                    BlockVariable::Global(_, t) => t,
+                }))
+            } else if let Some(_) = ctx.symbols.get(&name.0) {
+                Type::Pointer(Box::new(Type::Int))
+            } else {
+                panic!("cannot take addr of {name}");
+            }
+        }
+        ast::Expression::Deref(expr) => {
+            let inner_type = type_of(ctx, scope, expr);
+            if let Type::Pointer(t) = inner_type {
+                *t.clone()
+            } else {
+                Type::Void
+            }
+        }
         ast::Expression::FunctionCall(name, _) => {
             if let Some(def) = ctx.function_defs.get(&name.0) {
-                def.return_type 
+                def.return_type.clone() 
             } else {
                 Type::Void
             }

@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::str::FromStr;
-use std::collections::HashMap;
 
 use simplevm::{Instruction, InstructionParseError, Register, Literal12Bit, Literal7Bit, Nibble, StackOp, TestOp};
 use simplevm::pp;
@@ -96,7 +95,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                     return Err(CompilerError::TypeAssign{from: expr_type, to: tt});
                 }
 
-                let local_index = scope.define_local(&id.0);
+                let local_index = scope.define_local(&id.0, &tt);
                 // put expression on top of stack
                 let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                 out.append(&mut compiled_expr);
@@ -109,11 +108,11 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 out.push(UnresolvedInstruction::Instruction(
                         Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
             }
-            ast::Statement::Declare(id, _t, None) => {
+            ast::Statement::Declare(id, t, None) => {
                 if scope.get(ctx, &id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()))
                 }
-                scope.define_local(&id.0);
+                scope.define_local(&id.0, &(t.into()));
             }
             ast::Statement::Assign(id, expr) => {
                 if let Some(bv) = scope.get(ctx, &id.0) {
@@ -151,6 +150,18 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 } else {
                     return Err(CompilerError::VariableUndefined(id.0.to_string()))
                 }
+            }
+            ast::Statement::AssignDeref{lhs, rhs} => {
+                let compiled_addr = compile_expression(ctx, &mut scope, lhs)?; 
+                let compiled_value = compile_expression(ctx, &mut scope, rhs)?; 
+                out.extend(compiled_addr);
+                out.extend(compiled_value);
+                out.push(UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::B, Register::SP, StackOp::Pop)));
+                out.push(UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
+                out.push(UnresolvedInstruction::Instruction(
+                            Instruction::StoreWord(Register::C, Register::Zero, Register::B)));
             }
             ast::Statement::Return(expr) => {
                 let mut compiled_expr = compile_expression(ctx, &mut scope, expr)?;
@@ -212,6 +223,61 @@ fn compile_expression(ctx: &Context, scope: &mut BlockScope, expr: ast::Expressi
             UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(c as u16).unwrap())),
             UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
         ]),
+        ast::Expression::Deref(e) => {
+            let inner_type = type_of(ctx, scope, &e);
+            if !inner_type.is_pointer() {
+                println!("{:?}", scope);
+                return Err(CompilerError::DerefInvalidType(inner_type));
+            }
+            let mut out = Vec::new();
+            out.extend(compile_expression(ctx, scope, *e)?);
+            out.push(UnresolvedInstruction::Instruction(
+                Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
+            if inner_type.size_bytes() == 1 {
+                out.push(UnresolvedInstruction::Instruction(
+                    Instruction::LoadByte(Register::C, Register::C, Register::Zero)));
+            } else if inner_type.size_bytes() == 2 {
+                out.push(UnresolvedInstruction::Instruction(
+                    Instruction::LoadWord(Register::C, Register::C, Register::Zero)));
+            } else {
+                todo!("i don't know how to handle this case");
+            }
+            out.push(UnresolvedInstruction::Instruction(
+                Instruction::Stack(Register::C, Register::SP, StackOp::Push)));
+            Ok(out)
+        }
+        ast::Expression::AddressOf(s) => {
+            if let Some(v) = scope.get(ctx, &s.0) {
+                match v {
+                    BlockVariable::Local(i, _) => Ok(vec![ 
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Add(Register::BP, Register::Zero, Register::C)),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::AddImm(Register::C, Literal7Bit::new_checked(i as u8 *2).unwrap())),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                    ]),
+                    BlockVariable::Arg(i, _) => Ok(vec![
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Add(Register::BP, Register::Zero, Register::C)),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::AddImmSigned(Register::C, Literal7Bit::from_signed(-2 * (i as i8 + 3)).unwrap())),
+                        UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                    ]),
+                    BlockVariable::Global(addr, _) => {
+                        let mut out = Vec::new();
+                        out.extend(load_address_to(addr, Register::C, Register::Zero));
+                        out.push(UnresolvedInstruction::Instruction(
+                            Instruction::Stack(Register::C, Register::SP, StackOp::Push)));
+                        Ok(out)
+                    }
+                    _ => todo!("address of var no implemented: {v:?}"),
+                }
+            } else {
+                Err(CompilerError::VariableUndefined(s.to_string()))
+            }
+        }
         ast::Expression::Variable(s) => {
             if let Some(v) = scope.get(ctx, &s) {
                 match v {
@@ -329,7 +395,7 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, (Con
             Instruction::System(Register::C, Register::Zero, Nibble::default())
         ),
     ]);
-    let mut global_map: HashMap<String, Type> = HashMap::new();
+    let mut global_map: Vec<(String, Type)> = Vec::new();
     for p in &program {
         match p {
             ast::TopLevel::FunctionDefinition{name, return_type, args, ..} => {
@@ -345,14 +411,14 @@ pub fn compile(program: Vec<ast::TopLevel>, offset: u32) -> Result<Context, (Con
                 });
             }
             ast::TopLevel::GlobalVariable{name, var_type} => {
-                global_map.insert(name.0.to_string(), var_type.clone().into());
+                global_map.push((name.0.to_string(), var_type.clone().into()));
             }
         }
     };
     // global definition pass
-    let global_page_size = global_map.values().fold(0, |acc, t| acc + t.size_bytes());
+    let global_page_size = global_map.iter().fold(0, |acc, (_, t)| acc + t.size_bytes());
     for (k, t) in global_map.iter() {
-        ctx.define_global(k, *t);
+        ctx.define_global(k, t.clone());
     }
     // codegen pass
     ctx.program_start_offset = offset + (global_page_size as u32);
