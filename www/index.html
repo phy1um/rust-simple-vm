@@ -251,7 +251,24 @@ System A Zero 0
           calculateFrames();
         }
 
-        function updateCodeView(codeLines, programOffset) {
+        function updateCodeView(codeLines, syms, programOffset) {
+          // build map of labels
+          const labels = {};
+          for (let sym of syms) {
+            if (sym.isLabel()) {
+              const name = sym.getName();
+              const value = sym.getValue();
+              try {
+                let base = 10;
+                if (value.indexOf("$") != -1) {
+                  base = 16;
+                }
+                const valueNum = parseInt(value, base);
+                labels[valueNum+programOffset] = name;
+              } catch (_e) {}
+            }
+          }
+          console.log(labels); 
           let offset = programOffset;
           const buf = [];
           for (let line of codeLines) {
@@ -263,9 +280,9 @@ System A Zero 0
               buf.push(` -     ${line}`);
               continue;
             }
-            if (line[0] == ':') {
-              buf.push(` -     ${line}`);
-              continue;
+            const labelName = labels[offset];
+            if (labelName) {
+              buf.push(` -     :${labelName}`);
             }
             let os = `${offset}`.padStart(5, '0');
             buf.push(`<span class="prog-line" id='prog-line-${offset}'>${os}: ${line}</span>`);
@@ -276,8 +293,10 @@ System A Zero 0
 
         function asmAndUpload(vm, asm, offset) {
           const pp = new PreProcessor();
-          const lines = pp.resolve(asm);
-          updateCodeView(lines, offset);
+          pp.resolve(asm);
+          let lines = pp.get_lines();
+          let syms = pp.get_symbols();
+          updateCodeView(lines, syms, offset);
           const program = [];
           for (let i in lines) {
             const line = lines[i].trim();

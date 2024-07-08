@@ -18,7 +18,7 @@ pub fn defvar(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, St
     }
     let name = input.first().unwrap();
     let value = input.get(1).unwrap();
-    pp.define_variable(name, value);
+    pp.define_user_variable(name, value);
     Ok(Vec::new())
 }
 

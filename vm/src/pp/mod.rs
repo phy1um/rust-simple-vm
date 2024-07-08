@@ -27,9 +27,24 @@ pub enum Macro {
     Subst(Vec<String>),
 }
 
+#[derive(Debug, Clone)]
+pub enum Variable {
+    Label(String),
+    User(String),
+}
+
+impl fmt::Display for Variable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Label(s) => write!(f, "{s}"),
+            Self::User(s) => write!(f, "{s}"),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct PreProcessor {
-    variables: HashMap<String, String>,
+    pub variables: HashMap<String, Variable>,
     macros: HashMap<String, Macro>,
     instruction_count: u32,
 }
@@ -70,6 +85,7 @@ impl PreProcessor {
             ProcessedLinePart::Unresolved(varname, pre, post) => {
                 let value = self
                     .get_variable(varname)
+                    .map(|x| x.to_string())
                     .ok_or(Error::UnknownToken(varname.to_string()))?;
                 Ok(format!(
                     "{} {} {}",
@@ -149,7 +165,7 @@ impl PreProcessor {
                     Some(':') => {
                         let name = &head[1..];
                         let offset = format!("{}", self.instruction_count * 2);
-                        self.define_variable(name, &offset);
+                        self.define_label(name, &offset);
                         continue;
                     }
                     _ => (),
@@ -170,7 +186,7 @@ impl PreProcessor {
         for i in 0..parts.len() {
             if let Some('!') = parts[i].chars().nth(0) {
                 let varname = &parts[i][1..].to_string();
-                match self.get_variable(varname) {
+                match self.get_variable(varname).map(|x| x.to_string()) {
                     Some(x) => line.push(x),
                     None => {
                         return ProcessedLinePart::Unresolved(
@@ -187,13 +203,18 @@ impl PreProcessor {
         ProcessedLinePart::Line(line.join(" "))
     }
 
-    fn get_variable(&self, name: &str) -> Option<String> {
+    fn get_variable(&self, name: &str) -> Option<Variable> {
         self.variables.get(name).cloned()
     }
 
-    pub fn define_variable(&mut self, name: &str, value: &str) {
-        self.variables.insert(name.to_string(), value.to_string());
+    pub fn define_label(&mut self, name: &str, value: &str) {
+        self.variables.insert(name.to_string(), Variable::Label(value.to_string()));
     }
+
+    pub fn define_user_variable(&mut self, name: &str, value: &str) {
+        self.variables.insert(name.to_string(), Variable::User(value.to_string()));
+    }
+
 
     fn get_macro(&mut self, name: &str) -> Option<&Macro> {
         self.macros.get(name)
