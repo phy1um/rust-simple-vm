@@ -170,6 +170,10 @@ pub fn statement_break(input: &str) -> Result<(&str, ast::Statement), ParseError
         map(skip_whitespace(token("break")), |_| ast::Statement::Break)(input)
 }
 
+pub fn statement_expression(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+    map(expression, |x| ast::Statement::Expression(x))(input)
+}
+
 pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     AnyCollectErr::new(vec![
         statement_if,
@@ -180,6 +184,7 @@ pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
         statement_return,
         statement_continue,
         statement_break,
+        statement_expression
     ]).run(input).map_err(|v| ParseError::from_errs(input, v).tag("STMT"))
 }
 

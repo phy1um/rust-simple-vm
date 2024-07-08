@@ -203,3 +203,13 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn can_assign() {
+        assert!(Type::Int.can_assign_from(&Type::Int));
+    }
+}

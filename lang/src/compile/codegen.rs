@@ -129,6 +129,25 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                             out.push(UnresolvedInstruction::Instruction(
                                     Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
                         }
+                        BlockVariable::Arg(index, ty) => {
+                            let tt: Type = ty.into();
+                            let expr_type = type_of(ctx, &scope, expr.as_ref());
+                            if !tt.can_assign_from(&expr_type) {
+                                return Err(CompilerError::TypeAssign{from: expr_type, to: tt});
+                            }
+                            let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
+                            out.append(&mut compiled_expr);
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::Add(Register::BP, Register::Zero, Register::B)));
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::AddImmSigned(
+                                        Register::B, 
+                                        Literal7Bit::from_signed(-2 * (index as i8 + 3)).unwrap())));
+                            out.push(UnresolvedInstruction::Instruction(
+                                    Instruction::StoreWord(Register::B, Register::Zero, Register::C))); 
+                        }
                         BlockVariable::Global(addr, t) => {
                             // type check
                             let expr_type = type_of(ctx, &scope, &expr);
@@ -145,7 +164,7 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                             out.push(UnresolvedInstruction::Instruction(
                                         Instruction::StoreWord(Register::B, Register::Zero, Register::C)));
                         }
-                        _ => todo!("unimplemented"),
+                        _ => todo!("unimplemented {bv:?}"),
                     }
                 } else {
                     return Err(CompilerError::VariableUndefined(id.0.to_string()))
@@ -169,6 +188,13 @@ fn compile_block(ctx: &mut Context, mut scope: BlockScope, statements: Vec<ast::
                 // return in the A register
                 out.push(UnresolvedInstruction::Instruction(
                         Instruction::Stack(Register::A, Register::SP, StackOp::Pop)));
+            }
+            ast::Statement::Expression(expr) => {
+                let mut compiled_expr = compile_expression(ctx, &mut scope, expr)?;
+                out.append(&mut compiled_expr);
+                // forget what we just did
+                out.push(UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::Zero, Register::SP, StackOp::Pop)));
             }
         }
     };
@@ -375,20 +401,13 @@ fn compile_expression(ctx: &Context, scope: &mut BlockScope, expr: ast::Expressi
                 ast::BinOp::Subtract => 
                     out.push(UnresolvedInstruction::Instruction(
                         Instruction::Stack(Register::Zero, Register::SP, StackOp::Sub))),
-                ast::BinOp::LessThanEqual => {
-                     out.push(UnresolvedInstruction::Instruction(
-                        Instruction::Stack(Register::B, Register::SP, StackOp::Pop)));
-                     out.push(UnresolvedInstruction::Instruction(
-                        Instruction::Stack(Register::C, Register::SP, StackOp::Pop)));
-                     out.push(UnresolvedInstruction::Instruction(
-                        Instruction::Test(Register::B, Register::C, TestOp::Lte)));
-                     out.push(UnresolvedInstruction::Instruction(
-                        Instruction::Add(Register::Zero, Register::Zero, Register::C)));
-                     out.push(UnresolvedInstruction::Instruction(
-                        Instruction::AddIf(Register::C, Register::Zero, Nibble::new_checked(1).unwrap())));
-                     out.push(UnresolvedInstruction::Instruction(
-                        Instruction::Stack(Register::C, Register::SP, StackOp::Push)));
-                }
+                ast::BinOp::LessThanEqual =>
+                    binop_compare(&mut out, Register::B, Register::C, TestOp::Lte),
+                ast::BinOp::GreaterThan =>
+                    binop_compare(&mut out, Register::B, Register::C, TestOp::Gt),
+                ast::BinOp::LessThan =>
+                    binop_compare(&mut out, Register::B, Register::C, TestOp::Lt),
+
                 _ => panic!("unimplemented binop {op}"),
             }
             Ok(out)
@@ -534,4 +553,19 @@ fn load_address_to(addr: usize, target_register: Register, _page_register: Regis
         todo!("paged addressing not implemented");
     }
     out
+}
+
+fn binop_compare(out: &mut Vec<UnresolvedInstruction>, a: Register, b: Register, op: TestOp) {
+     out.push(UnresolvedInstruction::Instruction(
+        Instruction::Stack(a, Register::SP, StackOp::Pop)));
+     out.push(UnresolvedInstruction::Instruction(
+        Instruction::Stack(b, Register::SP, StackOp::Pop)));
+     out.push(UnresolvedInstruction::Instruction(
+        Instruction::Test(a, b, op)));
+     out.push(UnresolvedInstruction::Instruction(
+        Instruction::Add(Register::Zero, Register::Zero, Register::C)));
+     out.push(UnresolvedInstruction::Instruction(
+        Instruction::AddIf(Register::C, Register::Zero, Nibble::new_checked(1).unwrap())));
+     out.push(UnresolvedInstruction::Instruction(
+        Instruction::Stack(Register::C, Register::SP, StackOp::Push)));
 }

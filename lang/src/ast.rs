@@ -44,6 +44,7 @@ pub enum Statement {
     Continue,
     If{cond: Expression, body: Vec<Statement>, else_body: Option<Vec<Statement>>},
     While{cond: Expression, body: Vec<Statement>},
+    Expression(Expression),
 }
 
 impl fmt::Display for Statement {
@@ -68,6 +69,7 @@ impl fmt::Display for Statement {
                 body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n")),
             Self::Break => write!(f, "break"),
             Self::Continue => write!(f, "continue"),
+            Self::Expression(e) => write!(f, "{e}"),
         }
     }
 }
