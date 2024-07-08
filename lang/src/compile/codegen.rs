@@ -214,11 +214,38 @@ fn compile_body(ctx: &mut Context, statements: Vec<ast::Statement>, name: &str, 
 
 fn compile_expression(ctx: &Context, scope: &mut BlockScope, expr: ast::Expression) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     match expr {
-        ast::Expression::LiteralInt(i) => Ok(vec![
-            UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(i as u16).unwrap())),
-            UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
-
-        ]),
+        ast::Expression::LiteralInt(i) => {
+            if i <= 0xfff {
+                Ok(vec![
+                    UnresolvedInstruction::Instruction(
+                        Instruction::Imm(Register::C, Literal12Bit::new_checked(i as u16).unwrap())),
+                    UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                ])
+            } else if i <= 0xffff && (i&0xf) == 0 {
+                Ok(vec![
+                    UnresolvedInstruction::Instruction(
+                        Instruction::Imm(Register::C, Literal12Bit::new_checked((i>>4) as u16).unwrap())),
+                    UnresolvedInstruction::Instruction(
+                        Instruction::ShiftLeft(Register::C, Register::C, Nibble::new_checked(4).unwrap())),
+                    UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                ])
+            } else if i <= 0xffff {
+                Ok(vec![
+                    UnresolvedInstruction::Instruction(
+                        Instruction::Imm(Register::C, Literal12Bit::new_checked((i>>4) as u16).unwrap())),
+                    UnresolvedInstruction::Instruction(
+                        Instruction::ShiftLeft(Register::C, Register::C, Nibble::new_checked(4).unwrap())),
+                    UnresolvedInstruction::Instruction(
+                        Instruction::AddImm(Register::C, Literal7Bit::new_checked((i&0xf) as u8).unwrap())),
+                    UnresolvedInstruction::Instruction(
+                        Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
+                ])
+            } else {
+                todo!("number too big: {i}");
+            }
+        }
         ast::Expression::LiteralChar(c) => Ok(vec![
             UnresolvedInstruction::Instruction(Instruction::Imm(Register::C, Literal12Bit::new_checked(c as u16).unwrap())),
             UnresolvedInstruction::Instruction(Instruction::Stack(Register::C, Register::SP, StackOp::Push)),
