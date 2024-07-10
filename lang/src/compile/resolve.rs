@@ -52,17 +52,17 @@ impl UnresolvedInstruction {
             Self::Imm(reg, sym) => ctx.get(sym).and_then(|v| {
                 Literal12Bit::new_checked(v as u16)
                     .map_err(|_| CompilerError::LiteralOutOfBounds(v, 0, 0xfff))
-                    .map(|x| Some(Instruction::Imm(reg.clone(), x)))
+                    .map(|x| Some(Instruction::Imm(*reg, x)))
             }),
             Self::AddImm(reg, sym) => ctx.get(sym).and_then(|v| {
                 Literal7Bit::new_checked(v as u8)
                     .map_err(|_| CompilerError::LiteralOutOfBounds(v, 0, 0x7f))
-                    .map(|x| Some(Instruction::AddImm(reg.clone(), x)))
+                    .map(|x| Some(Instruction::AddImm(*reg, x)))
             }),
             Self::AddImmSigned(reg, sym) => ctx.get(sym).and_then(|v| {
                 Literal7Bit::new_checked(v as u8)
                     .map_err(|_| CompilerError::LiteralOutOfBounds(v, 0, 0x7f))
-                    .map(|x| Some(Instruction::AddImmSigned(reg.clone(), x)))
+                    .map(|x| Some(Instruction::AddImmSigned(*reg, x)))
             }),
             Self::JumpOffset(sym) => ctx.get(sym).and_then(|v| {
                 Literal10Bit::new_checked(v as u16)
@@ -101,11 +101,7 @@ impl Type {
     }
 
     pub fn is_pointer(&self) -> bool {
-        if let Self::Pointer(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Pointer(_))
     }
 
     pub fn size_bytes(&self) -> usize {
@@ -153,14 +149,14 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
         ast::Expression::LiteralInt(_) => Type::Int,
         ast::Expression::LiteralChar(_) => Type::Char,
         ast::Expression::Variable(name) => {
-            if let Some(bv) = scope.get(ctx, &name) {
+            if let Some(bv) = scope.get(ctx, name) {
                 match bv {
                     BlockVariable::Local(_, t) => t,
                     BlockVariable::Arg(_, t) => t,
                     BlockVariable::Const(_) => Type::Int,
                     BlockVariable::Global(_, t) => t,
                 }
-            } else if let Some(_) = ctx.symbols.get(name) {
+            } else if ctx.symbols.contains_key(name) {
                 Type::Int
             } else {
                 // undefined variables become void to maximize error info?
@@ -177,7 +173,7 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
                     BlockVariable::Const(_) => Type::Int,
                     BlockVariable::Global(_, t) => t,
                 }))
-            } else if let Some(_) = ctx.symbols.get(&name.0) {
+            } else if ctx.symbols.contains_key(&name.0) {
                 Type::Pointer(Box::new(Type::Int))
             } else {
                 panic!("cannot take addr of {name}");

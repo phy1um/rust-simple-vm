@@ -19,7 +19,7 @@ fn main() -> Result<(), String> {
         return Ok(());
     }
 
-    let target_file = args.target_files.get(0).unwrap();
+    let target_file = args.target_files.first().unwrap();
     let mut reader: Box<dyn Read> = match target_file.as_ref() {
         "-" => Box::new(stdin()),
         _ => Box::new(
@@ -44,14 +44,14 @@ fn main() -> Result<(), String> {
                     .collect::<Vec<_>>()
                     .join("");
                 stdout
-                    .write_all(&symbol_defs.as_bytes())
+                    .write_all(symbol_defs.as_bytes())
                     .map_err(|x| format!("{x}"))?;
                 let instructions_txt = res
                     .get_lines_unresolved()
                     .map_err(|x| format!("{x:?}"))?
                     .join("\n");
                 stdout
-                    .write_all(&instructions_txt.as_bytes())
+                    .write_all(instructions_txt.as_bytes())
                     .map_err(|x| format!("{x}"))?
             } else {
                 let instructions = res

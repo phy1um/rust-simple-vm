@@ -34,21 +34,21 @@ pub struct Context {
 
 impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "context:\n")?;
-        write!(
+        writeln!(f, "context:")?;
+        writeln!(
             f,
-            " symbols: [{}]\n",
+            " symbols: [{}]",
             self.symbols
                 .iter()
                 .map(|(k, v)| format!("{k}={v}"))
                 .collect::<Vec<_>>()
                 .join(", ")
         )?;
-        write!(f, " function defs: [\n")?;
+        writeln!(f, " function defs: [")?;
         for (func, def) in &self.function_defs {
-            write!(
+            writeln!(
                 f,
-                "  {} {func}({})\n",
+                "  {} {func}({})",
                 def.return_type,
                 def.args
                     .iter()
@@ -57,18 +57,18 @@ impl fmt::Display for Context {
                     .join(", ")
             )?;
         }
-        write!(f, " ]\n")?;
-        write!(
+        writeln!(f, " ]")?;
+        writeln!(
             f,
-            "globals: [{}]\n",
+            "globals: [{}]",
             self.globals
                 .iter()
                 .map(|(k, g)| format!("{k}={:?}", g))
                 .collect::<Vec<_>>()
                 .join(", ")
         )?;
-        write!(f, "globals start @ {}\n", self.global_base)?;
-        write!(f, "program start @ {}\n", self.program_start_offset)
+        writeln!(f, "globals start @ {}", self.global_base)?;
+        writeln!(f, "program start @ {}", self.program_start_offset)
     }
 }
 

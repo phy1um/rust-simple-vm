@@ -82,12 +82,10 @@ impl BlockScope {
             Some(BlockVariable::Local(i, t))
         } else if let Some(i) = self.get_arg(s) {
             Some(BlockVariable::Arg(i, Type::Int))
+        } else if let Some(Global { address, var_type }) = ctx.globals.get(s) {
+            Some(BlockVariable::Global(*address, var_type.clone()))
         } else {
-            if let Some(Global { address, var_type }) = ctx.globals.get(s) {
-                Some(BlockVariable::Global(*address, var_type.clone()))
-            } else {
-                None
-            }
+            None
         }
     }
 }

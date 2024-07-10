@@ -18,7 +18,7 @@ where
     pub fn new(items: Vec<F>) -> Self {
         Self {
             items,
-            _t: PhantomData::default(),
+            _t: PhantomData,
         }
     }
 }
@@ -52,7 +52,7 @@ where
     pub fn new(items: Vec<F>) -> Self {
         Self {
             items,
-            _t: PhantomData::default(),
+            _t: PhantomData,
         }
     }
 }
@@ -60,10 +60,9 @@ where
 impl<S: Clone, T, E, F: Parser<S, T, E>> Parser<S, Option<T>, E> for Any<S, T, E, F> {
     fn run(&self, s: S) -> Result<(S, Option<T>), E> {
         for item in &self.items {
-            match item.run(s.clone()) {
-                Ok((s, t)) => return Ok((s, Some(t))),
-                Err(_) => (),
-            };
+            if let Ok((s, t)) = item.run(s.clone()) {
+                return Ok((s, Some(t)));
+            }
         }
         Ok((s, None))
     }
@@ -85,7 +84,7 @@ where
     pub fn new(items: Vec<F>) -> Self {
         Self {
             items,
-            _t: PhantomData::default(),
+            _t: PhantomData,
         }
     }
 }
@@ -166,7 +165,7 @@ where
                 }
             }
         }
-        if out.len() < 1 {
+        if out.is_empty() {
             Err(last_err)
         } else {
             Ok((state, out))

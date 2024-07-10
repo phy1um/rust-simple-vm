@@ -41,7 +41,7 @@ pub fn not_char<'a, 'b>(
 
 pub fn token<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, &'a str), ParseError> {
     move |input| {
-        if let Some(_) = input.strip_prefix(s) {
+        if input.strip_prefix(s).is_some() {
             Ok((&input[s.len()..], s))
         } else {
             //let max = usize::min(s.len(), input.len());

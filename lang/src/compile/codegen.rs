@@ -177,8 +177,7 @@ fn compile_block(
                                 Register::C,
                             )));
                         }
-                        BlockVariable::Arg(index, ty) => {
-                            let tt: Type = ty.into();
+                        BlockVariable::Arg(index, tt) => {
                             let expr_type = type_of(ctx, &scope, expr.as_ref());
                             if !tt.can_assign_from(&expr_type) {
                                 return Err(CompilerError::TypeAssign {
@@ -210,10 +209,9 @@ fn compile_block(
                                 Register::C,
                             )));
                         }
-                        BlockVariable::Global(addr, t) => {
+                        BlockVariable::Global(addr, tt) => {
                             // type check
                             let expr_type = type_of(ctx, &scope, &expr);
-                            let tt: Type = t.into();
                             if !tt.can_assign_from(&expr_type) {
                                 return Err(CompilerError::TypeAssign {
                                     from: expr_type,

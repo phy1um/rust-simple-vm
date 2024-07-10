@@ -231,7 +231,7 @@ impl fmt::Display for TopLevel {
                     .map(|s| format!("{s};"))
                     .collect::<Vec<String>>()
                     .join("\n");
-                write!(f, "{return_type} {name}({}) {{\n{}\n}}\n", arglist, body)
+                writeln!(f, "{return_type} {name}({}) {{\n{}\n}}", arglist, body)
             }
             Self::InlineAsm { name, args, body } => {
                 let arglist = args
@@ -239,9 +239,9 @@ impl fmt::Display for TopLevel {
                     .map(|(id, arg_type)| format!("{arg_type} {id}"))
                     .collect::<Vec<String>>()
                     .join(", ");
-                write!(f, "asm! {name}({}) {{{body}}}\n", arglist)
+                writeln!(f, "asm! {name}({}) {{{body}}}", arglist)
             }
-            Self::GlobalVariable { name, var_type } => write!(f, "global {var_type} {name};\n"),
+            Self::GlobalVariable { name, var_type } => writeln!(f, "global {var_type} {name};"),
         }
     }
 }

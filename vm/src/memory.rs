@@ -73,9 +73,11 @@ pub trait Addressable {
     }
 }
 
+pub type MemoryRecord = (usize, usize, RefCell<Box<dyn Addressable>>);
+
 #[derive(Default)]
 pub struct MemoryMapper {
-    mapped: Vec<(usize, usize, RefCell<Box<dyn Addressable>>)>,
+    mapped: Vec<MemoryRecord>,
 }
 
 impl MemoryMapper {

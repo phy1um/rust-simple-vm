@@ -233,7 +233,7 @@ pub fn statement_break(input: &str) -> Result<(&str, ast::Statement), ParseError
 }
 
 pub fn statement_expression(input: &str) -> Result<(&str, ast::Statement), ParseError> {
-    map(expression, |x| ast::Statement::Expression(x))(input)
+    map(expression, ast::Statement::Expression)(input)
 }
 
 pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
