@@ -176,6 +176,9 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
                 Type::Void
             }
         }
+        ast::Expression::Bracketed(expr) =>  {
+            type_of(ctx, scope, expr)
+        }
         ast::Expression::FunctionCall(name, _) => {
             if let Some(def) = ctx.function_defs.get(&name.0) {
                 def.return_type.clone() 

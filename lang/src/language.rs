@@ -37,20 +37,22 @@ fn identifier(input: &str) -> Result<(&str, ast::Identifier), ParseError> {
 }
 
 fn expression_literal_int(input: &str) -> Result<(&str, ast::Expression), ParseError> {
-    map(repeat1(numeric), |x| ast::Expression::LiteralInt(x.iter().collect::<String>().parse::<i32>().unwrap()))(input)
+    map(repeat1(numeric), |x| ast::Expression::LiteralInt(x.iter().collect::<String>().parse::<i32>().unwrap()))(input).map_err(|v| v.tag("LIT INT"))
 }
 
 fn expression_literal_char(input: &str) -> Result<(&str, ast::Expression), ParseError> {
     map(wrapped(token("'"), not_char("'"), token("'")), |c| ast::Expression::LiteralChar(c))(input)
+        .map_err(|v| v.tag("LIT CHAR"))
 }
 
 fn expression_variable(input: &str) -> Result<(&str, ast::Expression), ParseError> {
     map(identifier, |s| ast::Expression::Variable(s.0))(input)
+        .map_err(|v| v.tag("VAR"))
 }
 
 fn expression_address_of(input: &str) -> Result<(&str, ast::Expression), ParseError> {
-    let (s0, _) = skip_whitespace(token("&"))(input)?;
-    let (s1, name) = identifier(s0)?;
+    let (s0, _) = skip_whitespace(token("&"))(input).map_err(|v| v.tag("ADDROF"))?;
+    let (s1, name) = identifier(s0).map_err(|v| v.tag("ADDROF"))?;
     Ok((s1, ast::Expression::AddressOf(name)))
 }
 
@@ -64,6 +66,11 @@ pub fn expression_deref(input: &str) -> Result<(&str, ast::Expression), ParseErr
     let (s0, _) = skip_whitespace(token("*"))(input)?;
     let (sn, expr) = expression(s0)?;
     Ok((sn, ast::Expression::Deref(Box::new(expr))))
+}
+
+pub fn expression_bracketed(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+    map(skip_whitespace(wrapped(token("("), expression, token(")"))), 
+        |x| ast::Expression::Bracketed(Box::new(x)))(input)
 }
 
 pub fn binop(input: &str) -> Result<(&str, ast::BinOp), ParseError> {
@@ -86,21 +93,22 @@ pub fn expression_binop(input: &str) -> Result<(&str, ast::Expression), ParseErr
 }
 
 fn expression_lhs(input: &str) -> Result<(&str, ast::Expression), ParseError> {
-    require(Any::new(vec![
+    AnyCollectErr::new(vec![
         expression_literal_int,
         expression_literal_char,
         expression_call,
         expression_address_of,
         expression_variable,
-    ]), ParseError::new(input, ParseErrorKind::ExpectedExpressionLHS)).run(input)
+        expression_bracketed,
+        expression_deref,
+    ]).run(input).map_err(|v| ParseError::from_errs(input, v).tag("EXPR-LHS"))
 }
 
 fn expression(input: &str) -> Result<(&str, ast::Expression), ParseError> {
-    require(Any::new(vec![
-        expression_deref,
+    AnyCollectErr::new(vec![
         expression_binop,
         expression_lhs,
-    ]), ParseError::new(input, ParseErrorKind::ExpectedExpression).tag("expression")).run(input)
+    ]).run(input).map_err(|v| ParseError::from_errs(input, v).tag("EXPR"))
 }
 
 
@@ -113,7 +121,7 @@ pub fn statement_variable_assign(input: &str) -> Result<(&str, ast::Statement), 
 
 pub fn statement_variable_assign_deref(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     let (s0, _) = skip_whitespace(token("*"))(input)?;
-    let (s1, lhs) = skip_whitespace(wrapped(token("("), expression, token(")")))(s0)?;
+    let (s1, lhs) = skip_whitespace(expression)(s0)?;
     let (s2, _) = skip_whitespace(token(":="))(s1)?;
     let (s3, rhs) = skip_whitespace(expression)(s2)?;
     Ok((s3, ast::Statement::AssignDeref{lhs, rhs}))
@@ -369,5 +377,19 @@ mod test {
             assert_eq!(expected, run_parser(global_variable, expected).unwrap().to_string());
         }
     }
+
+
+    #[test]
+    fn test_expr_brackets() {
+        {
+            let expected = "(5 * x) + (3 * y)";
+            assert_eq!(expected, run_parser(expression, expected).unwrap().to_string());
+        }
+        {
+            let expected = "(3 * foo(x + (y + (z * (3 + bar()))))) + 18";
+            assert_eq!(expected, run_parser(expression, expected).unwrap().to_string());
+        }
+    }
+
 
 }

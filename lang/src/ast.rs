@@ -53,7 +53,7 @@ impl fmt::Display for Statement {
             Self::Declare(i, t, Some(expr)) => write!(f, "let {t} {i} := {expr}"),
             Self::Declare(i, t, None) => write!(f, "let {t} {i}"),
             Self::Assign(i, expr) => write!(f, "{i} := {expr}"),
-            Self::AssignDeref{lhs, rhs} => write!(f, "*({lhs}) := {rhs}"),
+            Self::AssignDeref{lhs, rhs} => write!(f, "*{lhs} := {rhs}"),
             Self::Return(expr) => write!(f, "return {expr}"),
             Self::If{cond, body, else_body} => {
                 if let Some(e) = else_body {
@@ -133,6 +133,7 @@ pub enum Expression {
     Deref(Box<Expression>),
     BinOp(Box<Expression>, Box<Expression>, BinOp),
     FunctionCall(Identifier, Vec<Expression>),
+    Bracketed(Box<Expression>),
 }
 
 impl fmt::Display for Expression {
@@ -144,6 +145,7 @@ impl fmt::Display for Expression {
             Self::AddressOf(i) => write!(f, "&{i}"),
             Self::Deref(i) => write!(f, "*{i}"),
             Self::BinOp(e0, e1, op) => write!(f, "{e0} {op} {e1}"),
+            Self::Bracketed(e) => write!(f, "({e})"),
             Self::FunctionCall(name, args) => write!(f, "{name}({})", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
         }
     }

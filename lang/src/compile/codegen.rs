@@ -240,6 +240,9 @@ fn compile_body(ctx: &mut Context, statements: Vec<ast::Statement>, name: &str, 
 
 fn compile_expression(ctx: &Context, scope: &mut BlockScope, expr: ast::Expression) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     match expr {
+        ast::Expression::Bracketed(e) => {
+            compile_expression(ctx, scope, *e)
+        }
         ast::Expression::LiteralInt(i) => {
             if i <= 0xfff {
                 Ok(vec![
