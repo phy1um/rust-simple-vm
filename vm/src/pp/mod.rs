@@ -208,13 +208,14 @@ impl PreProcessor {
     }
 
     pub fn define_label(&mut self, name: &str, value: &str) {
-        self.variables.insert(name.to_string(), Variable::Label(value.to_string()));
+        self.variables
+            .insert(name.to_string(), Variable::Label(value.to_string()));
     }
 
     pub fn define_user_variable(&mut self, name: &str, value: &str) {
-        self.variables.insert(name.to_string(), Variable::User(value.to_string()));
+        self.variables
+            .insert(name.to_string(), Variable::User(value.to_string()));
     }
-
 
     fn get_macro(&mut self, name: &str) -> Option<&Macro> {
         self.macros.get(name)

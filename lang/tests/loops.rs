@@ -5,7 +5,7 @@ use common::*;
 
 #[test]
 fn while_loop() {
-   let test = "
+    let test = "
 void main() {
     let int a := 1;
     while (a <= 10) {
@@ -21,7 +21,7 @@ void main() {
 
 #[test]
 fn nested_while_loop() {
-   let test = "
+    let test = "
 void main() {
     let int a := 0;
     let int b := 0;
@@ -44,7 +44,7 @@ void main() {
 
 #[test]
 fn break_loop() {
-   let test = "
+    let test = "
 void main() {
     let int a := 0;
     while (a <= 5) {
@@ -61,7 +61,7 @@ void main() {
 
 #[test]
 fn break_nested_loop() {
-   let test = "
+    let test = "
 void main() {
     let int a := 0;
     let int c := 0;
@@ -85,7 +85,7 @@ void main() {
 
 #[test]
 fn continue_loop() {
-   let test = "
+    let test = "
 void main() {
     let int a := 0;
     let int c := 0;
@@ -109,7 +109,7 @@ void main() {
 
 #[test]
 fn continue_nested_loop() {
-   let test = "
+    let test = "
 void main() {
     let int a := 0;
     let int c := 0;
@@ -129,5 +129,3 @@ void main() {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 4);
 }
-
-

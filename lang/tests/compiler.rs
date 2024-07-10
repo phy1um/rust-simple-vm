@@ -5,7 +5,7 @@ use common::*;
 
 #[test]
 fn inline_asm() {
-   let test = "
+    let test = "
 void main() {
     let int a := 7;
     let int b := addnums(a, 11);
@@ -35,12 +35,12 @@ void main() {
 
 ";
     let vm = run_program(test).unwrap();
-    assert_eq!(vm.get_register(A), 16); 
+    assert_eq!(vm.get_register(A), 16);
 }
 
 #[test]
 fn soft_multiply() {
-     // TODO: make this better with multiplication
+    // TODO: make this better with multiplication
     let test = "
 int main() {
     return mult(7, 8);
@@ -58,5 +58,5 @@ int mult(int a, int b) {
 
 ";
     let vm = run_program(test).unwrap();
-    assert_eq!(vm.get_register(A), 56);    
+    assert_eq!(vm.get_register(A), 56);
 }

@@ -1,9 +1,10 @@
-use simplevm::*;
 use lang::*;
+use simplevm::*;
 
 #[macro_export]
 macro_rules! assert_reg {
-    ($vm: expr, $r:expr, $v:expr) => { assert!(
+    ($vm: expr, $r:expr, $v:expr) => {
+        assert!(
             $vm.get_register($r) == $v,
             "expected {:X}, {} == {:X}",
             $v,
@@ -48,7 +49,8 @@ pub fn run_program_with_memory_size(program: &str, memory: usize) -> Result<Mach
     unsafe {
         vm.map(0, memory, Box::new(LinearMemory::new(memory)))?;
         let program_bytes = program_words.align_to::<u8>().1;
-        vm.vm.memory
+        vm.vm
+            .memory
             .load_from_vec(&program_bytes, res.program_start_offset)
             .map_err(|x| x.to_string())?;
     }

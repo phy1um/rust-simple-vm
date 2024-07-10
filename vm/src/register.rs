@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 #[cfg(target_family = "wasm")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
@@ -10,7 +10,6 @@ pub enum Flag {
     Compare = 0b1,
     DidJump = 0b10,
 }
-
 
 #[cfg(not(target_family = "wasm"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +24,6 @@ pub enum Register {
     PC,
     BP,
 }
-
 
 #[cfg(target_family = "wasm")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

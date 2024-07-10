@@ -1,18 +1,19 @@
-use lang::parse::run_parser;
-use lang::language::*;
 use lang::compile::compile;
+use lang::language::*;
+use lang::parse::run_parser;
 
 use lang::args::{process_cli, OutputFormat};
 
-use std::io::{Write, Read, stdin, stdout};
 use std::env;
 use std::fs::File;
+use std::io::{stdin, stdout, Read, Write};
 use std::path::Path;
 
 const LOADED_PROGRAM_OFFSET: u32 = 0x0;
 
 fn main() -> Result<(), String> {
-    let args = process_cli(&env::args().collect::<Vec<_>>()).map_err(|x| format!("processing cli: {x}"))?;
+    let args = process_cli(&env::args().collect::<Vec<_>>())
+        .map_err(|x| format!("processing cli: {x}"))?;
     if !args.validate() {
         println!("{}", args.usage());
         return Ok(());
@@ -21,9 +22,9 @@ fn main() -> Result<(), String> {
     let target_file = args.target_files.get(0).unwrap();
     let mut reader: Box<dyn Read> = match target_file.as_ref() {
         "-" => Box::new(stdin()),
-        _ => {
-            Box::new(File::open(Path::new(&target_file)).map_err(|x| format!("failed to open: {}", x))?)
-        }
+        _ => Box::new(
+            File::open(Path::new(&target_file)).map_err(|x| format!("failed to open: {}", x))?,
+        ),
     };
 
     let mut code = Vec::new();
@@ -32,17 +33,30 @@ fn main() -> Result<(), String> {
 
     match run_parser(parse_ast, code_str) {
         Ok(program) => {
-            let res = compile(program, LOADED_PROGRAM_OFFSET).map_err(|x| format!("compiling: {x:?}"))?;
+            let res =
+                compile(program, LOADED_PROGRAM_OFFSET).map_err(|x| format!("compiling: {x:?}"))?;
             if args.output_format == OutputFormat::AnnotatedAsm {
-                let mut stdout = stdout().lock();    
-                let symbol_defs = res.symbols.iter().map(|(k, v)| format!(".defvar {k} {v}\n"))
-                    .collect::<Vec<_>>().join("");
-                stdout.write_all(&symbol_defs.as_bytes()).map_err(|x| format!("{x}"))?;
-                let instructions_txt = res.get_lines_unresolved().map_err(|x| format!("{x:?}"))?
+                let mut stdout = stdout().lock();
+                let symbol_defs = res
+                    .symbols
+                    .iter()
+                    .map(|(k, v)| format!(".defvar {k} {v}\n"))
+                    .collect::<Vec<_>>()
+                    .join("");
+                stdout
+                    .write_all(&symbol_defs.as_bytes())
+                    .map_err(|x| format!("{x}"))?;
+                let instructions_txt = res
+                    .get_lines_unresolved()
+                    .map_err(|x| format!("{x:?}"))?
                     .join("\n");
-                stdout.write_all(&instructions_txt.as_bytes()).map_err(|x| format!("{x}"))?
+                stdout
+                    .write_all(&instructions_txt.as_bytes())
+                    .map_err(|x| format!("{x}"))?
             } else {
-                let instructions = res.get_instructions().map_err(|x| format!("resolving: {x:?}"))?;
+                let instructions = res
+                    .get_instructions()
+                    .map_err(|x| format!("resolving: {x:?}"))?;
                 let mut output: Vec<u8> = Vec::new();
                 for i in instructions {
                     let raw_instruction: u16 = i.encode_u16();
@@ -54,8 +68,7 @@ fn main() -> Result<(), String> {
                 stdout.write_all(&output).map_err(|x| format!("{}", x))?;
             }
         }
-        Err(e) => println!("compiler error:\n{}", e)
+        Err(e) => println!("compiler error:\n{}", e),
     };
     Ok(())
 }
-

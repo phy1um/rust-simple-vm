@@ -2,9 +2,9 @@ use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
-    context: String, 
+    context: String,
     tag: Option<String>,
-    kind: ParseErrorKind
+    kind: ParseErrorKind,
 }
 
 impl ParseError {
@@ -42,7 +42,7 @@ impl fmt::Display for ParseError {
 
 #[derive(Debug, Clone)]
 pub enum ParseErrorKind {
-    ExpectedChar{expected: char, got: char},  
+    ExpectedChar { expected: char, got: char },
     UnexpectedChar(String, char),
     ExpectedToken(String),
     CharFailedPredicate(char, String),
@@ -59,10 +59,12 @@ pub enum ParseErrorKind {
 impl fmt::Display for ParseErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ExpectedChar{expected, got} => write!(f, "expected '{expected}', got '{got}'"),
+            Self::ExpectedChar { expected, got } => write!(f, "expected '{expected}', got '{got}'"),
             Self::UnexpectedChar(s, c) => write!(f, "char '{c}' not in \"{s}\""),
             Self::ExpectedToken(s) => write!(f, "expected token \"{s}\""),
-            Self::CharFailedPredicate(c, name) => write!(f, "char '{c}' failed predicate \"{name}\""),
+            Self::CharFailedPredicate(c, name) => {
+                write!(f, "char '{c}' failed predicate \"{name}\"")
+            }
             Self::ExpectedType => write!(f, "expected type (eg int, void)"),
             Self::ExpectedBinop => write!(f, "expected binary operator (eg +, *, >=)"),
             Self::ExpectedExpression => write!(f, "expected expression"),
@@ -70,9 +72,14 @@ impl fmt::Display for ParseErrorKind {
             Self::ExpectedStatement => write!(f, "expected statement"),
             Self::ExpectedTopLevel => write!(f, "expected function definition etc."),
             Self::EndOfInput => write!(f, "end of input"),
-            Self::Errors(v) => write!(f, "[\n## {}\n]", v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" \n## ")),
+            Self::Errors(v) => write!(
+                f,
+                "[\n## {}\n]",
+                v.iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" \n## ")
+            ),
         }
     }
 }
-
-

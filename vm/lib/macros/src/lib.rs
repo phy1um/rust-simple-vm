@@ -11,8 +11,8 @@ pub fn generate_stringy_enum_impls(input: TokenStream) -> TokenStream {
 }
 
 fn impl_stringy_enum(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, String> {
-    let mut to_string = quote!{};
-    let mut from_string = quote!{};
+    let mut to_string = quote! {};
+    let mut from_string = quote! {};
     let type_name = &ast.ident;
     for x in ast.variants.iter() {
         let name = &x.ident;
@@ -20,9 +20,12 @@ fn impl_stringy_enum(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, St
             to_string.extend(quote!(Self::#name => write!(f, "{}", stringify!(#name)),));
             from_string.extend(quote!(stringify!(#name) => Ok(Self::#name),));
         } else {
-            return Err(format!("all enum variants must be unit. got {}", stringify!(#name)));
+            return Err(format!(
+                "all enum variants must be unit. got {}",
+                stringify!(#name)
+            ));
         }
-    };
+    }
     Ok(quote! {
         impl FromStr for #type_name {
             type Err = String;
@@ -184,10 +187,10 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                     ("Literal12Bit", i) => {
                         let argname = get_arg_name(i)?;
                         let part_index = i + 1;
-                        part_encoders.extend(quote!{
+                        part_encoders.extend(quote! {
                             op_parts[#i] = #argname.value&0xfff;
                         });
-                        part_decoders.extend(quote!{
+                        part_decoders.extend(quote! {
                             let #argname = Literal12Bit::new_checked(ins&0xfff)?;
                         });
                         part_stringers.extend(quote!{
@@ -208,7 +211,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                             let (part, radix) = Instruction::pre_handle_number(&parts[#part_index]).map_err(|x| Self::Err::Fail(x))?;
                             let #argname = Nibble::from_str_radix(part, radix).map_err(|x| Self::Err::Fail(x))?;
                         });
-                    }                    
+                    }
                     ("TestOp", i) => {
                         let argname = get_arg_name(i)?;
                         let part_index = i + 1;
@@ -218,7 +221,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                         part_decoders.extend(quote! {
                             let #argname = TestOp::try_from(ins&0xf)?;
                         });
-                        part_stringers.extend(quote!{
+                        part_stringers.extend(quote! {
                             let #argname = TestOp::from_str(&parts[#part_index]).map_err(|x| {
                                 Self::Err::Fail(x)
                             })?;
@@ -233,7 +236,7 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                         part_decoders.extend(quote! {
                             let #argname = StackOp::try_from(ins&0xf)?;
                         });
-                        part_stringers.extend(quote!{
+                        part_stringers.extend(quote! {
                             let #argname = StackOp::from_str(&parts[#part_index]).map_err(|x| {
                                 Self::Err::Fail(x)
                             })?;

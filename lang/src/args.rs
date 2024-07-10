@@ -73,4 +73,3 @@ pub fn process_cli(args: &[String]) -> Result<Args, ArgsError> {
     }
     Ok(out)
 }
-

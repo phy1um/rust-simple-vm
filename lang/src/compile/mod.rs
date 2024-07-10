@@ -1,10 +1,9 @@
-
-mod error;
-mod util;
-mod resolve;
-mod codegen;
 mod block;
+mod codegen;
 mod context;
+mod error;
+mod resolve;
+mod util;
 
 pub use codegen::compile;
 

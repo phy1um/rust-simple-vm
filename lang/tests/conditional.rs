@@ -21,14 +21,11 @@ int a(int x) {
    ";
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 12);
-   
 }
-
-
 
 #[test]
 fn nested_if() {
-   let test = "
+    let test = "
 void main() {
     let int i := a(7);
     return i;
@@ -53,5 +50,3 @@ int a(int x) {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 5);
 }
-
-

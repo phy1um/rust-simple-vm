@@ -6,7 +6,13 @@ pub fn is_char(c: char) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
             if x == c {
                 Ok((&input[1..], c))
             } else {
-                Err(ParseError::new(input, ParseErrorKind::ExpectedChar{expected: c, got: x})) 
+                Err(ParseError::new(
+                    input,
+                    ParseErrorKind::ExpectedChar {
+                        expected: c,
+                        got: x,
+                    },
+                ))
             }
         } else {
             Err(ParseError::new(input, ParseErrorKind::EndOfInput))
@@ -14,13 +20,18 @@ pub fn is_char(c: char) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
     }
 }
 
-pub fn not_char<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, char), ParseError> + 'a {
+pub fn not_char<'a, 'b>(
+    s: &'a str,
+) -> impl Fn(&'b str) -> Result<(&'b str, char), ParseError> + 'a {
     move |input| {
         if let Some(c) = input.chars().next() {
             if !s.contains(c) {
-                Ok((&input[1..], c)) 
+                Ok((&input[1..], c))
             } else {
-                Err(ParseError::new(input, ParseErrorKind::UnexpectedChar(s.to_string(), c)))
+                Err(ParseError::new(
+                    input,
+                    ParseErrorKind::UnexpectedChar(s.to_string(), c),
+                ))
             }
         } else {
             Err(ParseError::new(input, ParseErrorKind::EndOfInput))
@@ -31,10 +42,13 @@ pub fn not_char<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, char
 pub fn token<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, &'a str), ParseError> {
     move |input| {
         if let Some(_) = input.strip_prefix(s) {
-            Ok((&input[s.len()..], s)) 
+            Ok((&input[s.len()..], s))
         } else {
             //let max = usize::min(s.len(), input.len());
-            Err(ParseError::new(input, ParseErrorKind::ExpectedToken(s.to_string())))
+            Err(ParseError::new(
+                input,
+                ParseErrorKind::ExpectedToken(s.to_string()),
+            ))
         }
     }
 }
@@ -55,14 +69,19 @@ pub fn whitespace(input: &str) -> Result<(&str, char), ParseError> {
     char_predicate(char::is_whitespace, "whitespace".to_string())(input)
 }
 
-
-pub fn char_predicate(f: fn(char) -> bool, name: String) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
+pub fn char_predicate(
+    f: fn(char) -> bool,
+    name: String,
+) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
     move |input| {
         if let Some(c) = input.chars().next() {
             if f(c) {
                 Ok((&input[1..], c))
             } else {
-                Err(ParseError::new(input, ParseErrorKind::CharFailedPredicate(c, name.to_string())))
+                Err(ParseError::new(
+                    input,
+                    ParseErrorKind::CharFailedPredicate(c, name.to_string()),
+                ))
             }
         } else {
             Err(ParseError::new(input, ParseErrorKind::EndOfInput))
@@ -88,7 +107,8 @@ mod test {
             assert_eq!("1234", n);
         }
         {
-            let (s, n) = map(repeat1(numeric), |x| x.iter().collect::<String>())("1234abcd").unwrap();
+            let (s, n) =
+                map(repeat1(numeric), |x| x.iter().collect::<String>())("1234abcd").unwrap();
             assert_eq!("abcd", s);
             assert_eq!("1234", n);
         }
@@ -126,12 +146,15 @@ mod test {
             assert_eq!(n, '9');
         }
         {
-            let (s, n) = map(repeat1(alphanumeric), |x| x.iter().collect::<String>())("abc123zxy987").unwrap();
+            let (s, n) =
+                map(repeat1(alphanumeric), |x| x.iter().collect::<String>())("abc123zxy987")
+                    .unwrap();
             assert_eq!("", s);
             assert_eq!("abc123zxy987", n);
         }
         {
-            let (s, n) = map(repeat1(alphanumeric), |x| x.iter().collect::<String>())("a1b2c3::9z").unwrap();
+            let (s, n) =
+                map(repeat1(alphanumeric), |x| x.iter().collect::<String>())("a1b2c3::9z").unwrap();
             assert_eq!("::9z", s);
             assert_eq!("a1b2c3", n);
         }
@@ -146,12 +169,14 @@ mod test {
             assert_eq!(c, n);
         }
         {
-            let (s, n) = map(repeat1(whitespace), |x| x.iter().collect::<String>())("\n\n  \t\t").unwrap();
+            let (s, n) =
+                map(repeat1(whitespace), |x| x.iter().collect::<String>())("\n\n  \t\t").unwrap();
             assert_eq!("", s);
             assert_eq!("\n\n  \t\t", n);
         }
         {
-            let (s, n) = map(repeat1(whitespace), |x| x.iter().collect::<String>())("   \nabc\n\n").unwrap();
+            let (s, n) =
+                map(repeat1(whitespace), |x| x.iter().collect::<String>())("   \nabc\n\n").unwrap();
             assert_eq!("abc\n\n", s);
             assert_eq!("   \n", n);
         }
@@ -163,5 +188,4 @@ mod test {
         assert_eq!("x", s);
         assert_eq!("foo", n);
     }
-
 }

@@ -3,18 +3,23 @@ use crate::parse::Parser;
 use std::marker::PhantomData;
 
 #[derive(Debug, Default)]
-pub struct Sequence<S, T, E, F> 
-where F: Parser<S, T, E>
+pub struct Sequence<S, T, E, F>
+where
+    F: Parser<S, T, E>,
 {
     _t: PhantomData<(S, T, E)>,
     items: Vec<F>,
 }
 
-impl<S, T, E, F> Sequence<S, T, E, F> 
-where F: Parser<S, T, E>
+impl<S, T, E, F> Sequence<S, T, E, F>
+where
+    F: Parser<S, T, E>,
 {
     pub fn new(items: Vec<F>) -> Self {
-        Self { items, _t: PhantomData::default() }
+        Self {
+            items,
+            _t: PhantomData::default(),
+        }
     }
 }
 
@@ -23,27 +28,32 @@ impl<S, T, E, F: Parser<S, T, E>> Parser<S, Vec<T>, E> for Sequence<S, T, E, F> 
         let mut state = s;
         let mut out = Vec::new();
         for i in &self.items {
-            let (s, res) = i.run(state)?; 
+            let (s, res) = i.run(state)?;
             state = s;
             out.push(res);
-        };
+        }
         Ok((state, out))
     }
 }
 
 #[derive(Debug, Default)]
 pub struct Any<S, T, E, F>
-where F: Parser<S, T, E>
+where
+    F: Parser<S, T, E>,
 {
     _t: PhantomData<(S, T, E)>,
     items: Vec<F>,
 }
 
-impl <S, T, E, F> Any<S, T, E, F> 
-where F: Parser<S, T, E>
+impl<S, T, E, F> Any<S, T, E, F>
+where
+    F: Parser<S, T, E>,
 {
     pub fn new(items: Vec<F>) -> Self {
-        Self {items, _t: PhantomData::default() }
+        Self {
+            items,
+            _t: PhantomData::default(),
+        }
     }
 }
 
@@ -54,24 +64,29 @@ impl<S: Clone, T, E, F: Parser<S, T, E>> Parser<S, Option<T>, E> for Any<S, T, E
                 Ok((s, t)) => return Ok((s, Some(t))),
                 Err(_) => (),
             };
-        };
+        }
         Ok((s, None))
     }
 }
 
 #[derive(Debug, Default)]
 pub struct AnyCollectErr<S, T, E, F>
-where F: Parser<S, T, E>
+where
+    F: Parser<S, T, E>,
 {
     _t: PhantomData<(S, T, E)>,
     items: Vec<F>,
 }
 
-impl <S, T, E, F> AnyCollectErr<S, T, E, F> 
-where F: Parser<S, T, E>
+impl<S, T, E, F> AnyCollectErr<S, T, E, F>
+where
+    F: Parser<S, T, E>,
 {
     pub fn new(items: Vec<F>) -> Self {
-        Self {items, _t: PhantomData::default() }
+        Self {
+            items,
+            _t: PhantomData::default(),
+        }
     }
 }
 
@@ -83,25 +98,25 @@ impl<S: Clone, T, E: Clone, F: Parser<S, T, E>> Parser<S, T, Vec<E>> for AnyColl
                 Ok((s, t)) => return Ok((s, t)),
                 Err(e) => errs.push(e),
             };
-        };
+        }
         Err(errs)
     }
 }
 
-
-
-pub fn map<S, T, E, U, F, G>(f: F, g: G) -> impl Fn(S) -> Result<(S, U), E> 
-where F: Parser<S,T,E>,
-      G: Fn(T) -> U,
+pub fn map<S, T, E, U, F, G>(f: F, g: G) -> impl Fn(S) -> Result<(S, U), E>
+where
+    F: Parser<S, T, E>,
+    G: Fn(T) -> U,
 {
     move |input| {
-        let (s, res) = f.run(input)?; 
+        let (s, res) = f.run(input)?;
         Ok((s, g(res)))
     }
 }
 
 pub fn require<S, T, E: Clone, F>(f: F, e: E) -> impl Fn(S) -> Result<(S, T), E>
-where F: Parser<S, Option<T>, E>
+where
+    F: Parser<S, Option<T>, E>,
 {
     move |input| {
         let (s, res) = f.run(input)?;
@@ -113,8 +128,9 @@ where F: Parser<S, Option<T>, E>
     }
 }
 
-pub fn repeat0<S: Clone, T, E: Clone, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
-where F: Parser<S, T, E>
+pub fn repeat0<S: Clone, T, E: Clone, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E>
+where
+    F: Parser<S, T, E>,
 {
     move |input| {
         let mut out = Vec::new();
@@ -124,14 +140,15 @@ where F: Parser<S, T, E>
                 out.push(res);
                 state = s;
             } else {
-                return Ok((state, out))
+                return Ok((state, out));
             }
         }
     }
 }
 
-pub fn repeat1<S: Clone, T, E: Clone, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
-where F: Parser<S, T, E>
+pub fn repeat1<S: Clone, T, E: Clone, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E>
+where
+    F: Parser<S, T, E>,
 {
     move |input| {
         let mut out = Vec::new();
@@ -148,7 +165,7 @@ where F: Parser<S, T, E>
                     break;
                 }
             }
-        };
+        }
         if out.len() < 1 {
             Err(last_err)
         } else {
@@ -157,16 +174,18 @@ where F: Parser<S, T, E>
     }
 }
 
-pub fn discard<S, T, E, F>(f: F) -> impl Fn(S) -> Result<(S, ()), E> 
-where F: Parser<S, T, E>
+pub fn discard<S, T, E, F>(f: F) -> impl Fn(S) -> Result<(S, ()), E>
+where
+    F: Parser<S, T, E>,
 {
     map(f, |_| ())
 }
 
-pub fn wrapped<A, B, C, S, E, F, G, H>(f: F, g: G, h: H) -> impl Fn(S) -> Result<(S, B), E> 
-where F: Parser<S, A, E>,
-      G: Parser<S, B, E>,
-      H: Parser<S, C, E>,
+pub fn wrapped<A, B, C, S, E, F, G, H>(f: F, g: G, h: H) -> impl Fn(S) -> Result<(S, B), E>
+where
+    F: Parser<S, A, E>,
+    G: Parser<S, B, E>,
+    H: Parser<S, C, E>,
 {
     move |input| {
         let (input0, _) = f.run(input)?;
@@ -177,8 +196,9 @@ where F: Parser<S, A, E>,
 }
 
 pub fn delimited<A, B, S: Clone, E, F, G>(f: F, delim: G) -> impl Fn(S) -> Result<(S, Vec<A>), E>
-where F: Parser<S, A, E>,
-      G: Parser<S, B, E>,
+where
+    F: Parser<S, A, E>,
+    G: Parser<S, B, E>,
 {
     move |input| {
         let mut out = Vec::new();
@@ -198,14 +218,13 @@ where F: Parser<S, A, E>,
     }
 }
 
-pub fn allow_empty<S: Clone, T, E, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E> 
-where F: Parser<S, Vec<T>, E>,
+pub fn allow_empty<S: Clone, T, E, F>(f: F) -> impl Fn(S) -> Result<(S, Vec<T>), E>
+where
+    F: Parser<S, Vec<T>, E>,
 {
-    move |input| {
-        match f.run(input.clone()) {
-            Ok(x) => Ok(x),
-            Err(_) => Ok((input, Vec::new())),
-        }
+    move |input| match f.run(input.clone()) {
+        Ok(x) => Ok(x),
+        Err(_) => Ok((input, Vec::new())),
     }
 }
 
@@ -218,21 +237,29 @@ mod test {
     fn test_wrapped() {
         {
             let (s, n) = wrapped(token("{"), alpha, token("}"))("{a}").unwrap();
-            assert_eq!('a', n); 
-            assert_eq!("", s); 
-        }
-        {
-            let (s, n) = wrapped(token("<<"), map(repeat1(alpha), |x| x.iter().collect::<String>()), token("}}"))("<<foobar}}").unwrap();
-            assert_eq!("foobar", n); 
-            assert_eq!("", s); 
+            assert_eq!('a', n);
+            assert_eq!("", s);
         }
         {
             let (s, n) = wrapped(
-                token("\""), 
+                token("<<"),
+                map(repeat1(alpha), |x| x.iter().collect::<String>()),
+                token("}}"),
+            )("<<foobar}}")
+            .unwrap();
+            assert_eq!("foobar", n);
+            assert_eq!("", s);
+        }
+        {
+            let (s, n) = wrapped(
+                token("\""),
                 map(repeat1(not_char("\"")), |x| x.iter().collect::<String>()),
                 token("\""),
-            )("\"
-Hello world this is some text. \"").unwrap();
+            )(
+                "\"
+Hello world this is some text. \"",
+            )
+            .unwrap();
             assert_eq!("\nHello world this is some text. ", n);
             assert_eq!("", s);
         }

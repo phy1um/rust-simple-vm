@@ -1,4 +1,3 @@
-
 use simplevm::Register::*;
 
 mod common;
@@ -6,7 +5,7 @@ use common::*;
 
 #[test]
 fn addr_of_global() {
-   let test = "
+    let test = "
 global int test;
 global int foo;
 
@@ -21,7 +20,7 @@ void main() {
 
 #[test]
 fn assign_deref() {
-   let test = "
+    let test = "
 global int foo;
 
 void main() {
@@ -36,7 +35,7 @@ void main() {
 
 #[test]
 fn deref_values_global() {
-   let test = "
+    let test = "
 global int foo;
 
 void main() {
@@ -51,7 +50,7 @@ void main() {
 
 #[test]
 fn deref_values_local() {
-   let test = "
+    let test = "
 void main() {
     let int x := 121;
     let *int b := &x;
@@ -61,4 +60,3 @@ void main() {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 121);
 }
-

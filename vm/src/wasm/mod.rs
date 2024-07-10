@@ -1,14 +1,14 @@
 use std::str::FromStr;
 
 use crate::*;
-use wasm_bindgen::prelude::*;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::convert::FromWasmAbi;
-use serde::{Serialize, Deserialize};
+use wasm_bindgen::prelude::*;
 
 mod asm;
 pub use asm::*;
 
-struct JSSignalHandler{
+struct JSSignalHandler {
     handler: js_sys::Function,
     result_callback: js_sys::Function,
 }
@@ -25,13 +25,21 @@ fn js_error_to_string(js: JsValue) -> String {
 impl SignalHandler for JSSignalHandler {
     fn handle(&self, vm: &mut VM, arg: u16) -> Result<(), String> {
         let this = JsValue::null();
-        let res = self.handler.call1(&this, &JsValue::from(arg)).map_err(js_error_to_string)?;
+        let res = self
+            .handler
+            .call1(&this, &JsValue::from(arg))
+            .map_err(js_error_to_string)?;
         if res.is_undefined() {
             log("no return".to_string());
-            Ok(()) 
+            Ok(())
         } else {
-            let res_ptr = js_sys::Reflect::get(&res, &JsValue::from_str("__wbg_ptr")).map_err(|_| "failed to get __wbg_ptr".to_string())?;
-            let res_ptr_u32 = res_ptr.as_f64().ok_or(JsValue::NULL).map_err(|_| "__wbg_ptr is not number".to_string())? as u32;
+            let res_ptr = js_sys::Reflect::get(&res, &JsValue::from_str("__wbg_ptr"))
+                .map_err(|_| "failed to get __wbg_ptr".to_string())?;
+            let res_ptr_u32 = res_ptr
+                .as_f64()
+                .ok_or(JsValue::NULL)
+                .map_err(|_| "__wbg_ptr is not number".to_string())?
+                as u32;
             log(format!("return something: {res_ptr_u32}"));
             unsafe {
                 let actions: VMActionSet = FromWasmAbi::from_abi(res_ptr_u32);
@@ -50,9 +58,12 @@ impl SignalHandler for JSSignalHandler {
                         VMAction::RegisterWrite(r, value) => vm.set_register(r, value),
                         VMAction::Halt => vm.halt = true,
                     }
-                };
-                let js_vec = serde_wasm_bindgen::to_value(&out).map_err(|x| format!("serde to wasm: {x}"))?;
-                self.result_callback.call1(&this, &js_vec).map_err(|_| format!("failed to run mem read callback"))?;
+                }
+                let js_vec = serde_wasm_bindgen::to_value(&out)
+                    .map_err(|x| format!("serde to wasm: {x}"))?;
+                self.result_callback
+                    .call1(&this, &js_vec)
+                    .map_err(|_| format!("failed to run mem read callback"))?;
             }
             Ok(())
         }
@@ -76,7 +87,7 @@ struct VMActionSet(Vec<VMAction>);
 impl VMActionSet {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-       Self::default() 
+        Self::default()
     }
 
     pub fn read_memory(&mut self, addr: u32) {
@@ -88,12 +99,14 @@ impl VMActionSet {
     }
 
     pub fn get_register(&mut self, name: &str) -> Result<(), String> {
-        self.0.push(VMAction::RegisterRead(Register::from_str(name)?));
+        self.0
+            .push(VMAction::RegisterRead(Register::from_str(name)?));
         Ok(())
     }
 
     pub fn set_register(&mut self, name: &str, value: u16) -> Result<(), String> {
-        self.0.push(VMAction::RegisterWrite(Register::from_str(name)?, value));
+        self.0
+            .push(VMAction::RegisterWrite(Register::from_str(name)?, value));
         Ok(())
     }
 
@@ -116,16 +129,22 @@ impl JSMemCallback {
 impl Addressable for JSMemCallback {
     fn read(&mut self, addr: u32) -> Result<u8, MemoryError> {
         let this = JsValue::null();
-        let res = self.on_read.call1(&this, &JsValue::from(addr))
+        let res = self
+            .on_read
+            .call1(&this, &JsValue::from(addr))
             .map_err(|x| MemoryError::InternalMapperWithMessage(addr, js_error_to_string(x)))?;
-        let value = res.as_f64().ok_or(MemoryError::InternalMapperWithMessage(addr, "result not number".to_string()))?;
+        let value = res.as_f64().ok_or(MemoryError::InternalMapperWithMessage(
+            addr,
+            "result not number".to_string(),
+        ))?;
         Ok(value as u8)
     }
 
     fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {
         let this = JsValue::null();
         self.on_write
-            .call2(&this, &JsValue::from(addr), &JsValue::from(value)).map_err(|_| MemoryError::InternalMapperError(addr))?;
+            .call2(&this, &JsValue::from(addr), &JsValue::from(value))
+            .map_err(|_| MemoryError::InternalMapperError(addr))?;
         Ok(())
     }
 
@@ -166,11 +185,7 @@ impl JSMachine {
     }
 
     #[wasm_bindgen]
-    pub fn map_memory_array(
-        &mut self,
-        start: usize,
-        size: usize,
-    ) {
+    pub fn map_memory_array(&mut self, start: usize, size: usize) {
         let _ = self.m.map(start, size, Box::new(LinearMemory::new(size)));
     }
 
@@ -182,7 +197,8 @@ impl JSMachine {
         on_read: js_sys::Function,
         on_write: js_sys::Function,
     ) {
-        let _ = self.m
+        let _ = self
+            .m
             .map(start, size, Box::new(JSMemCallback::new(on_read, on_write)));
     }
 
@@ -242,7 +258,8 @@ impl JSMachine {
         if let Some(f) = &self.on_run_instruction {
             let this = JsValue::null();
             let ins = self
-                .m.vm
+                .m
+                .vm
                 .memory
                 .read2(self.m.get_register(Register::PC) as u32)
                 .unwrap();
@@ -263,14 +280,26 @@ impl JSMachine {
 
     #[wasm_bindgen]
     pub fn write_memory(&mut self, addr: u32, value: u16) -> Result<(), String> {
-        self.m.vm.memory.write2(addr, value).map_err(|x| x.to_string())
+        self.m
+            .vm
+            .memory
+            .write2(addr, value)
+            .map_err(|x| x.to_string())
     }
 
     #[wasm_bindgen]
-    pub fn bind_handler(&mut self, id: u8, handler: js_sys::Function, result_callback: js_sys::Function) {
-        self.m.define_handler(id, JSSignalHandler{handler, result_callback});
+    pub fn bind_handler(
+        &mut self,
+        id: u8,
+        handler: js_sys::Function,
+        result_callback: js_sys::Function,
+    ) {
+        self.m.define_handler(
+            id,
+            JSSignalHandler {
+                handler,
+                result_callback,
+            },
+        );
     }
 }
-
-
-

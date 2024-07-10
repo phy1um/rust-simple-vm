@@ -10,7 +10,8 @@ pub trait SignalHandler {
 }
 
 impl<F> SignalHandler for F
-where F: Fn(&mut VM, u16) -> Result<(), String>
+where
+    F: Fn(&mut VM, u16) -> Result<(), String>,
 {
     fn handle(&self, m: &mut VM, arg: u16) -> Result<(), String> {
         self(m, arg)
@@ -163,7 +164,10 @@ Flags: {:016b}",
         self.flags & (flag as u16) != 0
     }
 
-    pub fn step(&mut self, signal_handlers: &HashMap<u8, Box<dyn SignalHandler>>) -> Result<(), String> {
+    pub fn step(
+        &mut self,
+        signal_handlers: &HashMap<u8, Box<dyn SignalHandler>>,
+    ) -> Result<(), String> {
         let pc = self.get_register(Register::PC);
         let instruction = self.memory.read2(pc as u32).map_err(|x| x.to_string())?;
         self.set_flag(Flag::DidJump, false);
@@ -252,7 +256,7 @@ Flags: {:016b}",
                 let page = self.get_register(r1);
                 let addr = (base as u32) + ((page as u32) << 16);
                 self.memory
-                    .write(addr, (self.get_register(r2)&0xff) as u8)
+                    .write(addr, (self.get_register(r2) & 0xff) as u8)
                     .map_err(|x| x.to_string())
             }
             Instruction::JumpOffset(b) => {
@@ -348,7 +352,7 @@ Flags: {:016b}",
                 Ok(())
             }
             Instruction::System(Register::Zero, reg_arg, signal) => {
-                let handler = signal_handlers 
+                let handler = signal_handlers
                     .get(&signal.value)
                     .ok_or(format!("unknown signal: 0x{:X}", signal.value))?;
                 let arg = self.get_register(reg_arg);

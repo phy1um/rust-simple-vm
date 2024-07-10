@@ -1,15 +1,14 @@
-
-pub mod parse;
-pub mod combinator;
-pub mod character;
 pub mod ast;
+pub mod character;
+pub mod combinator;
 pub mod language;
+pub mod parse;
 
-mod error;
 pub mod compile;
+mod error;
 
 pub mod args;
 
-pub use language::*;
 pub use compile::*;
+pub use language::*;
 pub use parse::*;

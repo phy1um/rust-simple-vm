@@ -1,4 +1,3 @@
-
 use simplevm::Register::*;
 
 mod common;
@@ -6,7 +5,7 @@ use common::*;
 
 #[test]
 fn global_int() {
-   let test = "
+    let test = "
 global int test;
 
 void main() {
@@ -24,10 +23,9 @@ int foobar(int a, int b) {
     assert_eq!(vm.get_register(A), 2);
 }
 
-
 #[test]
 fn two_globals() {
-   let test = "
+    let test = "
 global int test;
 global int foo;
 

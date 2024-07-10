@@ -5,7 +5,7 @@ use common::*;
 
 #[test]
 fn deep_calls() {
-   let test = "
+    let test = "
 void main() {
     let int i := a();
     return i;
@@ -33,7 +33,7 @@ int d() {
 
 #[test]
 fn deep_arg_calls() {
-   let test = "
+    let test = "
 void main() {
     let int i := a(1, 2);
     return i;
@@ -61,7 +61,7 @@ int d(int x, int y) {
 
 #[test]
 fn recursive_calls() {
-   let test = "
+    let test = "
 void main() {
     let int i := a(5, 11);
     return i;

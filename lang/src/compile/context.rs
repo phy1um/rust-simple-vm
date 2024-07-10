@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use crate::compile::resolve::{Symbol, UnresolvedInstruction, Type};
-use crate::compile::error::CompilerError;
 use crate::compile::block::Block;
+use crate::compile::error::CompilerError;
+use crate::compile::resolve::{Symbol, Type, UnresolvedInstruction};
+use std::collections::HashMap;
 
 use simplevm::Instruction;
 
@@ -16,7 +16,7 @@ pub struct FunctionDefinition {
 
 #[derive(Debug, Clone)]
 pub struct Global {
-    pub address: usize,   
+    pub address: usize,
     pub var_type: Type,
 }
 
@@ -35,27 +35,42 @@ pub struct Context {
 impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "context:\n")?;
-        write!(f, " symbols: [{}]\n", self.symbols.iter()
-            .map(|(k,v)| format!("{k}={v}"))
-            .collect::<Vec<_>>()
-            .join(", "))?;
+        write!(
+            f,
+            " symbols: [{}]\n",
+            self.symbols
+                .iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )?;
         write!(f, " function defs: [\n")?;
         for (func, def) in &self.function_defs {
-            write!(f, "  {} {func}({})\n", 
-                def.return_type, 
-                def.args.iter().map(|(x, _)| x.to_owned()).collect::<Vec<_>>().join(", "))?;
+            write!(
+                f,
+                "  {} {func}({})\n",
+                def.return_type,
+                def.args
+                    .iter()
+                    .map(|(x, _)| x.to_owned())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )?;
         }
         write!(f, " ]\n")?;
-        write!(f, "globals: [{}]\n",
-            self.globals.iter()
+        write!(
+            f,
+            "globals: [{}]\n",
+            self.globals
+                .iter()
                 .map(|(k, g)| format!("{k}={:?}", g))
                 .collect::<Vec<_>>()
-                .join(", "))?;
+                .join(", ")
+        )?;
         write!(f, "globals start @ {}\n", self.global_base)?;
         write!(f, "program start @ {}\n", self.program_start_offset)
     }
 }
-
 
 impl Context {
     pub fn new(global_base: usize) -> Self {
@@ -66,7 +81,10 @@ impl Context {
     }
 
     pub fn get(&self, s: &Symbol) -> Result<u32, CompilerError> {
-        self.symbols.get(&s.0).ok_or(CompilerError::UnknownSymbol(s.clone())).copied()
+        self.symbols
+            .get(&s.0)
+            .ok_or(CompilerError::UnknownSymbol(s.clone()))
+            .copied()
     }
 
     pub fn define(&mut self, s: &Symbol, v: u32) {
@@ -76,7 +94,13 @@ impl Context {
     pub fn define_global(&mut self, s: &str, t: Type) {
         let offset = self.global_head;
         self.global_head += t.size_bytes();
-        self.globals.insert(s.to_string(), Global{address: self.global_base + offset, var_type: t});
+        self.globals.insert(
+            s.to_string(),
+            Global {
+                address: self.global_base + offset,
+                var_type: t,
+            },
+        );
     }
 
     pub fn load_init(&mut self, prog: Vec<UnresolvedInstruction>) {
@@ -105,7 +129,7 @@ impl Context {
         }
         for func in &self.functions {
             for ins in &func.instructions {
-                 if let Some(c) = ins.resolve(self)? {
+                if let Some(c) = ins.resolve(self)? {
                     out.push(c);
                 }
             }
@@ -113,5 +137,3 @@ impl Context {
         Ok(out)
     }
 }
-
-

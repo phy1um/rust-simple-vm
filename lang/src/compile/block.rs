@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::compile::resolve::{UnresolvedInstruction, Symbol, Type};
 use crate::compile::context::{Context, Global};
+use crate::compile::resolve::{Symbol, Type, UnresolvedInstruction};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -30,7 +30,7 @@ pub struct BlockScope {
 impl BlockScope {
     pub fn new(parent_func: Rc<RefCell<Block>>) -> Self {
         Self {
-            parent_func, 
+            parent_func,
             ..Self::default()
         }
     }
@@ -47,7 +47,7 @@ impl BlockScope {
         Self {
             parent_func: self.parent_func.clone(),
             locals: self.locals.clone(),
-            loop_labels: Some(LoopLabels{top, bottom}),
+            loop_labels: Some(LoopLabels { top, bottom }),
         }
     }
 
@@ -61,19 +61,19 @@ impl BlockScope {
     fn get_local(&self, s: &str) -> Option<(usize, Type)> {
         for (k, i, t) in &self.locals {
             if k == s {
-                return Some((*i, t.clone()))
+                return Some((*i, t.clone()));
             }
-        };
+        }
         None
     }
 
     fn get_arg(&self, s: &str) -> Option<usize> {
         let fn_block = self.parent_func.borrow();
-         for (i, k) in fn_block.args.iter().enumerate() {
+        for (i, k) in fn_block.args.iter().enumerate() {
             if k == s {
-                return Some(i)
+                return Some(i);
             }
-        };
+        }
         None
     }
 
@@ -83,7 +83,7 @@ impl BlockScope {
         } else if let Some(i) = self.get_arg(s) {
             Some(BlockVariable::Arg(i, Type::Int))
         } else {
-            if let Some(Global{address, var_type}) = ctx.globals.get(s) {
+            if let Some(Global { address, var_type }) = ctx.globals.get(s) {
                 Some(BlockVariable::Global(*address, var_type.clone()))
             } else {
                 None
@@ -95,7 +95,7 @@ impl BlockScope {
 #[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
 pub struct Block {
-    pub instructions: Vec<UnresolvedInstruction>, 
+    pub instructions: Vec<UnresolvedInstruction>,
     pub offset: u32,
     pub local_count: usize,
     pub args: Vec<String>,
@@ -123,5 +123,3 @@ impl Block {
         out
     }
 }
-
-

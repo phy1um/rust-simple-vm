@@ -9,8 +9,6 @@ pub enum CompilerError {
     BreakNotInLoop,
     ContinueNotInLoop,
     InlineAsm(String),
-    TypeAssign{from: Type, to: Type},
+    TypeAssign { from: Type, to: Type },
     DerefInvalidType(Type),
 }
-
-

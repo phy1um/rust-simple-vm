@@ -85,7 +85,6 @@ pub enum Instruction {
     LoadByte(Register, Register, Register),
     #[opcode(0x13)]
     StoreByte(Register, Register, Register),
-
 }
 
 #[cfg(test)]

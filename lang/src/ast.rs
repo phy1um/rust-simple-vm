@@ -38,12 +38,22 @@ impl fmt::Display for Type {
 pub enum Statement {
     Declare(Identifier, Type, Option<Box<Expression>>),
     Assign(Identifier, Box<Expression>),
-    AssignDeref{lhs: Expression, rhs: Expression},
+    AssignDeref {
+        lhs: Expression,
+        rhs: Expression,
+    },
     Return(Expression),
     Break,
     Continue,
-    If{cond: Expression, body: Vec<Statement>, else_body: Option<Vec<Statement>>},
-    While{cond: Expression, body: Vec<Statement>},
+    If {
+        cond: Expression,
+        body: Vec<Statement>,
+        else_body: Option<Vec<Statement>>,
+    },
+    While {
+        cond: Expression,
+        body: Vec<Statement>,
+    },
     Expression(Expression),
 }
 
@@ -53,20 +63,45 @@ impl fmt::Display for Statement {
             Self::Declare(i, t, Some(expr)) => write!(f, "let {t} {i} := {expr}"),
             Self::Declare(i, t, None) => write!(f, "let {t} {i}"),
             Self::Assign(i, expr) => write!(f, "{i} := {expr}"),
-            Self::AssignDeref{lhs, rhs} => write!(f, "*{lhs} := {rhs}"),
+            Self::AssignDeref { lhs, rhs } => write!(f, "*{lhs} := {rhs}"),
             Self::Return(expr) => write!(f, "return {expr}"),
-            Self::If{cond, body, else_body} => {
+            Self::If {
+                cond,
+                body,
+                else_body,
+            } => {
                 if let Some(e) = else_body {
-                    write!(f, "if ({cond}) {{\n{}\n}} else {{\n{}\n}}\n",
-                            body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n"),
-                            e.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n"))
+                    write!(
+                        f,
+                        "if ({cond}) {{\n{}\n}} else {{\n{}\n}}\n",
+                        body.iter()
+                            .map(|x| format!("{x};"))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        e.iter()
+                            .map(|x| format!("{x};"))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    )
                 } else {
-                    write!(f, "if ({cond}) {{\n{}\n}}\n",
-                        body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n"))
+                    write!(
+                        f,
+                        "if ({cond}) {{\n{}\n}}\n",
+                        body.iter()
+                            .map(|x| format!("{x};"))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    )
                 }
             }
-            Self::While{cond, body} => write!(f, "while ({cond}) {{\n{}\n}}\n", 
-                body.iter().map(|x| format!("{x};")).collect::<Vec<_>>().join("\n")),
+            Self::While { cond, body } => write!(
+                f,
+                "while ({cond}) {{\n{}\n}}\n",
+                body.iter()
+                    .map(|x| format!("{x};"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ),
             Self::Break => write!(f, "break"),
             Self::Continue => write!(f, "continue"),
             Self::Expression(e) => write!(f, "{e}"),
@@ -146,33 +181,67 @@ impl fmt::Display for Expression {
             Self::Deref(i) => write!(f, "*{i}"),
             Self::BinOp(e0, e1, op) => write!(f, "{e0} {op} {e1}"),
             Self::Bracketed(e) => write!(f, "({e})"),
-            Self::FunctionCall(name, args) => write!(f, "{name}({})", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
+            Self::FunctionCall(name, args) => write!(
+                f,
+                "{name}({})",
+                args.iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub enum TopLevel {
-    FunctionDefinition{name: Identifier, return_type: Type, args: Vec<(Identifier, Type)>, body: Vec<Statement>},
-    InlineAsm{name: Identifier, args: Vec<(Identifier, Type)>, body: String},
-    GlobalVariable{name: Identifier, var_type: Type},
+    FunctionDefinition {
+        name: Identifier,
+        return_type: Type,
+        args: Vec<(Identifier, Type)>,
+        body: Vec<Statement>,
+    },
+    InlineAsm {
+        name: Identifier,
+        args: Vec<(Identifier, Type)>,
+        body: String,
+    },
+    GlobalVariable {
+        name: Identifier,
+        var_type: Type,
+    },
 }
 
 impl fmt::Display for TopLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::FunctionDefinition{name, return_type, args, body} => {
-                let arglist = args.iter().map(|(id, arg_type)| format!("{arg_type} {id}")).collect::<Vec<String>>().join(", ");
-                let body = body.iter().map(|s| format!("{s};")).collect::<Vec<String>>().join("\n");
+            Self::FunctionDefinition {
+                name,
+                return_type,
+                args,
+                body,
+            } => {
+                let arglist = args
+                    .iter()
+                    .map(|(id, arg_type)| format!("{arg_type} {id}"))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                let body = body
+                    .iter()
+                    .map(|s| format!("{s};"))
+                    .collect::<Vec<String>>()
+                    .join("\n");
                 write!(f, "{return_type} {name}({}) {{\n{}\n}}\n", arglist, body)
             }
-            Self::InlineAsm{name, args, body} => {
-                let arglist = args.iter().map(|(id, arg_type)| format!("{arg_type} {id}")).collect::<Vec<String>>().join(", ");
+            Self::InlineAsm { name, args, body } => {
+                let arglist = args
+                    .iter()
+                    .map(|(id, arg_type)| format!("{arg_type} {id}"))
+                    .collect::<Vec<String>>()
+                    .join(", ");
                 write!(f, "asm! {name}({}) {{{body}}}\n", arglist)
             }
-            Self::GlobalVariable{name, var_type} => 
-                write!(f, "global {var_type} {name};\n"),
+            Self::GlobalVariable { name, var_type } => write!(f, "global {var_type} {name};\n"),
         }
     }
 }
-

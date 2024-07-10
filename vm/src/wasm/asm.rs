@@ -50,7 +50,10 @@ impl PreProcessor {
     pub fn new() -> Self {
         let mut pp = pp::PreProcessor::default();
         pp::macros::setup_std_macros(&mut pp);
-        Self { pp, ..Self::default() }
+        Self {
+            pp,
+            ..Self::default()
+        }
     }
 
     #[wasm_bindgen]
@@ -70,15 +73,15 @@ impl PreProcessor {
         self.resolved_lines = Some(out);
         let mut syms = Vec::new();
         for (k, v) in self.pp.variables.iter() {
-            syms.push(ResolvedSymbol{
+            syms.push(ResolvedSymbol {
                 name: k.to_owned(),
                 kind: match v {
-                    pp::Variable::Label(_) => SymbolKind::Label, 
-                    pp::Variable::User(_) => SymbolKind::Variable, 
+                    pp::Variable::Label(_) => SymbolKind::Label,
+                    pp::Variable::User(_) => SymbolKind::Variable,
                 },
                 value: match v {
-                    pp::Variable::Label(s) => s.to_owned(), 
-                    pp::Variable::User(s) => s.to_owned(), 
+                    pp::Variable::Label(s) => s.to_owned(),
+                    pp::Variable::User(s) => s.to_owned(),
                 },
             });
         }
@@ -97,14 +100,17 @@ impl PreProcessor {
 
     #[wasm_bindgen]
     pub fn get_lines(&self) -> Result<Vec<String>, String> {
-        self.resolved_lines.clone().ok_or("no resolved program".to_string())
+        self.resolved_lines
+            .clone()
+            .ok_or("no resolved program".to_string())
     }
 
     #[wasm_bindgen]
     pub fn get_symbols(&self) -> Result<Vec<ResolvedSymbol>, String> {
-        self.resolved_symbols.clone().ok_or("no resolved program".to_string())
+        self.resolved_symbols
+            .clone()
+            .ok_or("no resolved program".to_string())
     }
-
 }
 
 #[wasm_bindgen]
