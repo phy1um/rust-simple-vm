@@ -1,10 +1,23 @@
 use crate::ast;
-use crate::character::*;
+use crate::character::{not_char, alpha, numeric, alphanumeric, whitespace};
 use crate::combinator::*;
-use crate::error::{ParseError, ParseErrorKind};
+use crate::error::{ParseError, ParseErrorKind, ConfidenceError, Confidence};
 use crate::parse::Parser;
 
 use std::str::FromStr;
+
+type CResult<S, T> = Result<(S, T), ConfidenceError<ParseError>>;
+type PResult<S, T> = Result<(S, T), ParseError>;
+
+fn token<'a, 'b>(t: &'a str) -> impl Fn(&'b str) -> CResult<&'b str, &'a str> {
+    with_confidence(crate::character::token(t), Confidence::Low)
+}
+
+fn with_confidence<S, T, E: Clone>(p: impl Parser<S, T, E>, conf: Confidence) -> impl Fn(S) -> Result<(S, T), ConfidenceError<E>> {
+    move |input| {
+        p.run(input).map_err(|e| ConfidenceError::from(e, conf))
+    }
+}
 
 fn parse_type_raw(input: &str) -> Result<(&str, ast::Type), ParseError> {
     let (s0, res) = map(repeat1(alpha), |x| x.iter().collect::<String>())(input)?;
@@ -19,14 +32,14 @@ fn parse_type_raw(input: &str) -> Result<(&str, ast::Type), ParseError> {
     ))
 }
 
-fn parse_type(input: &str) -> Result<(&str, ast::Type), ParseError> {
+fn parse_type(input: &str) -> CResult<&str, ast::Type> {
     match skip_whitespace(token("*"))(input) {
         Ok((s, _)) => {
             let (sn, inner) = parse_type(s)?;
             Ok((sn, ast::Type::Pointer(Box::new(inner))))
         }
         Err(_) => {
-            parse_type_raw(input).map_err(|_s| ParseError::new(input, ParseErrorKind::ExpectedType))
+            parse_type_raw(input).map_err(ConfidenceError::low)
         }
     }
 }
@@ -39,57 +52,61 @@ fn identifier(input: &str) -> Result<(&str, ast::Identifier), ParseError> {
     Ok((s1, ast::Identifier::new(&id_str)))
 }
 
-fn expression_literal_int(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+fn expression_literal_int(input: &str) -> CResult<&str, ast::Expression> {
     map(repeat1(numeric), |x| {
         ast::Expression::LiteralInt(x.iter().collect::<String>().parse::<i32>().unwrap())
     })(input)
-    .map_err(|v| v.tag("LIT INT"))
+    .map_err(|v| ConfidenceError::from(v, Confidence::Low))
 }
 
-fn expression_literal_char(input: &str) -> Result<(&str, ast::Expression), ParseError> {
-    map(wrapped(token("'"), not_char("'"), token("'")), |c| {
+fn expression_literal_char(input: &str) -> CResult<&str, ast::Expression> {
+    map(wrapped(token("'"), with_confidence(not_char("'"), Confidence::Low), token("'")), |c| {
         ast::Expression::LiteralChar(c)
     })(input)
-    .map_err(|v| v.tag("LIT CHAR"))
 }
 
-fn expression_variable(input: &str) -> Result<(&str, ast::Expression), ParseError> {
-    map(identifier, |s| ast::Expression::Variable(s.0))(input).map_err(|v| v.tag("VAR"))
+fn expression_variable(input: &str) -> CResult<&str, ast::Expression> {
+    map(identifier, |s| ast::Expression::Variable(s.0))(input)
+        .map_err(|v| ConfidenceError::from(v, Confidence::Low))
 }
 
-fn expression_address_of(input: &str) -> Result<(&str, ast::Expression), ParseError> {
-    let (s0, _) = skip_whitespace(token("&"))(input).map_err(|v| v.tag("ADDROF"))?;
-    let (s1, name) = identifier(s0).map_err(|v| v.tag("ADDROF"))?;
+fn expression_address_of(input: &str) -> CResult<&str, ast::Expression> {
+    let (s0, _) = skip_whitespace(token("&"))(input)?;
+    let (s1, name) = identifier(s0).map_err(|v| ConfidenceError::from(v, Confidence::Medium))?;
     Ok((s1, ast::Expression::AddressOf(name)))
 }
 
-pub fn expression_call(input: &str) -> Result<(&str, ast::Expression), ParseError> {
-    let (s0, id) = skip_whitespace(identifier)(input)?;
+pub fn expression_call(input: &str) -> CResult<&str, ast::Expression> {
+    let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
     let (s1, args) = wrapped(
         token("("),
         allow_empty(delimited(
             skip_whitespace(expression),
             skip_whitespace(token(",")),
         )),
-        token(")"),
+        token(")")
     )(s0)?;
     Ok((s1, ast::Expression::FunctionCall(id, args)))
 }
 
-pub fn expression_deref(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+pub fn expression_deref(input: &str) -> CResult<&str, ast::Expression> {
     let (s0, _) = skip_whitespace(token("*"))(input)?;
     let (sn, expr) = expression(s0)?;
     Ok((sn, ast::Expression::Deref(Box::new(expr))))
 }
 
-pub fn expression_bracketed(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+pub fn expression_bracketed(input: &str) -> CResult<&str, ast::Expression> {
     map(
-        skip_whitespace(wrapped(token("("), expression, token(")"))),
+        skip_whitespace(
+            wrapped(
+                token("("), 
+                expression, 
+                token(")"))),
         |x| ast::Expression::Bracketed(Box::new(x)),
     )(input)
 }
 
-pub fn binop(input: &str) -> Result<(&str, ast::BinOp), ParseError> {
+pub fn binop(input: &str) -> CResult<&str, ast::BinOp> {
     map(
         require(
             Any::new(vec![
@@ -104,14 +121,14 @@ pub fn binop(input: &str) -> Result<(&str, ast::BinOp), ParseError> {
                 token("<"),
                 token("!="),
             ]),
-            ParseError::new(input, ParseErrorKind::ExpectedBinop),
+            ConfidenceError::low(ParseError::new(input, ParseErrorKind::ExpectedBinop)),
         ),
         |x| ast::BinOp::from_str(x).unwrap(),
     )
     .run(input)
 }
 
-pub fn expression_binop(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+pub fn expression_binop(input: &str) -> CResult<&str, ast::Expression> {
     let (s0, expr0) = skip_whitespace(expression_lhs)(input)?;
     let (s1, op) = skip_whitespace(binop)(s0)?;
     let (s2, expr1) = skip_whitespace(expression)(s1)?;
@@ -121,7 +138,7 @@ pub fn expression_binop(input: &str) -> Result<(&str, ast::Expression), ParseErr
     ))
 }
 
-fn expression_lhs(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+fn expression_lhs(input: &str) -> CResult<&str, ast::Expression> {
     AnyCollectErr::new(vec![
         expression_literal_int,
         expression_literal_char,
@@ -132,23 +149,23 @@ fn expression_lhs(input: &str) -> Result<(&str, ast::Expression), ParseError> {
         expression_deref,
     ])
     .run(input)
-    .map_err(|v| ParseError::from_errs(input, v).tag("EXPR-LHS"))
+    .map_err(|v| ConfidenceError::select(&v))
 }
 
-fn expression(input: &str) -> Result<(&str, ast::Expression), ParseError> {
+fn expression(input: &str) -> CResult<&str, ast::Expression> {
     AnyCollectErr::new(vec![expression_binop, expression_lhs])
         .run(input)
-        .map_err(|v| ParseError::from_errs(input, v).tag("EXPR"))
+        .map_err(|v| ConfidenceError::select(&v))
 }
 
-pub fn statement_variable_assign(input: &str) -> Result<(&str, ast::Statement), ParseError> {
-    let (s0, id) = identifier(input)?;
+pub fn statement_variable_assign(input: &str) -> CResult<&str, ast::Statement> {
+    let (s0, id) = identifier(input).map_err(ConfidenceError::low)?;
     let (s1, _) = skip_whitespace(token(":="))(s0)?;
     let (s2, expr) = skip_whitespace(expression)(s1)?;
     Ok((s2, ast::Statement::Assign(id, Box::new(expr))))
 }
 
-pub fn statement_variable_assign_deref(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+pub fn statement_variable_assign_deref(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, _) = skip_whitespace(token("*"))(input)?;
     let (s1, lhs) = skip_whitespace(expression)(s0)?;
     let (s2, _) = skip_whitespace(token(":="))(s1)?;
@@ -156,10 +173,10 @@ pub fn statement_variable_assign_deref(input: &str) -> Result<(&str, ast::Statem
     Ok((s3, ast::Statement::AssignDeref { lhs, rhs }))
 }
 
-pub fn statement_variable_declare(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, _) = skip_whitespace(token("let"))(input)?;
     let (s1, variable_type) = skip_whitespace(parse_type)(s0)?;
-    let (s2, id) = skip_whitespace(identifier)(s1)?;
+    let (s2, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s1)?;
     let (s3, _) = skip_whitespace(token(":="))(s2)?;
     let (s4, expr) = skip_whitespace(expression)(s3)?;
     Ok((
@@ -168,13 +185,13 @@ pub fn statement_variable_declare(input: &str) -> Result<(&str, ast::Statement),
     ))
 }
 
-pub fn statement_return(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+pub fn statement_return(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, _) = skip_whitespace(token("return"))(input)?;
     let (s1, expr) = skip_whitespace(expression)(s0)?;
     Ok((s1, ast::Statement::Return(expr)))
 }
 
-pub fn statement_if(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, _) = skip_whitespace(token("if"))(input)?;
     let (s1, cond) = wrapped(
         skip_whitespace(token("(")),
@@ -207,7 +224,7 @@ pub fn statement_if(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     ))
 }
 
-fn statement_while(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+fn statement_while(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, _) = skip_whitespace(token("while"))(input)?;
     let (s1, cond) = wrapped(
         skip_whitespace(token("(")),
@@ -222,21 +239,21 @@ fn statement_while(input: &str) -> Result<(&str, ast::Statement), ParseError> {
     Ok((sn, ast::Statement::While { cond, body }))
 }
 
-pub fn statement_continue(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+pub fn statement_continue(input: &str) -> CResult<&str, ast::Statement> {
     map(skip_whitespace(token("continue")), |_| {
         ast::Statement::Continue
     })(input)
 }
 
-pub fn statement_break(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+pub fn statement_break(input: &str) -> CResult<&str, ast::Statement> {
     map(skip_whitespace(token("break")), |_| ast::Statement::Break)(input)
 }
 
-pub fn statement_expression(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+pub fn statement_expression(input: &str) -> CResult<&str, ast::Statement> {
     map(expression, ast::Statement::Expression)(input)
 }
 
-pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
     AnyCollectErr::new(vec![
         statement_if,
         statement_while,
@@ -249,34 +266,34 @@ pub fn statement(input: &str) -> Result<(&str, ast::Statement), ParseError> {
         statement_expression,
     ])
     .run(input)
-    .map_err(|v| ParseError::from_errs(input, v).tag("STMT"))
+    .map_err(|v| ConfidenceError::select(&v))
 }
 
-fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(&'a str) -> Result<(&'a str, T), ParseError>
+fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(&'a str) -> CResult<&'a str, T>
 where
-    F: Parser<&'a str, T, ParseError>,
+        F: Parser<&'a str, T, ConfidenceError<ParseError>>,
 {
     move |input| {
-        let (s0, _) = discard(repeat0(whitespace))(input)?;
+        let (s0, _) = discard(repeat0(whitespace))(input).map_err(ConfidenceError::low)?;
         f.run(s0)
     }
 }
 
-fn statement_terminated(input: &str) -> Result<(&str, ast::Statement), ParseError> {
+fn statement_terminated(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, stmt) = statement(input)?;
     let (s1, _) = skip_whitespace(token(";"))(s0)?;
     Ok((s1, stmt))
 }
 
-fn named_arg(input: &str) -> Result<(&str, (ast::Identifier, ast::Type)), ParseError> {
+fn named_arg(input: &str) -> CResult<&str, (ast::Identifier, ast::Type)> {
     let (s0, ty) = skip_whitespace(parse_type)(input)?;
-    let (s1, name) = skip_whitespace(identifier)(s0)?;
+    let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
     Ok((s1, (name, ty)))
 }
 
-fn function_definition(input: &str) -> Result<(&str, ast::TopLevel), ParseError> {
+fn function_definition(input: &str) -> CResult<&str, ast::TopLevel> {
     let (s0, return_type) = skip_whitespace(parse_type)(input)?;
-    let (s1, name) = skip_whitespace(identifier)(s0)?;
+    let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
     let (s2, _) = skip_whitespace(token("("))(s1)?;
     let (s3, args) = allow_empty(delimited(named_arg, skip_whitespace(token(","))))(s2)?;
     let (s4, _) = skip_whitespace(token(")"))(s3)?;
@@ -296,15 +313,15 @@ fn function_definition(input: &str) -> Result<(&str, ast::TopLevel), ParseError>
     ))
 }
 
-fn inline_asm(input: &str) -> Result<(&str, ast::TopLevel), ParseError> {
+fn inline_asm(input: &str) -> CResult<&str, ast::TopLevel> {
     let (s0, _) = skip_whitespace(token("asm!"))(input)?;
-    let (s1, name) = skip_whitespace(identifier)(s0)?;
+    let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
     let (s2, _) = skip_whitespace(token("("))(s1)?;
     let (s3, args) = allow_empty(delimited(named_arg, skip_whitespace(token(","))))(s2)?;
     let (s4, _) = skip_whitespace(token(")"))(s3)?;
     let (s5, body) = wrapped(
         skip_whitespace(token("{")),
-        repeat1(not_char("{}")),
+        with_confidence(repeat1(not_char("{}")), Confidence::Medium),
         skip_whitespace(token("}")),
     )(s4)?;
     Ok((
@@ -317,15 +334,15 @@ fn inline_asm(input: &str) -> Result<(&str, ast::TopLevel), ParseError> {
     ))
 }
 
-fn global_variable(input: &str) -> Result<(&str, ast::TopLevel), ParseError> {
+fn global_variable(input: &str) -> CResult<&str, ast::TopLevel> {
     let (s0, _) = skip_whitespace(token("global"))(input)?;
     let (s1, var_type) = skip_whitespace(parse_type)(s0)?;
-    let (s2, name) = skip_whitespace(identifier)(s1)?;
+    let (s2, name) = skip_whitespace(with_confidence(identifier, Confidence::High))(s1)?;
     let (s3, _) = skip_whitespace(token(";"))(s2)?;
     Ok((s3, ast::TopLevel::GlobalVariable { name, var_type }))
 }
 
-pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), ParseError> {
+pub fn parse_ast(input: &str) -> PResult<&str, Vec<ast::TopLevel>> {
     let mut out = Vec::new();
     let mut current_state = input;
     loop {
@@ -336,7 +353,7 @@ pub fn parse_ast(input: &str) -> Result<(&str, Vec<ast::TopLevel>), ParseError> 
             let (snn, res) =
                 AnyCollectErr::new(vec![inline_asm, global_variable, function_definition])
                     .run(state_next)
-                    .map_err(|x| ParseError::from_errs(current_state, x))?;
+                    .map_err(|es| ConfidenceError::select(&es).take())?;
             out.push(res);
             current_state = snn;
         }
@@ -427,13 +444,12 @@ mod test {
     }
 
     #[test]
-    fn test_function() -> Result<(), ParseError> {
+    fn test_function() {
         let expected = "int foo() {\nlet int a := 7;\na := 99;\n}\n";
         assert_eq!(
             expected,
-            run_parser(function_definition, expected)?.to_string()
+            run_parser(function_definition, expected).unwrap().to_string()
         );
-        Ok(())
     }
 
     #[test]

@@ -7,6 +7,48 @@ pub struct ParseError {
     kind: ParseErrorKind,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Confidence {
+    Low,
+    Medium,
+    High,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfidenceError<T: Clone> {
+   t: T,
+   confidence: Confidence,
+}
+
+impl<T: Clone> ConfidenceError<T> {
+    pub fn from(t: T, confidence: Confidence) -> Self {
+        Self {t, confidence}
+    }
+
+    pub fn low(t: T) -> Self {
+        Self::from(t, Confidence::Low)
+    }
+
+    pub fn medium(t: T) -> Self {
+        Self::from(t, Confidence::Medium)
+    }
+
+    pub fn high(t: T) -> Self {
+        Self::from(t, Confidence::High)
+    }
+
+    pub fn take(self) -> T {
+        self.t
+    }
+
+    pub fn select(options: &[Self]) -> Self {
+        options.iter().fold(options.first().unwrap(), |a, b| 
+            if a.confidence > b.confidence { a } else { b }
+        ).clone()
+    }
+}
+
+
 impl ParseError {
     pub fn new(ctx: &str, kind: ParseErrorKind) -> Self {
         Self {
