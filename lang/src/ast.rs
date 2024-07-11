@@ -60,11 +60,11 @@ pub enum Statement {
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Declare(i, t, Some(expr)) => write!(f, "let {t} {i} := {expr}"),
-            Self::Declare(i, t, None) => write!(f, "let {t} {i}"),
-            Self::Assign(i, expr) => write!(f, "{i} := {expr}"),
-            Self::AssignDeref { lhs, rhs } => write!(f, "*{lhs} := {rhs}"),
-            Self::Return(expr) => write!(f, "return {expr}"),
+            Self::Declare(i, t, Some(expr)) => write!(f, "let {t} {i} := {expr};"),
+            Self::Declare(i, t, None) => write!(f, "let {t} {i};"),
+            Self::Assign(i, expr) => write!(f, "{i} := {expr};"),
+            Self::AssignDeref { lhs, rhs } => write!(f, "*{lhs} := {rhs};"),
+            Self::Return(expr) => write!(f, "return {expr};"),
             Self::If {
                 cond,
                 body,
@@ -75,11 +75,11 @@ impl fmt::Display for Statement {
                         f,
                         "if ({cond}) {{\n{}\n}} else {{\n{}\n}}\n",
                         body.iter()
-                            .map(|x| format!("{x};"))
+                            .map(|x| format!("{x}"))
                             .collect::<Vec<_>>()
                             .join("\n"),
                         e.iter()
-                            .map(|x| format!("{x};"))
+                            .map(|x| format!("{x}"))
                             .collect::<Vec<_>>()
                             .join("\n")
                     )
@@ -88,7 +88,7 @@ impl fmt::Display for Statement {
                         f,
                         "if ({cond}) {{\n{}\n}}\n",
                         body.iter()
-                            .map(|x| format!("{x};"))
+                            .map(|x| format!("{x}"))
                             .collect::<Vec<_>>()
                             .join("\n")
                     )
@@ -98,13 +98,13 @@ impl fmt::Display for Statement {
                 f,
                 "while ({cond}) {{\n{}\n}}\n",
                 body.iter()
-                    .map(|x| format!("{x};"))
+                    .map(|x| format!("{x}"))
                     .collect::<Vec<_>>()
                     .join("\n")
             ),
-            Self::Break => write!(f, "break"),
-            Self::Continue => write!(f, "continue"),
-            Self::Expression(e) => write!(f, "{e}"),
+            Self::Break => write!(f, "break;"),
+            Self::Continue => write!(f, "continue;"),
+            Self::Expression(e) => write!(f, "{e};"),
         }
     }
 }
@@ -228,7 +228,7 @@ impl fmt::Display for TopLevel {
                     .join(", ");
                 let body = body
                     .iter()
-                    .map(|s| format!("{s};"))
+                    .map(|s| format!("{s}"))
                     .collect::<Vec<String>>()
                     .join("\n");
                 writeln!(f, "{return_type} {name}({}) {{\n{}\n}}", arglist, body)

@@ -16,7 +16,7 @@ int a(int x) {
         return 7;
     } else {
         return 12;
-    };
+    }
 }
    ";
     let vm = run_program(test).unwrap();
@@ -38,13 +38,13 @@ int a(int x) {
                 return 5;
             } else {
                 return 99;
-            };
+            }
         } else {
             return 98;
-        };
+        }
     } else {
         return 97;
-    };
+    }
 }
    ";
     let vm = run_program(test).unwrap();

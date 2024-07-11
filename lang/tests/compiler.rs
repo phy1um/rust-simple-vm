@@ -52,7 +52,7 @@ int mult(int a, int b) {
     while (c < b) {
         out := out + a;
         c := c + 1;
-    };
+    }
     return out;
 }
 

@@ -162,7 +162,8 @@ pub fn statement_variable_assign(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, id) = identifier(input).map_err(ConfidenceError::low)?;
     let (s1, _) = skip_whitespace(token(":="))(s0)?;
     let (s2, expr) = skip_whitespace(expression)(s1).map_err(ConfidenceError::elevate)?;
-    Ok((s2, ast::Statement::Assign(id, Box::new(expr))))
+    let (s3, _) = skip_whitespace(token(";"))(s2).map_err(ConfidenceError::elevate)?;
+    Ok((s3, ast::Statement::Assign(id, Box::new(expr))))
 }
 
 pub fn statement_variable_assign_deref(input: &str) -> CResult<&str, ast::Statement> {
@@ -170,7 +171,8 @@ pub fn statement_variable_assign_deref(input: &str) -> CResult<&str, ast::Statem
     let (s1, lhs) = skip_whitespace(expression)(s0)?;
     let (s2, _) = skip_whitespace(token(":="))(s1)?;
     let (s3, rhs) = skip_whitespace(expression)(s2).map_err(ConfidenceError::elevate)?;
-    Ok((s3, ast::Statement::AssignDeref { lhs, rhs }))
+    let (s4, _) = skip_whitespace(token(";"))(s3).map_err(ConfidenceError::elevate)?;
+    Ok((s4, ast::Statement::AssignDeref { lhs, rhs }))
 }
 
 pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> {
@@ -179,8 +181,9 @@ pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> 
     let (s2, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s1)?;
     let (s3, _) = skip_whitespace(token(":="))(s2)?;
     let (s4, expr) = skip_whitespace(expression)(s3).map_err(ConfidenceError::elevate)?;
+    let (s5, _) = skip_whitespace(token(";"))(s4).map_err(ConfidenceError::elevate)?;
     Ok((
-        s4,
+        s5,
         ast::Statement::Declare(id, variable_type, Some(Box::new(expr))),
     ))
 }
@@ -188,7 +191,8 @@ pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> 
 pub fn statement_return(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, _) = skip_whitespace(token("return"))(input)?;
     let (s1, expr) = skip_whitespace(expression)(s0)?;
-    Ok((s1, ast::Statement::Return(expr)))
+    let (s2, _) = skip_whitespace(token(";"))(s1).map_err(ConfidenceError::elevate)?;
+    Ok((s2, ast::Statement::Return(expr)))
 }
 
 pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
@@ -201,7 +205,7 @@ pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
     .map_err(ConfidenceError::elevate)?;
     let (s2, body) = wrapped(
         skip_whitespace(token("{")),
-        repeat1(skip_whitespace(statement_terminated)),
+        repeat1(skip_whitespace(statement)),
         skip_whitespace(token("}")),
     )(s1)
     .map_err(ConfidenceError::elevate)?;
@@ -209,7 +213,7 @@ pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
         Ok((s3, _)) => {
             let (s4, eb) = wrapped(
                 skip_whitespace(token("{")),
-                repeat1(skip_whitespace(statement_terminated)),
+                repeat1(skip_whitespace(statement)),
                 skip_whitespace(token("}")),
             )(s3)
             .map_err(ConfidenceError::elevate)?;
@@ -237,7 +241,7 @@ fn statement_while(input: &str) -> CResult<&str, ast::Statement> {
     .map_err(ConfidenceError::elevate)?;
     let (sn, body) = wrapped(
         skip_whitespace(token("{")),
-        repeat1(skip_whitespace(statement_terminated)),
+        repeat1(skip_whitespace(statement)),
         skip_whitespace(token("}")),
     )(s1)
     .map_err(ConfidenceError::elevate)?;
@@ -245,17 +249,23 @@ fn statement_while(input: &str) -> CResult<&str, ast::Statement> {
 }
 
 pub fn statement_continue(input: &str) -> CResult<&str, ast::Statement> {
-    map(skip_whitespace(token("continue")), |_| {
+    let (s0, res) = map(skip_whitespace(token("continue")), |_| {
         ast::Statement::Continue
-    })(input)
+    })(input)?;
+    let (s1, _) = skip_whitespace(token(";"))(s0).map_err(ConfidenceError::elevate)?;
+    Ok((s1, res))
 }
 
 pub fn statement_break(input: &str) -> CResult<&str, ast::Statement> {
-    map(skip_whitespace(token("break")), |_| ast::Statement::Break)(input)
+    let (s0, res) = map(skip_whitespace(token("break")), |_| ast::Statement::Break)(input)?;
+    let (s1, _) = skip_whitespace(token(";"))(s0).map_err(ConfidenceError::elevate)?;
+    Ok((s1, res))
 }
 
 pub fn statement_expression(input: &str) -> CResult<&str, ast::Statement> {
-    map(expression, ast::Statement::Expression)(input)
+    let (s0, res) = map(expression, ast::Statement::Expression)(input)?;
+    let (s1, _) = skip_whitespace(token(";"))(s0).map_err(ConfidenceError::elevate)?;
+    Ok((s1, res))
 }
 
 pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
@@ -284,12 +294,6 @@ where
     }
 }
 
-fn statement_terminated(input: &str) -> CResult<&str, ast::Statement> {
-    let (s0, stmt) = statement(input)?;
-    let (s1, _) = skip_whitespace(token(";"))(s0)?;
-    Ok((s1, stmt))
-}
-
 fn named_arg(input: &str) -> CResult<&str, (ast::Identifier, ast::Type)> {
     let (s0, ty) = skip_whitespace(parse_type)(input)?;
     let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
@@ -302,7 +306,7 @@ fn function_body(input: &str) -> CResult<&str, Vec<ast::Statement>> {
     loop {
         match skip_whitespace(token("}"))(head) {
             Ok((sx, _)) => return Ok((sx, out)),
-            Err(_) => match skip_whitespace(statement_terminated)(head) {
+            Err(_) => match skip_whitespace(statement)(head) {
                 Ok((sx, st)) => {
                     out.push(st);
                     head = sx;
@@ -424,14 +428,14 @@ mod test {
             Statement::Assign(Identifier::new("foo"), Box::new(Expression::LiteralInt(88)));
         assert_eq!(
             expected,
-            run_parser(statement_variable_assign, "foo    :=       \n 88").unwrap()
+            run_parser(statement_variable_assign, "foo    :=       \n 88;").unwrap()
         );
     }
 
     #[test]
     fn test_assign_deref() {
         {
-            let expected = "*(x + 1) := 57";
+            let expected = "*(x + 1) := 57;";
             assert_eq!(
                 expected,
                 run_parser(statement_variable_assign_deref, expected)
@@ -440,7 +444,7 @@ mod test {
             );
         }
         {
-            let expected = "*x := 3 * y + foo(7)";
+            let expected = "*x := 3 * y + foo(7);";
             assert_eq!(
                 expected,
                 run_parser(statement_variable_assign_deref, expected)
@@ -468,7 +472,7 @@ mod test {
         );
         assert_eq!(
             expected,
-            run_parser(statement_variable_declare, "let char bar := 'a'").unwrap()
+            run_parser(statement_variable_declare, "let char bar := 'a';").unwrap()
         );
     }
 

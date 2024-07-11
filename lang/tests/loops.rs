@@ -10,7 +10,7 @@ void main() {
     let int a := 1;
     while (a <= 10) {
       a := a + 1;
-    };
+    }
     return a;
 }
 
@@ -32,8 +32,8 @@ void main() {
       while (b <= 9) {
         b := b + 1;
         c := c + 1;
-      };
-    };
+      }
+    }
     return c;
 }
 
@@ -50,7 +50,7 @@ void main() {
     while (a <= 5) {
         a := a + 1;
         break;
-    };
+    }
     return a;
 }
 
@@ -73,8 +73,8 @@ void main() {
             b := b + 1;
             c := c + b;
             break;
-        };
-    };
+        }
+    }
     return c;
 }
 
@@ -97,8 +97,8 @@ void main() {
         while (b <= 2) {
             b := b + 1;
             c := c + b;
-        };
-    };
+        }
+    }
     return c;
 }
 
@@ -121,8 +121,8 @@ void main() {
             b := b + 1;
             continue;
             c := c + b;
-        };
-    };
+        }
+    }
     return c;
 }
    ";

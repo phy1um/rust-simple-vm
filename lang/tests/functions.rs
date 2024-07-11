@@ -72,7 +72,7 @@ int a(int x, int y) {
         return y;
     } else {
         return a(x-1, y+1);
-    };
+    }
 }
    ";
     let vm = run_program(test).unwrap();
