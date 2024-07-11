@@ -16,13 +16,13 @@ pub enum Confidence {
 
 #[derive(Debug, Clone)]
 pub struct ConfidenceError<T: Clone> {
-   t: T,
-   confidence: Confidence,
+    t: T,
+    confidence: Confidence,
 }
 
 impl<T: Clone> ConfidenceError<T> {
     pub fn from(t: T, confidence: Confidence) -> Self {
-        Self {t, confidence}
+        Self { t, confidence }
     }
 
     pub fn low(t: T) -> Self {
@@ -43,19 +43,34 @@ impl<T: Clone> ConfidenceError<T> {
 
     pub fn elevate(self) -> Self {
         match self.confidence {
-            Confidence::Low => Self {confidence: Confidence::Medium, t: self.t},
-            Confidence::Medium => Self {confidence: Confidence::High, t: self.t},
-            Confidence::High => Self {confidence: Confidence::High, t: self.t},
+            Confidence::Low => Self {
+                confidence: Confidence::Medium,
+                t: self.t,
+            },
+            Confidence::Medium => Self {
+                confidence: Confidence::High,
+                t: self.t,
+            },
+            Confidence::High => Self {
+                confidence: Confidence::High,
+                t: self.t,
+            },
         }
     }
 
     pub fn select(options: &[Self]) -> Self {
-        options.iter().fold(options.first().unwrap(), |a, b| 
-            if a.confidence > b.confidence { a } else { b }
-        ).clone()
+        options
+            .iter()
+            .fold(options.first().unwrap(), |a, b| {
+                if a.confidence > b.confidence {
+                    a
+                } else {
+                    b
+                }
+            })
+            .clone()
     }
 }
-
 
 impl ParseError {
     pub fn new(ctx: &str, kind: ParseErrorKind) -> Self {

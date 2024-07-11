@@ -1,7 +1,7 @@
 use crate::ast;
-use crate::character::{not_char, alpha, numeric, alphanumeric, whitespace};
+use crate::character::{alpha, alphanumeric, not_char, numeric, whitespace};
 use crate::combinator::*;
-use crate::error::{ParseError, ParseErrorKind, ConfidenceError, Confidence};
+use crate::error::{Confidence, ConfidenceError, ParseError, ParseErrorKind};
 use crate::parse::Parser;
 
 use std::str::FromStr;
@@ -13,10 +13,11 @@ fn token<'a, 'b>(t: &'a str) -> impl Fn(&'b str) -> CResult<&'b str, &'a str> {
     with_confidence(crate::character::token(t), Confidence::Low)
 }
 
-fn with_confidence<S, T, E: Clone>(p: impl Parser<S, T, E>, conf: Confidence) -> impl Fn(S) -> Result<(S, T), ConfidenceError<E>> {
-    move |input| {
-        p.run(input).map_err(|e| ConfidenceError::from(e, conf))
-    }
+fn with_confidence<S, T, E: Clone>(
+    p: impl Parser<S, T, E>,
+    conf: Confidence,
+) -> impl Fn(S) -> Result<(S, T), ConfidenceError<E>> {
+    move |input| p.run(input).map_err(|e| ConfidenceError::from(e, conf))
 }
 
 fn parse_type_raw(input: &str) -> Result<(&str, ast::Type), ParseError> {
@@ -38,9 +39,7 @@ fn parse_type(input: &str) -> CResult<&str, ast::Type> {
             let (sn, inner) = parse_type(s)?;
             Ok((sn, ast::Type::Pointer(Box::new(inner))))
         }
-        Err(_) => {
-            parse_type_raw(input).map_err(ConfidenceError::low)
-        }
+        Err(_) => parse_type_raw(input).map_err(ConfidenceError::low),
     }
 }
 
@@ -60,9 +59,14 @@ fn expression_literal_int(input: &str) -> CResult<&str, ast::Expression> {
 }
 
 fn expression_literal_char(input: &str) -> CResult<&str, ast::Expression> {
-    map(wrapped(token("'"), with_confidence(not_char("'"), Confidence::Low), token("'")), |c| {
-        ast::Expression::LiteralChar(c)
-    })(input)
+    map(
+        wrapped(
+            token("'"),
+            with_confidence(not_char("'"), Confidence::Low),
+            token("'"),
+        ),
+        |c| ast::Expression::LiteralChar(c),
+    )(input)
 }
 
 fn expression_variable(input: &str) -> CResult<&str, ast::Expression> {
@@ -84,7 +88,7 @@ pub fn expression_call(input: &str) -> CResult<&str, ast::Expression> {
             skip_whitespace(expression),
             skip_whitespace(token(",")),
         )),
-        token(")")
+        token(")"),
     )(s0)?;
     Ok((s1, ast::Expression::FunctionCall(id, args)))
 }
@@ -97,11 +101,7 @@ pub fn expression_deref(input: &str) -> CResult<&str, ast::Expression> {
 
 pub fn expression_bracketed(input: &str) -> CResult<&str, ast::Expression> {
     map(
-        skip_whitespace(
-            wrapped(
-                token("("), 
-                expression, 
-                token(")"))),
+        skip_whitespace(wrapped(token("("), expression, token(")"))),
         |x| ast::Expression::Bracketed(Box::new(x)),
     )(input)
 }
@@ -197,19 +197,22 @@ pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
         skip_whitespace(token("(")),
         expression,
         skip_whitespace(token(")")),
-    )(s0).map_err(ConfidenceError::elevate)?;
+    )(s0)
+    .map_err(ConfidenceError::elevate)?;
     let (s2, body) = wrapped(
         skip_whitespace(token("{")),
         repeat1(skip_whitespace(statement_terminated)),
         skip_whitespace(token("}")),
-    )(s1).map_err(ConfidenceError::elevate)?;
+    )(s1)
+    .map_err(ConfidenceError::elevate)?;
     let (sn, else_body) = match skip_whitespace(token("else"))(s2) {
         Ok((s3, _)) => {
             let (s4, eb) = wrapped(
                 skip_whitespace(token("{")),
                 repeat1(skip_whitespace(statement_terminated)),
                 skip_whitespace(token("}")),
-            )(s3).map_err(ConfidenceError::elevate)?;
+            )(s3)
+            .map_err(ConfidenceError::elevate)?;
             (s4, Some(eb))
         }
         Err(_) => (s2, None),
@@ -230,12 +233,14 @@ fn statement_while(input: &str) -> CResult<&str, ast::Statement> {
         skip_whitespace(token("(")),
         expression,
         skip_whitespace(token(")")),
-    )(s0).map_err(ConfidenceError::elevate)?;
+    )(s0)
+    .map_err(ConfidenceError::elevate)?;
     let (sn, body) = wrapped(
         skip_whitespace(token("{")),
         repeat1(skip_whitespace(statement_terminated)),
         skip_whitespace(token("}")),
-    )(s1).map_err(ConfidenceError::elevate)?;
+    )(s1)
+    .map_err(ConfidenceError::elevate)?;
     Ok((sn, ast::Statement::While { cond, body }))
 }
 
@@ -271,7 +276,7 @@ pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
 
 fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(&'a str) -> CResult<&'a str, T>
 where
-        F: Parser<&'a str, T, ConfidenceError<ParseError>>,
+    F: Parser<&'a str, T, ConfidenceError<ParseError>>,
 {
     move |input| {
         let (s0, _) = discard(repeat0(whitespace))(input).map_err(ConfidenceError::low)?;
@@ -412,13 +417,24 @@ mod test {
 
     #[test]
     fn test_assign_deref() {
-        let expected = "*(x + 1) := 57";
-        assert_eq!(
-            expected,
-            run_parser(statement_variable_assign_deref, expected)
-                .unwrap()
-                .to_string()
-        );
+        {
+            let expected = "*(x + 1) := 57";
+            assert_eq!(
+                expected,
+                run_parser(statement_variable_assign_deref, expected)
+                    .unwrap()
+                    .to_string()
+            );
+        }
+        {
+            let expected = "*x := 3 * y + foo(7)";
+            assert_eq!(
+                expected,
+                run_parser(statement_variable_assign_deref, expected)
+                    .unwrap()
+                    .to_string()
+            );
+        }
     }
 
     #[test]
@@ -448,7 +464,9 @@ mod test {
         let expected = "int foo() {\nlet int a := 7;\na := 99;\n}\n";
         assert_eq!(
             expected,
-            run_parser(function_definition, expected).unwrap().to_string()
+            run_parser(function_definition, expected)
+                .unwrap()
+                .to_string()
         );
     }
 
