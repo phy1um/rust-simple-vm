@@ -296,17 +296,30 @@ fn named_arg(input: &str) -> CResult<&str, (ast::Identifier, ast::Type)> {
     Ok((s1, (name, ty)))
 }
 
+fn function_body(input: &str) -> CResult<&str, Vec<ast::Statement>> {
+    let (mut head, _) = skip_whitespace(token("{"))(input)?;
+    let mut out = Vec::new();
+    loop {
+        match skip_whitespace(token("}"))(head) {
+            Ok((sx, _)) => return Ok((sx, out)),
+            Err(_) => match skip_whitespace(statement_terminated)(head) {
+                Ok((sx, st)) => {
+                    out.push(st);
+                    head = sx;
+                }
+                Err(e) => return Err(e),
+            },
+        }
+    }
+}
+
 fn function_definition(input: &str) -> CResult<&str, ast::TopLevel> {
     let (s0, return_type) = skip_whitespace(parse_type)(input)?;
     let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
     let (s2, _) = skip_whitespace(token("("))(s1)?;
     let (s3, args) = allow_empty(delimited(named_arg, skip_whitespace(token(","))))(s2)?;
     let (s4, _) = skip_whitespace(token(")"))(s3)?;
-    let (s5, body) = wrapped(
-        skip_whitespace(token("{")),
-        repeat1(skip_whitespace(statement_terminated)),
-        skip_whitespace(token("}")),
-    )(s4)?;
+    let (s5, body) = function_body(s4)?;
     Ok((
         s5,
         ast::TopLevel::FunctionDefinition {
