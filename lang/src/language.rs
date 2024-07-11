@@ -131,7 +131,7 @@ pub fn binop(input: &str) -> CResult<&str, ast::BinOp> {
 pub fn expression_binop(input: &str) -> CResult<&str, ast::Expression> {
     let (s0, expr0) = skip_whitespace(expression_lhs)(input)?;
     let (s1, op) = skip_whitespace(binop)(s0)?;
-    let (s2, expr1) = skip_whitespace(expression)(s1)?;
+    let (s2, expr1) = skip_whitespace(expression)(s1).map_err(ConfidenceError::elevate)?;
     Ok((
         s2,
         ast::Expression::BinOp(Box::new(expr0), Box::new(expr1), op),
@@ -161,7 +161,7 @@ fn expression(input: &str) -> CResult<&str, ast::Expression> {
 pub fn statement_variable_assign(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, id) = identifier(input).map_err(ConfidenceError::low)?;
     let (s1, _) = skip_whitespace(token(":="))(s0)?;
-    let (s2, expr) = skip_whitespace(expression)(s1)?;
+    let (s2, expr) = skip_whitespace(expression)(s1).map_err(ConfidenceError::elevate)?;
     Ok((s2, ast::Statement::Assign(id, Box::new(expr))))
 }
 
@@ -169,7 +169,7 @@ pub fn statement_variable_assign_deref(input: &str) -> CResult<&str, ast::Statem
     let (s0, _) = skip_whitespace(token("*"))(input)?;
     let (s1, lhs) = skip_whitespace(expression)(s0)?;
     let (s2, _) = skip_whitespace(token(":="))(s1)?;
-    let (s3, rhs) = skip_whitespace(expression)(s2)?;
+    let (s3, rhs) = skip_whitespace(expression)(s2).map_err(ConfidenceError::elevate)?;
     Ok((s3, ast::Statement::AssignDeref { lhs, rhs }))
 }
 
@@ -178,7 +178,7 @@ pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> 
     let (s1, variable_type) = skip_whitespace(parse_type)(s0)?;
     let (s2, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s1)?;
     let (s3, _) = skip_whitespace(token(":="))(s2)?;
-    let (s4, expr) = skip_whitespace(expression)(s3)?;
+    let (s4, expr) = skip_whitespace(expression)(s3).map_err(ConfidenceError::elevate)?;
     Ok((
         s4,
         ast::Statement::Declare(id, variable_type, Some(Box::new(expr))),
@@ -197,19 +197,19 @@ pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
         skip_whitespace(token("(")),
         expression,
         skip_whitespace(token(")")),
-    )(s0)?;
+    )(s0).map_err(ConfidenceError::elevate)?;
     let (s2, body) = wrapped(
         skip_whitespace(token("{")),
         repeat1(skip_whitespace(statement_terminated)),
         skip_whitespace(token("}")),
-    )(s1)?;
+    )(s1).map_err(ConfidenceError::elevate)?;
     let (sn, else_body) = match skip_whitespace(token("else"))(s2) {
         Ok((s3, _)) => {
             let (s4, eb) = wrapped(
                 skip_whitespace(token("{")),
                 repeat1(skip_whitespace(statement_terminated)),
                 skip_whitespace(token("}")),
-            )(s3)?;
+            )(s3).map_err(ConfidenceError::elevate)?;
             (s4, Some(eb))
         }
         Err(_) => (s2, None),
@@ -230,12 +230,12 @@ fn statement_while(input: &str) -> CResult<&str, ast::Statement> {
         skip_whitespace(token("(")),
         expression,
         skip_whitespace(token(")")),
-    )(s0)?;
+    )(s0).map_err(ConfidenceError::elevate)?;
     let (sn, body) = wrapped(
         skip_whitespace(token("{")),
         repeat1(skip_whitespace(statement_terminated)),
         skip_whitespace(token("}")),
-    )(s1)?;
+    )(s1).map_err(ConfidenceError::elevate)?;
     Ok((sn, ast::Statement::While { cond, body }))
 }
 
