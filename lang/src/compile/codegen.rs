@@ -113,15 +113,20 @@ fn compile_block(
 
                 // type check
                 let expr_type = type_of(ctx, &scope, &expr);
-                let tt: Type = t.into();
-                if !tt.can_assign_from(&expr_type) {
-                    return Err(CompilerError::TypeAssign {
-                        from: expr_type,
-                        to: tt,
-                    });
-                }
+                let var_type = if let Some(tt) = t {
+                    let var_type: Type = tt.into();
+                    if !var_type.can_assign_from(&expr_type) {
+                        return Err(CompilerError::TypeAssign {
+                            from: expr_type,
+                            to: var_type,
+                        });
+                    }
+                    var_type
+                } else {
+                    expr_type
+                };
 
-                let local_index = scope.define_local(&id.0, &tt);
+                let local_index = scope.define_local(&id.0, &var_type);
                 // put expression on top of stack
                 let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                 out.append(&mut compiled_expr);
@@ -149,7 +154,13 @@ fn compile_block(
                 if scope.get(ctx, &id.0).is_some() {
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()));
                 }
-                scope.define_local(&id.0, &(t.into()));
+                if let Some(tt) = t {
+                    scope.define_local(&id.0, &(tt.into()));
+                } else {
+                    return Err(CompilerError::InvalidUntypedVariableDeclration(
+                        id.0.to_string(),
+                    ));
+                }
             }
             ast::Statement::Assign(id, expr) => {
                 if let Some(bv) = scope.get(ctx, &id.0) {

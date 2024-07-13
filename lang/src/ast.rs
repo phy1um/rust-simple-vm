@@ -20,6 +20,7 @@ pub enum Type {
     Int,
     Char,
     Void,
+    User(String),
     Pointer(Box<Type>),
 }
 
@@ -29,6 +30,7 @@ impl fmt::Display for Type {
             Self::Int => write!(f, "int"),
             Self::Char => write!(f, "char"),
             Self::Void => write!(f, "void"),
+            Self::User(s) => write!(f, "{s}"),
             Self::Pointer(t) => write!(f, "*{t}"),
         }
     }
@@ -36,7 +38,7 @@ impl fmt::Display for Type {
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Declare(Identifier, Type, Option<Box<Expression>>),
+    Declare(Identifier, Option<Type>, Option<Box<Expression>>),
     Assign(Identifier, Box<Expression>),
     AssignDeref {
         lhs: Expression,
@@ -60,8 +62,10 @@ pub enum Statement {
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Declare(i, t, Some(expr)) => write!(f, "let {t} {i} := {expr};"),
-            Self::Declare(i, t, None) => write!(f, "let {t} {i};"),
+            Self::Declare(i, Some(t), Some(expr)) => write!(f, "let {t} {i} := {expr};"),
+            Self::Declare(i, None, Some(expr)) => write!(f, "let {i} := {expr};"),
+            Self::Declare(i, Some(t), None) => write!(f, "let {t} {i};"),
+            Self::Declare(i, None, None) => write!(f, "let {i};"),
             Self::Assign(i, expr) => write!(f, "{i} := {expr};"),
             Self::AssignDeref { lhs, rhs } => write!(f, "*{lhs} := {rhs};"),
             Self::Return(expr) => write!(f, "return {expr};"),

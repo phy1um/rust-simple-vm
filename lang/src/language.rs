@@ -28,7 +28,7 @@ fn parse_type_raw(input: &str) -> Result<(&str, ast::Type), ParseError> {
             "void" => ast::Type::Void,
             "int" => ast::Type::Int,
             "char" => ast::Type::Char,
-            _ => todo!("support user types: {}", res),
+            s => ast::Type::User(s.to_string()),
         },
     ))
 }
@@ -65,7 +65,7 @@ fn expression_literal_char(input: &str) -> CResult<&str, ast::Expression> {
             with_confidence(not_char("'"), Confidence::Low),
             token("'"),
         ),
-        |c| ast::Expression::LiteralChar(c),
+        ast::Expression::LiteralChar,
     )(input)
 }
 
@@ -184,8 +184,17 @@ pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> 
     let (s5, _) = skip_whitespace(token(";"))(s4).map_err(ConfidenceError::elevate)?;
     Ok((
         s5,
-        ast::Statement::Declare(id, variable_type, Some(Box::new(expr))),
+        ast::Statement::Declare(id, Some(variable_type), Some(Box::new(expr))),
     ))
+}
+
+pub fn statement_variable_declare_infer(input: &str) -> CResult<&str, ast::Statement> {
+    let (s0, _) = skip_whitespace(token("let"))(input)?;
+    let (s1, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
+    let (s2, _) = skip_whitespace(token(":="))(s1)?;
+    let (s3, expr) = skip_whitespace(expression)(s2).map_err(ConfidenceError::elevate)?;
+    let (s4, _) = skip_whitespace(token(";"))(s3).map_err(ConfidenceError::elevate)?;
+    Ok((s4, ast::Statement::Declare(id, None, Some(Box::new(expr)))))
 }
 
 pub fn statement_return(input: &str) -> CResult<&str, ast::Statement> {
@@ -274,6 +283,7 @@ pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
         statement_while,
         statement_variable_assign_deref,
         statement_variable_assign,
+        statement_variable_declare_infer,
         statement_variable_declare,
         statement_return,
         statement_continue,
@@ -467,7 +477,7 @@ mod test {
     fn test_declare() {
         let expected = Statement::Declare(
             Identifier::new("bar"),
-            Type::Char,
+            Some(Type::Char),
             Some(Box::new(Expression::LiteralChar('a'))),
         );
         assert_eq!(

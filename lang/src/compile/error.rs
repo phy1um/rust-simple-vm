@@ -11,4 +11,5 @@ pub enum CompilerError {
     InlineAsm(String),
     TypeAssign { from: Type, to: Type },
     DerefInvalidType(Type),
+    InvalidUntypedVariableDeclration(String),
 }

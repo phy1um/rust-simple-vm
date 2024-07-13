@@ -139,6 +139,7 @@ impl From<ast::Type> for Type {
             ast::Type::Char => Self::Char,
             ast::Type::Void => Self::Void,
             ast::Type::Pointer(t) => Self::Pointer(Box::new((*t).into())),
+            ast::Type::User(s) => todo!("unimplementend: user types ({s})"),
         }
     }
 }

@@ -7,7 +7,7 @@ use common::*;
 fn while_loop() {
     let test = "
 void main() {
-    let int a := 1;
+    let a := 1;
     while (a <= 10) {
       a := a + 1;
     }
@@ -23,9 +23,9 @@ void main() {
 fn nested_while_loop() {
     let test = "
 void main() {
-    let int a := 0;
-    let int b := 0;
-    let int c := 0;
+    let a := 0;
+    let b := 0;
+    let c := 0;
     while (a <= 9) {
       a := a + 1;
       b := 0;
@@ -46,7 +46,7 @@ void main() {
 fn break_loop() {
     let test = "
 void main() {
-    let int a := 0;
+    let a := 0;
     while (a <= 5) {
         a := a + 1;
         break;
@@ -63,12 +63,12 @@ void main() {
 fn break_nested_loop() {
     let test = "
 void main() {
-    let int a := 0;
-    let int c := 0;
+    let a := 0;
+    let c := 0;
     while (a <= 3) {
         a := a + 1;
         c := c + 1;
-        let int b := 0;
+        let b := 0;
         while (b <= 2) {
             b := b + 1;
             c := c + b;
@@ -87,13 +87,13 @@ void main() {
 fn continue_loop() {
     let test = "
 void main() {
-    let int a := 0;
-    let int c := 0;
+    let a := 0;
+    let c := 0;
     while (a <= 3) {
         a := a + 1;
         c := c + 1;
         continue;
-        let int b := 0;
+        let b := 0;
         while (b <= 2) {
             b := b + 1;
             c := c + b;
@@ -111,12 +111,12 @@ void main() {
 fn continue_nested_loop() {
     let test = "
 void main() {
-    let int a := 0;
-    let int c := 0;
+    let a := 0;
+    let c := 0;
     while (a <= 3) {
         a := a + 1;
         c := c + 1;
-        let int b := 0;
+        let b := 0;
         while (b <= 2) {
             b := b + 1;
             continue;
