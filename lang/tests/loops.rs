@@ -129,3 +129,25 @@ void main() {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 4);
 }
+
+#[test]
+fn code_after_while() {
+    let test = "
+void main() {
+    let int a := 0;
+    let int b := 0;
+    let int c := 0;
+    while (a < 40) {
+        b := 0;
+        while (b < 40) {
+            c := c + 1;
+            b := b + 1;
+        }
+        a := a + 1;
+    }
+    return c;
+}
+   ";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 1600);
+}
