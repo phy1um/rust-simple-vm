@@ -111,7 +111,7 @@ void main() {
 fn continue_nested_loop() {
     let test = "
 void main() {
-    let a := 0;
+    let a := 0x0;
     let c := 0;
     while (a <= 3) {
         a := a + 1;

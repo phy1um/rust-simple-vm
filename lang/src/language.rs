@@ -51,10 +51,22 @@ fn identifier(input: &str) -> Result<(&str, ast::Identifier), ParseError> {
     Ok((s1, ast::Identifier::new(&id_str)))
 }
 
-fn expression_literal_int(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_literal_int_base10(input: &str) -> CResult<&str, ast::Expression> {
     map(repeat1(numeric), |x| {
         ast::Expression::LiteralInt(x.iter().collect::<String>().parse::<i32>().unwrap())
     })(input)
+    .map_err(|v| ConfidenceError::from(v, Confidence::Low))
+}
+
+fn expression_literal_int_base16(input: &str) -> CResult<&str, ast::Expression> {
+    let (s0, _) = token("0x")(input)?;
+    map_err(repeat1(alphanumeric), |x| {
+        let num_str = x.iter().collect::<String>();
+        match i32::from_str_radix(&num_str, 16) {
+            Ok(num) => Ok(ast::Expression::LiteralInt(num)),
+            Err(e) => Err(ParseError::new(input, ParseErrorKind::Numeric(e))),
+        }
+    })(s0)
     .map_err(|v| ConfidenceError::from(v, Confidence::Low))
 }
 
@@ -140,7 +152,8 @@ pub fn expression_binop(input: &str) -> CResult<&str, ast::Expression> {
 
 fn expression_lhs(input: &str) -> CResult<&str, ast::Expression> {
     AnyCollectErr::new(vec![
-        expression_literal_int,
+        expression_literal_int_base16,
+        expression_literal_int_base10,
         expression_literal_char,
         expression_call,
         expression_address_of,
@@ -402,11 +415,19 @@ mod test {
     fn test_expression_literal_int() {
         assert_eq!(
             Expression::LiteralInt(5),
-            run_parser(expression_literal_int, "5").unwrap()
+            run_parser(expression_literal_int_base10, "5").unwrap()
         );
         assert_eq!(
             Expression::LiteralInt(99),
-            run_parser(expression_literal_int, "99").unwrap()
+            run_parser(expression_literal_int_base10, "99").unwrap()
+        );
+        assert_eq!(
+            Expression::LiteralInt(0x1234),
+            run_parser(expression_literal_int_base16, "0x1234").unwrap()
+        );
+        assert_eq!(
+            Expression::LiteralInt(0xffc0),
+            run_parser(expression_literal_int_base16, "0xffc0").unwrap()
         );
     }
 

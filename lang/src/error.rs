@@ -119,6 +119,7 @@ pub enum ParseErrorKind {
     ExpectedTopLevel,
     EndOfInput,
     Errors(Vec<ParseError>),
+    Numeric(std::num::ParseIntError),
 }
 
 impl fmt::Display for ParseErrorKind {
@@ -137,6 +138,7 @@ impl fmt::Display for ParseErrorKind {
             Self::ExpectedStatement => write!(f, "expected statement"),
             Self::ExpectedTopLevel => write!(f, "expected function definition etc."),
             Self::EndOfInput => write!(f, "end of input"),
+            Self::Numeric(e) => write!(f, "invalid number: {e:?}"),
             Self::Errors(v) => write!(
                 f,
                 "[\n## {}\n]",
