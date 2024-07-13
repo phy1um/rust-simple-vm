@@ -113,6 +113,17 @@ where
     }
 }
 
+pub fn map_err<S, T, E, U, F, G>(f: F, g: G) -> impl Fn(S) -> Result<(S, U), E>
+where
+    F: Parser<S, T, E>,
+    G: Fn(T) -> Result<U, E>,
+{
+    move |input| {
+        let (s, res) = f.run(input)?;
+        Ok((s, g(res)?))
+    }
+}
+
 pub fn require<S, T, E: Clone, F>(f: F, e: E) -> impl Fn(S) -> Result<(S, T), E>
 where
     F: Parser<S, Option<T>, E>,
