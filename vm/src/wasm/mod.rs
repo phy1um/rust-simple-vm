@@ -203,8 +203,8 @@ impl JSMachine {
     }
 
     #[wasm_bindgen]
-    pub fn write_program(&mut self, b: &[u8]) -> Result<(), String> {
-        let _ = self.m.vm.memory.load_from_vec(b, 0);
+    pub fn write_program(&mut self, b: &[u8], offset: u32) -> Result<(), String> {
+        let _ = self.m.vm.memory.load_from_vec(b, offset);
         Ok(())
     }
 
