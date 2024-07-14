@@ -174,3 +174,32 @@ class TextIO {
   }
 }
 
+class LoggingMemory {
+  constructor(size) {
+    this._b = new Uint8Array(size);
+    this._loud = true;
+  }
+
+  setLog(b) {
+    this._loud = b;
+  }
+
+  reader() {
+    return (addr) => {
+      if (this._loud) {
+        console.log(`read @ 0x${addr.toString(16)}`);
+      }
+      return this._b[addr];
+    }
+  }
+
+  writer() {
+    return (addr, value) => {
+      if (this._loud) {
+        console.log(`write ${value.toString(16)} @ 0x${addr.toString(16)}`);
+      }
+      this._b[addr] = value;
+    }
+  }
+}
+

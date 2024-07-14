@@ -101,6 +101,7 @@ System A Zero 0
         let halt = false;
         let then = 0;
         let monitor = undefined;
+        let mem = undefined;
 
         function valueOrPlaceholder(id) {
           const x = document.getElementById(id);
@@ -110,7 +111,9 @@ System A Zero 0
         function animLoop(now) {
           let dt = (now - then)/1000;
           try {
+            mem.setLog(true);
             vm.tick(dt);
+            mem.setLog(false);
             if (!halt) {
               document.getElementById("vm-registers").innerText = vm.state();
               const pc = vm.get_register("PC");
@@ -133,6 +136,8 @@ System A Zero 0
 
         window.resetVM = () => {
           vm.reset();
+          console.log(`reset PC to ${vmProgramOffset}`);
+          vm.set_register("PC", vmProgramOffset);
           document.getElementById("vm-registers").innerText = vm.state();
           const pc = vm.get_register("PC");
           const nextOp = vm.read_memory(pc);
@@ -159,7 +164,12 @@ System A Zero 0
           vmMemorySize = parseInt(valueOrPlaceholder("vm-memsize"), 16);
           vmClock = parseFloat(valueOrPlaceholder("vm-clock"));
           vm = new VM(vmClock);
-          vm.map_memory_array(0, vmMemorySize);
+          vm.set_register("PC", vmProgramOffset);
+          const loggingMemory = new LoggingMemory(vmMemorySize);
+          mem = loggingMemory;
+          mem.setLog(false);
+          vm.map_memory_func(0, vmMemorySize, loggingMemory.reader(), loggingMemory.writer());
+          // vm.map_memory_array(0, vmMemorySize);
           const lastInstructionText = document.querySelector("#vm-lastop");
           vm.instruction_callback((i) => {
             lastInstructionText.innerText = dissasemble_instruction(i);
@@ -239,7 +249,9 @@ System A Zero 0
         window.step = () => {
           halt=true;
           try {
+            mem.setLog(true);
             vm.step();
+            mem.setLog(false);
           } catch (e) {
            document.getElementById("vm-err").innerText = `Exception: ${e}`; 
           }
@@ -264,7 +276,7 @@ System A Zero 0
                   base = 16;
                 }
                 const valueNum = parseInt(value, base);
-                labels[valueNum+programOffset] = name;
+                labels[valueNum] = name;
               } catch (_e) {}
             }
           }
@@ -313,10 +325,13 @@ System A Zero 0
             }
           }
           const programBytes = new Uint8Array(program);
-          vm.write_program(programBytes);
+          vm.write_program(programBytes, vmProgramOffset);
         }
 
         function highlightLine(i) {
+          if (i >= 0) { 
+            console.log(`highlight line: ${i}`);
+          }
           const idName = `prog-line-${i}`;
           for (let i of document.getElementsByClassName("prog-line")) {
             if (i.id == idName) {
@@ -329,6 +344,13 @@ System A Zero 0
 
         function calculateFrames() {
           let bp = vm.get_register("BP");
+          const sp = vm.get_register("SP");
+          const stackValues = [];
+          if (bp != 0) {
+            for (let i = sp; i >= bp; i -= 2) {
+              stackValues.push(vm.read_memory(i)); 
+            }
+          }
           let frames = [];
           while (bp != 0) {
             let pc = vm.read_memory(bp-2); 
@@ -337,8 +359,9 @@ System A Zero 0
             bp = bp_prev;
           }
           let frameText = frames.map(x => `<div><code>[ PC: ${x.pc} | BP: ${x.bp} ]</code></div>`).join("");
+          let stackText = `<div><code>[${stackValues.join(", ")}]</code></div>`;
           if (frameText.length > 0) {
-            document.getElementById("vm-callstack").innerHTML = "<p>Stack Frames</p>" + frameText;
+            document.getElementById("vm-callstack").innerHTML = `<p>Stack</p>${stackText}<p>Stack Frames</p>${frameText}`
           } else {
             document.getElementById("vm-callstack").innerHTML = "<p>Stack Frames (empty)</p>";
           }
