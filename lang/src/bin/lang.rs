@@ -37,6 +37,11 @@ fn main() -> Result<(), String> {
                 compile(program, LOADED_PROGRAM_OFFSET).map_err(|x| format!("compiling: {x:?}"))?;
             if args.output_format == OutputFormat::AnnotatedAsm {
                 let mut stdout = stdout().lock();
+                let offset = format!(
+                    ".offsetPC {}\n",
+                    (res.program_start_offset as f32 / 2.) as u32
+                );
+                stdout.write(offset.as_ref()).map_err(|x| format!("{x}"))?;
                 let symbol_defs = res
                     .symbols
                     .iter()
