@@ -78,3 +78,22 @@ int a(int x, int y) {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 15);
 }
+
+#[test]
+fn stack_shuffling() {
+    let test = "
+int main() {
+    let x := 5;
+    let y := 7;
+    let z := 2;
+    return foo(foo(x, z)-1, y);
+}
+
+int foo(int x, int y) {
+    return x+y;    
+}
+
+";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 13);
+}

@@ -1,5 +1,4 @@
 use simplevm::Register::*;
-
 mod common;
 use common::*;
 

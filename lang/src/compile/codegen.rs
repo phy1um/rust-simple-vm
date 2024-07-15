@@ -301,6 +301,7 @@ fn compile_body(
     statements: Vec<ast::Statement>,
     name: &str,
     offset: u32,
+    args: Vec<(ast::Identifier, ast::Type)>,
 ) -> Result<Block, CompilerError> {
     let mut block = Block {
         offset,
@@ -309,8 +310,8 @@ fn compile_body(
     block
         .instructions
         .push(UnresolvedInstruction::Label(Symbol::new(name)));
-    for (name, _type) in &ctx.function_defs.get(name).unwrap().args {
-        block.define_arg(name);
+    for (name, _type) in &args {
+        block.define_arg(&name.0);
     }
     // function setup
     let local_count_sym = format!("__internal_{name}_local_count");
@@ -340,8 +341,9 @@ fn compile_body(
                 Register::Zero,
                 Register::SP,
             )));
+        let offset = -4 - 2 * (args.len() as i8);
         block.instructions.push(UnresolvedInstruction::Instruction(
-            Instruction::AddImmSigned(Register::SP, Literal7Bit::from_signed(-2).unwrap()),
+            Instruction::AddImmSigned(Register::SP, Literal7Bit::from_signed(offset).unwrap()),
         ));
         // load previous BP
         block.instructions.push(UnresolvedInstruction::Instruction(
@@ -628,6 +630,28 @@ fn compile_expression(
                 ast::BinOp::Subtract => out.push(UnresolvedInstruction::Instruction(
                     Instruction::Stack(Register::Zero, Register::SP, StackOp::Sub),
                 )),
+                ast::BinOp::Multiply => out.extend([
+                    UnresolvedInstruction::Instruction(Instruction::Stack(
+                        Register::B,
+                        Register::SP,
+                        StackOp::Pop,
+                    )),
+                    UnresolvedInstruction::Instruction(Instruction::Stack(
+                        Register::C,
+                        Register::SP,
+                        StackOp::Pop,
+                    )),
+                    UnresolvedInstruction::Instruction(Instruction::Mul(
+                        Register::C,
+                        Register::B,
+                        Register::C,
+                    )),
+                    UnresolvedInstruction::Instruction(Instruction::Stack(
+                        Register::C,
+                        Register::SP,
+                        StackOp::Push,
+                    )),
+                ]),
                 ast::BinOp::LessThanEqual => {
                     binop_compare(&mut out, Register::B, Register::C, TestOp::Lte)
                 }
@@ -736,8 +760,10 @@ pub fn compile(
         offset + (global_page_size as u32) + ctx.init.iter().map(|x| x.size()).sum::<u32>();
     for p in program {
         match p {
-            ast::TopLevel::FunctionDefinition { name, body, .. } => {
-                let block = compile_body(&mut ctx, body, &name.0, program_offset)
+            ast::TopLevel::FunctionDefinition {
+                name, body, args, ..
+            } => {
+                let block = compile_body(&mut ctx, body, &name.0, program_offset, args)
                     .map_err(|x| (ctx.clone(), x))?;
                 block.register_labels(&mut ctx, program_offset);
                 let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
@@ -799,8 +825,12 @@ pub fn compile(
                         Register::Zero,
                         Register::SP,
                     )));
+                let offset = -4 - 2 * (args.len() as i8);
                 block.instructions.push(UnresolvedInstruction::Instruction(
-                    Instruction::AddImmSigned(Register::SP, Literal7Bit::from_signed(-2).unwrap()),
+                    Instruction::AddImmSigned(
+                        Register::SP,
+                        Literal7Bit::from_signed(-1 * offset).unwrap(),
+                    ),
                 ));
                 // load previous BP
                 block.instructions.push(UnresolvedInstruction::Instruction(
