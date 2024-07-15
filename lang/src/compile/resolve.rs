@@ -1,5 +1,6 @@
 use simplevm::{Instruction, Literal10Bit, Literal12Bit, Literal7Bit, Register};
 use std::fmt;
+use std::collections::HashMap;
 
 use crate::ast;
 use crate::compile::block::{BlockScope, BlockVariable};
@@ -81,12 +82,15 @@ impl UnresolvedInstruction {
     }
 }
 
+type StructField = (Type, usize);
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Int,
     Char,
     Void,
     Pointer(Box<Type>),
+    Struct(HashMap<String, StructField>),
     UncheckedInt,
 }
 
@@ -112,11 +116,40 @@ impl Type {
             // TODO: long pointer?
             Self::Pointer(_) => 2,
             Self::UncheckedInt => 2,
+            Self::Struct(fields) => fields.values().map(|(ty, _offset)| ty.size_bytes()).sum(),
         }
     }
 
     pub fn can_assign_from(&self, other: &Self) -> bool {
         *other != Type::Void && self.size_bytes() >= other.size_bytes()
+    }
+
+    pub fn from_ast(ctx: &Context, value: &ast::Type) -> Result<Self, CompilerError> {
+        match value {
+            ast::Type::Int => Ok(Self::Int),
+            ast::Type::Char => Ok(Self::Char),
+            ast::Type::Void => Ok(Self::Void),
+            ast::Type::Pointer(t) => Ok(Self::Pointer(Box::new(Self::from_ast(ctx, t)?))),
+            ast::Type::Struct(fields) => Ok(Self::Struct(
+                {
+                    let mut offset = 0; 
+                    let mut out = HashMap::new();
+                    for (name, field_type) in fields.iter() {
+                        let tt = Self::from_ast(ctx, field_type)?;
+                        let no = offset;
+                        offset += tt.size_bytes();
+                        out.insert(name.to_string(), (tt, no));
+                        if offset%2 != 0 {
+                            offset += 1;
+                        }
+                    }
+                    out
+                }
+            )),
+            ast::Type::User(s) => {
+                ctx.get_user_type(s).map(|x| x.clone()).ok_or(CompilerError::UnknownType(s.to_owned()))
+            }
+        }
     }
 }
 
@@ -128,18 +161,14 @@ impl fmt::Display for Type {
             Self::Void => write!(f, "void"),
             Self::Pointer(t) => write!(f, "*{t}"),
             Self::UncheckedInt => write!(f, "int"),
-        }
-    }
-}
-
-impl From<ast::Type> for Type {
-    fn from(value: ast::Type) -> Self {
-        match value {
-            ast::Type::Int => Self::Int,
-            ast::Type::Char => Self::Char,
-            ast::Type::Void => Self::Void,
-            ast::Type::Pointer(t) => Self::Pointer(Box::new((*t).into())),
-            ast::Type::User(s) => todo!("unimplementend: user types ({s})"),
+            Self::Struct(fields) => 
+                write!(f, 
+                    "struct {{\n{}\n}};", 
+                    fields
+                        .iter()
+                        .map(|(name, (ty, _offset))| format!("{ty} {name}"))
+                        .collect::<Vec<_>>()
+                        .join(",\n")),
         }
     }
 }

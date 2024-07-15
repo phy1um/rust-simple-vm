@@ -114,7 +114,7 @@ fn compile_block(
                 // type check
                 let expr_type = type_of(ctx, &scope, &expr);
                 let var_type = if let Some(tt) = t {
-                    let var_type: Type = tt.into();
+                    let var_type = Type::from_ast(ctx, &tt)?;
                     if !var_type.can_assign_from(&expr_type) {
                         return Err(CompilerError::TypeAssign {
                             from: expr_type,
@@ -155,7 +155,7 @@ fn compile_block(
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()));
                 }
                 if let Some(tt) = t {
-                    scope.define_local(&id.0, &(tt.into()));
+                    scope.define_local(&id.0, &(Type::from_ast(ctx, &tt)?));
                 } else {
                     return Err(CompilerError::InvalidUntypedVariableDeclration(
                         id.0.to_string(),
@@ -724,9 +724,10 @@ pub fn compile(
                     FunctionDefinition {
                         args: args
                             .iter()
-                            .map(|(name, ty)| (name.to_string(), ty.clone().into()))
-                            .collect::<Vec<_>>(),
-                        return_type: return_type.clone().into(),
+                            .map(|(name, ty)| 
+                                    Type::from_ast(&ctx, ty).map(|t| (name.to_string(), t)))
+                            .collect::<Result<Vec<_>, _>>().map_err(|e| (ctx.clone(), e))?,
+                        return_type: Type::from_ast(&ctx, return_type).map_err(|e| (ctx.clone(), e))?,
                     },
                 );
             }
@@ -736,14 +737,18 @@ pub fn compile(
                     FunctionDefinition {
                         args: args
                             .iter()
-                            .map(|(name, ty)| (name.to_string(), ty.clone().into()))
-                            .collect::<Vec<_>>(),
+                            .map(|(name, ty)| 
+                                    Type::from_ast(&ctx, ty).map(|t| (name.to_string(), t)))
+                            .collect::<Result<Vec<_>, _>>().map_err(|e| (ctx.clone(), e))?,
                         return_type: Type::Int,
                     },
                 );
             }
             ast::TopLevel::GlobalVariable { name, var_type } => {
-                global_map.push((name.0.to_string(), var_type.clone().into()));
+                global_map.push((name.0.to_string(), Type::from_ast(&ctx, var_type).map_err(|e| (ctx.clone(), e))?))
+            }
+            ast::TopLevel::TypeDefinition{name, alias} => {
+                ctx.define_user_type(&name.0, Type::from_ast(&ctx, alias).map_err(|e| (ctx.clone(), e))?); 
             }
         }
     }
@@ -865,6 +870,7 @@ pub fn compile(
                 ctx.functions.push(block);
             }
             ast::TopLevel::GlobalVariable { .. } => {}
+            ast::TopLevel::TypeDefinition{ .. } => {}
         }
     }
     Ok(ctx)

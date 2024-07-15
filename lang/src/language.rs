@@ -20,17 +20,25 @@ fn with_confidence<S, T, E: Clone>(
     move |input| p.run(input).map_err(|e| ConfidenceError::from(e, conf))
 }
 
-fn parse_type_raw(input: &str) -> Result<(&str, ast::Type), ParseError> {
-    let (s0, res) = map(repeat1(alpha), |x| x.iter().collect::<String>())(input)?;
-    Ok((
-        s0,
-        match res.as_ref() {
-            "void" => ast::Type::Void,
-            "int" => ast::Type::Int,
-            "char" => ast::Type::Char,
-            s => ast::Type::User(s.to_string()),
-        },
-    ))
+fn parse_type_raw(input: &str) -> CResult<&str, ast::Type> {
+    let (s0, res) = with_confidence(map(repeat1(alpha), |x| x.iter().collect::<String>()), 
+        Confidence::Low)(input)?;
+    if res == "struct" {
+        let (s1, _) = skip_whitespace(token("{"))(s0)?;
+        let (s2, fields) = allow_empty(delimited(named_arg, skip_whitespace(token(","))))(s1)?;
+        let (s3, _) = skip_whitespace(token("}"))(s2)?;
+        Ok((s3, ast::Type::Struct(fields)))
+    } else {
+        Ok((
+            s0,
+            match res.as_ref() {
+                "void" => ast::Type::Void,
+                "int" => ast::Type::Int,
+                "char" => ast::Type::Char,
+                s => ast::Type::User(s.to_string()),
+            },
+        ))
+    }
 }
 
 fn parse_type(input: &str) -> CResult<&str, ast::Type> {
@@ -39,7 +47,7 @@ fn parse_type(input: &str) -> CResult<&str, ast::Type> {
             let (sn, inner) = parse_type(s)?;
             Ok((sn, ast::Type::Pointer(Box::new(inner))))
         }
-        Err(_) => parse_type_raw(input).map_err(ConfidenceError::low),
+        Err(_) => parse_type_raw(input),
     }
 }
 
@@ -340,6 +348,15 @@ fn function_body(input: &str) -> CResult<&str, Vec<ast::Statement>> {
     }
 }
 
+fn type_definition(input: &str) -> CResult<&str, ast::TopLevel> {
+    let (s0, _) = skip_whitespace(token("type"))(input)?;  
+    let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Medium))(s0)?;
+    let (s2, _) = skip_whitespace(token(":="))(s1)?;
+    let (s3, alias) = skip_whitespace(parse_type)(s2)?;
+    let (s4, _) = skip_whitespace(token(";"))(s3)?;
+    Ok((s4, ast::TopLevel::TypeDefinition{name, alias}))
+}
+
 fn function_definition(input: &str) -> CResult<&str, ast::TopLevel> {
     let (s0, return_type) = skip_whitespace(parse_type)(input)?;
     let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
@@ -396,7 +413,7 @@ pub fn parse_ast(input: &str) -> PResult<&str, Vec<ast::TopLevel>> {
             return Ok((state_next, out));
         } else {
             let (snn, res) =
-                AnyCollectErr::new(vec![inline_asm, global_variable, function_definition])
+                AnyCollectErr::new(vec![inline_asm, global_variable, function_definition, type_definition])
                     .run(state_next)
                     .map_err(|es| ConfidenceError::select(&es).take())?;
             out.push(res);
@@ -608,6 +625,21 @@ mod test {
             assert_eq!(
                 expected,
                 run_parser(expression, expected).unwrap().to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn test_struct() {
+        {
+            let expected = "type Foo := struct {
+int x,
+int y,
+};
+";
+            assert_eq!(
+                expected,
+                run_parser(type_definition, expected).unwrap().to_string()
             );
         }
     }

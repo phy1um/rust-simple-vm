@@ -26,6 +26,7 @@ pub struct Context {
     pub functions: Vec<Block>,
     pub function_defs: HashMap<String, FunctionDefinition>,
     pub globals: HashMap<String, Global>,
+    pub user_types: HashMap<String, Type>,
     pub init: Vec<UnresolvedInstruction>,
     global_head: usize,
     pub global_base: usize,
@@ -101,6 +102,14 @@ impl Context {
                 var_type: t,
             },
         );
+    }
+
+    pub fn define_user_type(&mut self, s: &str, t: Type) {
+        self.user_types.insert(s.to_string(), t);
+    }
+
+    pub fn get_user_type(&self, s: &str) -> Option<&Type> {
+        self.user_types.get(s)
     }
 
     pub fn load_init(&mut self, prog: Vec<UnresolvedInstruction>) {

@@ -4,6 +4,7 @@ use crate::compile::resolve::{Symbol, Type};
 pub enum CompilerError {
     LiteralOutOfBounds(u32, u32, u32),
     UnknownSymbol(Symbol),
+    UnknownType(String),
     VariableAlreadyDefined(String),
     VariableUndefined(String),
     BreakNotInLoop,
