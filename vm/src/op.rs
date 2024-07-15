@@ -49,6 +49,8 @@ pub enum Instruction {
     Add(Register, Register, Register),
     #[opcode(0x2)]
     Sub(Register, Register, Register),
+    #[opcode(0x15)]
+    Mul(Register, Register, Register),
     #[opcode(0x3)]
     AddImm(Register, Literal7Bit),
     #[opcode(0x4)]

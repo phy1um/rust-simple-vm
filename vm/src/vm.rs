@@ -191,6 +191,12 @@ Flags: {:016b}",
                 self.set_register(dst, a.wrapping_sub(b));
                 Ok(())
             }
+            Instruction::Mul(r0, r1, dst) => {
+                let a = self.get_register(r0);
+                let b = self.get_register(r1);
+                self.set_register(dst, a * b);
+                Ok(())
+            }
             Instruction::AddImm(r, i) => {
                 self.set_register(r, self.get_register(r) + (i.value as u16));
                 Ok(())
@@ -334,7 +340,7 @@ Flags: {:016b}",
                     StackOp::Add => {
                         let a = self.pop(sp)?;
                         let b = self.pop(sp)?;
-                        self.push(sp, a + b)?;
+                        self.push(sp, a.wrapping_add(b))?;
                     }
                     StackOp::Sub => {
                         let a = self.pop(sp)?;
