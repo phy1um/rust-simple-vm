@@ -21,8 +21,10 @@ fn with_confidence<S, T, E: Clone>(
 }
 
 fn parse_type_raw(input: &str) -> CResult<&str, ast::Type> {
-    let (s0, res) = with_confidence(map(repeat1(alpha), |x| x.iter().collect::<String>()), 
-        Confidence::Low)(input)?;
+    let (s0, res) = with_confidence(
+        map(repeat1(alpha), |x| x.iter().collect::<String>()),
+        Confidence::Low,
+    )(input)?;
     if res == "struct" {
         let (s1, _) = skip_whitespace(token("{"))(s0)?;
         let (s2, fields) = allow_empty(delimited(named_arg, skip_whitespace(token(","))))(s1)?;
@@ -349,12 +351,12 @@ fn function_body(input: &str) -> CResult<&str, Vec<ast::Statement>> {
 }
 
 fn type_definition(input: &str) -> CResult<&str, ast::TopLevel> {
-    let (s0, _) = skip_whitespace(token("type"))(input)?;  
+    let (s0, _) = skip_whitespace(token("type"))(input)?;
     let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Medium))(s0)?;
     let (s2, _) = skip_whitespace(token(":="))(s1)?;
     let (s3, alias) = skip_whitespace(parse_type)(s2)?;
     let (s4, _) = skip_whitespace(token(";"))(s3)?;
-    Ok((s4, ast::TopLevel::TypeDefinition{name, alias}))
+    Ok((s4, ast::TopLevel::TypeDefinition { name, alias }))
 }
 
 fn function_definition(input: &str) -> CResult<&str, ast::TopLevel> {
@@ -412,10 +414,14 @@ pub fn parse_ast(input: &str) -> PResult<&str, Vec<ast::TopLevel>> {
         if state_next.is_empty() {
             return Ok((state_next, out));
         } else {
-            let (snn, res) =
-                AnyCollectErr::new(vec![inline_asm, global_variable, function_definition, type_definition])
-                    .run(state_next)
-                    .map_err(|es| ConfidenceError::select(&es).take())?;
+            let (snn, res) = AnyCollectErr::new(vec![
+                inline_asm,
+                global_variable,
+                function_definition,
+                type_definition,
+            ])
+            .run(state_next)
+            .map_err(|es| ConfidenceError::select(&es).take())?;
             out.push(res);
             current_state = snn;
         }

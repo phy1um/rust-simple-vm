@@ -1,6 +1,6 @@
 use simplevm::{Instruction, Literal10Bit, Literal12Bit, Literal7Bit, Register};
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::ast;
 use crate::compile::block::{BlockScope, BlockVariable};
@@ -130,25 +130,24 @@ impl Type {
             ast::Type::Char => Ok(Self::Char),
             ast::Type::Void => Ok(Self::Void),
             ast::Type::Pointer(t) => Ok(Self::Pointer(Box::new(Self::from_ast(ctx, t)?))),
-            ast::Type::Struct(fields) => Ok(Self::Struct(
-                {
-                    let mut offset = 0; 
-                    let mut out = HashMap::new();
-                    for (name, field_type) in fields.iter() {
-                        let tt = Self::from_ast(ctx, field_type)?;
-                        let no = offset;
-                        offset += tt.size_bytes();
-                        out.insert(name.to_string(), (tt, no));
-                        if offset%2 != 0 {
-                            offset += 1;
-                        }
+            ast::Type::Struct(fields) => Ok(Self::Struct({
+                let mut offset = 0;
+                let mut out = HashMap::new();
+                for (name, field_type) in fields.iter() {
+                    let tt = Self::from_ast(ctx, field_type)?;
+                    let no = offset;
+                    offset += tt.size_bytes();
+                    out.insert(name.to_string(), (tt, no));
+                    if offset % 2 != 0 {
+                        offset += 1;
                     }
-                    out
                 }
-            )),
-            ast::Type::User(s) => {
-                ctx.get_user_type(s).map(|x| x.clone()).ok_or(CompilerError::UnknownType(s.to_owned()))
-            }
+                out
+            })),
+            ast::Type::User(s) => ctx
+                .get_user_type(s)
+                .cloned()
+                .ok_or(CompilerError::UnknownType(s.to_owned())),
         }
     }
 }
@@ -161,14 +160,15 @@ impl fmt::Display for Type {
             Self::Void => write!(f, "void"),
             Self::Pointer(t) => write!(f, "*{t}"),
             Self::UncheckedInt => write!(f, "int"),
-            Self::Struct(fields) => 
-                write!(f, 
-                    "struct {{\n{}\n}};", 
-                    fields
-                        .iter()
-                        .map(|(name, (ty, _offset))| format!("{ty} {name}"))
-                        .collect::<Vec<_>>()
-                        .join(",\n")),
+            Self::Struct(fields) => write!(
+                f,
+                "struct {{\n{}\n}};",
+                fields
+                    .iter()
+                    .map(|(name, (ty, _offset))| format!("{ty} {name}"))
+                    .collect::<Vec<_>>()
+                    .join(",\n")
+            ),
         }
     }
 }

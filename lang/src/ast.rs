@@ -33,13 +33,15 @@ impl fmt::Display for Type {
             Self::Void => write!(f, "void"),
             Self::User(s) => write!(f, "{s}"),
             Self::Pointer(t) => write!(f, "*{t}"),
-            Self::Struct(fields) => write!(f, 
-                    "struct {{\n{}\n}}", 
-                    fields
-                        .iter()
-                        .map(|(name, ty)| format!("{ty} {name},"))
-                        .collect::<Vec<_>>()
-                        .join("\n")),
+            Self::Struct(fields) => write!(
+                f,
+                "struct {{\n{}\n}}",
+                fields
+                    .iter()
+                    .map(|(name, ty)| format!("{ty} {name},"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ),
         }
     }
 }
@@ -225,7 +227,7 @@ pub enum TopLevel {
     TypeDefinition {
         name: Identifier,
         alias: Type,
-    }
+    },
 }
 
 impl fmt::Display for TopLevel {
@@ -258,7 +260,7 @@ impl fmt::Display for TopLevel {
                 writeln!(f, "asm! {name}({}) {{{body}}}", arglist)
             }
             Self::GlobalVariable { name, var_type } => writeln!(f, "global {var_type} {name};"),
-            Self::TypeDefinition {name, alias} => writeln!(f, "type {name} := {alias};"),
+            Self::TypeDefinition { name, alias } => writeln!(f, "type {name} := {alias};"),
         }
     }
 }

@@ -724,10 +724,13 @@ pub fn compile(
                     FunctionDefinition {
                         args: args
                             .iter()
-                            .map(|(name, ty)| 
-                                    Type::from_ast(&ctx, ty).map(|t| (name.to_string(), t)))
-                            .collect::<Result<Vec<_>, _>>().map_err(|e| (ctx.clone(), e))?,
-                        return_type: Type::from_ast(&ctx, return_type).map_err(|e| (ctx.clone(), e))?,
+                            .map(|(name, ty)| {
+                                Type::from_ast(&ctx, ty).map(|t| (name.to_string(), t))
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                            .map_err(|e| (ctx.clone(), e))?,
+                        return_type: Type::from_ast(&ctx, return_type)
+                            .map_err(|e| (ctx.clone(), e))?,
                     },
                 );
             }
@@ -737,18 +740,24 @@ pub fn compile(
                     FunctionDefinition {
                         args: args
                             .iter()
-                            .map(|(name, ty)| 
-                                    Type::from_ast(&ctx, ty).map(|t| (name.to_string(), t)))
-                            .collect::<Result<Vec<_>, _>>().map_err(|e| (ctx.clone(), e))?,
+                            .map(|(name, ty)| {
+                                Type::from_ast(&ctx, ty).map(|t| (name.to_string(), t))
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                            .map_err(|e| (ctx.clone(), e))?,
                         return_type: Type::Int,
                     },
                 );
             }
-            ast::TopLevel::GlobalVariable { name, var_type } => {
-                global_map.push((name.0.to_string(), Type::from_ast(&ctx, var_type).map_err(|e| (ctx.clone(), e))?))
-            }
-            ast::TopLevel::TypeDefinition{name, alias} => {
-                ctx.define_user_type(&name.0, Type::from_ast(&ctx, alias).map_err(|e| (ctx.clone(), e))?); 
+            ast::TopLevel::GlobalVariable { name, var_type } => global_map.push((
+                name.0.to_string(),
+                Type::from_ast(&ctx, var_type).map_err(|e| (ctx.clone(), e))?,
+            )),
+            ast::TopLevel::TypeDefinition { name, alias } => {
+                ctx.define_user_type(
+                    &name.0,
+                    Type::from_ast(&ctx, alias).map_err(|e| (ctx.clone(), e))?,
+                );
             }
         }
     }
@@ -834,7 +843,7 @@ pub fn compile(
                 block.instructions.push(UnresolvedInstruction::Instruction(
                     Instruction::AddImmSigned(
                         Register::SP,
-                        Literal7Bit::from_signed(-1 * offset).unwrap(),
+                        Literal7Bit::from_signed(-offset).unwrap(),
                     ),
                 ));
                 // load previous BP
@@ -870,7 +879,7 @@ pub fn compile(
                 ctx.functions.push(block);
             }
             ast::TopLevel::GlobalVariable { .. } => {}
-            ast::TopLevel::TypeDefinition{ .. } => {}
+            ast::TopLevel::TypeDefinition { .. } => {}
         }
     }
     Ok(ctx)
