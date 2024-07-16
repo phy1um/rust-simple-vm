@@ -189,6 +189,21 @@ pub fn statement_variable_assign(input: &str) -> CResult<&str, ast::Statement> {
     Ok((s3, ast::Statement::Assign(id, Box::new(expr))))
 }
 
+pub fn statement_variable_assign_struct_fields(input: &str) -> CResult<&str, ast::Statement> {
+    let (s0, id) = identifier(input).map_err(ConfidenceError::low)?;
+    let (s1, mut fields) = repeat1(dotted_field)(s0)?;
+    fields.insert(0, id);
+    let (s2, _) = skip_whitespace(token(":="))(s1)?;
+    let (s3, rhs) = skip_whitespace(expression)(s2).map_err(ConfidenceError::elevate)?;
+    let (s4, _) = skip_whitespace(token(";"))(s3).map_err(ConfidenceError::elevate)?;
+    Ok((s4, ast::Statement::AssignStructField { fields, rhs }))
+}
+
+pub fn dotted_field(input: &str) -> CResult<&str, ast::Identifier> {
+    let (s0, _) = token(".")(input)?;
+    with_confidence(identifier, Confidence::Low)(s0)
+}
+
 pub fn statement_variable_assign_deref(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, _) = skip_whitespace(token("*"))(input)?;
     let (s1, lhs) = skip_whitespace(expression)(s0)?;
@@ -305,6 +320,7 @@ pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
         statement_if,
         statement_while,
         statement_variable_assign_deref,
+        statement_variable_assign_struct_fields,
         statement_variable_assign,
         statement_variable_declare_infer,
         statement_variable_declare,

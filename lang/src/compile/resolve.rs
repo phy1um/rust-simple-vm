@@ -108,6 +108,10 @@ impl Type {
         matches!(self, Self::Pointer(_))
     }
 
+    pub fn is_struct(&self) -> bool {
+        matches!(self, Self::Struct(_))
+    }
+
     pub fn size_bytes(&self) -> usize {
         match self {
             Self::Int => 2,
@@ -121,7 +125,11 @@ impl Type {
     }
 
     pub fn can_assign_from(&self, other: &Self) -> bool {
-        *other != Type::Void && self.size_bytes() >= other.size_bytes()
+        // TODO: struct value assignment
+        !self.is_struct()
+            && !other.is_struct()
+            && !matches!(other, Self::Void)
+            && self.size_bytes() >= other.size_bytes()
     }
 
     pub fn from_ast(ctx: &Context, value: &ast::Type) -> Result<Self, CompilerError> {

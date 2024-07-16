@@ -13,4 +13,5 @@ pub enum CompilerError {
     TypeAssign { from: Type, to: Type },
     DerefInvalidType(Type),
     InvalidUntypedVariableDeclration(String),
+    NonStructFieldReference(String, Type),
 }

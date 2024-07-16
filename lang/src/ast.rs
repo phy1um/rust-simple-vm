@@ -54,6 +54,10 @@ pub enum Statement {
         lhs: Expression,
         rhs: Expression,
     },
+    AssignStructField {
+        fields: Vec<Identifier>,
+        rhs: Expression,
+    },
     Return(Expression),
     Break,
     Continue,
@@ -78,6 +82,15 @@ impl fmt::Display for Statement {
             Self::Declare(i, None, None) => write!(f, "let {i};"),
             Self::Assign(i, expr) => write!(f, "{i} := {expr};"),
             Self::AssignDeref { lhs, rhs } => write!(f, "*{lhs} := {rhs};"),
+            Self::AssignStructField { fields, rhs } => write!(
+                f,
+                "{} := {rhs};",
+                fields
+                    .iter()
+                    .map(|s| s.0.to_string())
+                    .collect::<Vec<_>>()
+                    .join(".")
+            ),
             Self::Return(expr) => write!(f, "return {expr};"),
             Self::If {
                 cond,

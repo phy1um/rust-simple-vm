@@ -67,11 +67,11 @@ impl BlockScope {
         None
     }
 
-    fn get_arg(&self, s: &str) -> Option<usize> {
+    fn get_arg(&self, s: &str) -> Option<(usize, Type)> {
         let fn_block = self.parent_func.borrow();
-        for (i, k) in fn_block.args.iter().enumerate() {
+        for (i, (k, t)) in fn_block.args.iter().enumerate() {
             if k == s {
-                return Some(i);
+                return Some((i, t.clone()));
             }
         }
         None
@@ -80,8 +80,8 @@ impl BlockScope {
     pub fn get(&self, ctx: &Context, s: &str) -> Option<BlockVariable> {
         if let Some((i, t)) = self.get_local(s) {
             Some(BlockVariable::Local(i, t))
-        } else if let Some(i) = self.get_arg(s) {
-            Some(BlockVariable::Arg(i, Type::Int))
+        } else if let Some((i, t)) = self.get_arg(s) {
+            Some(BlockVariable::Arg(i, t))
         } else if let Some(Global { address, var_type }) = ctx.globals.get(s) {
             Some(BlockVariable::Global(*address, var_type.clone()))
         } else {
@@ -96,7 +96,7 @@ pub struct Block {
     pub instructions: Vec<UnresolvedInstruction>,
     pub offset: u32,
     pub local_count: usize,
-    pub args: Vec<String>,
+    pub args: Vec<(String, Type)>,
 }
 
 impl Block {
@@ -111,8 +111,8 @@ impl Block {
         }
     }
 
-    pub fn define_arg(&mut self, s: &str) {
-        self.args.push(s.to_owned());
+    pub fn define_arg(&mut self, s: &str, t: &Type) {
+        self.args.push((s.to_owned(), t.clone()));
     }
 
     pub fn next_local_index(&mut self) -> usize {

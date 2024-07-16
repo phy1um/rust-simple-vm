@@ -115,6 +115,9 @@ fn compile_block(
                 let expr_type = type_of(ctx, &scope, &expr);
                 let var_type = if let Some(tt) = t {
                     let var_type = Type::from_ast(ctx, &tt)?;
+                    if var_type.is_struct() {
+                        todo!("cannot declare struct value");
+                    }
                     if !var_type.can_assign_from(&expr_type) {
                         return Err(CompilerError::TypeAssign {
                             from: expr_type,
@@ -155,7 +158,11 @@ fn compile_block(
                     return Err(CompilerError::VariableAlreadyDefined(id.0.to_string()));
                 }
                 if let Some(tt) = t {
-                    scope.define_local(&id.0, &(Type::from_ast(ctx, &tt)?));
+                    let declared_type = Type::from_ast(ctx, &tt)?;
+                    if declared_type.is_struct() {
+                        todo!("struct value unsupported");
+                    }
+                    scope.define_local(&id.0, &declared_type);
                 } else {
                     return Err(CompilerError::InvalidUntypedVariableDeclration(
                         id.0.to_string(),
@@ -168,25 +175,7 @@ fn compile_block(
                         BlockVariable::Local(index, _) => {
                             let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                             out.append(&mut compiled_expr);
-                            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                                Register::C,
-                                Register::SP,
-                                StackOp::Pop,
-                            )));
-                            out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                                Register::BP,
-                                Register::Zero,
-                                Register::B,
-                            )));
-                            out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
-                                Register::B,
-                                Literal7Bit::new_checked(index as u8 * 2).unwrap(),
-                            )));
-                            out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
-                                Register::B,
-                                Register::Zero,
-                                Register::C,
-                            )));
+                            assign_from_stack_to_local(&mut out, index as u8);
                         }
                         BlockVariable::Arg(index, tt) => {
                             let expr_type = type_of(ctx, &scope, expr.as_ref());
@@ -198,27 +187,7 @@ fn compile_block(
                             }
                             let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                             out.append(&mut compiled_expr);
-                            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                                Register::C,
-                                Register::SP,
-                                StackOp::Pop,
-                            )));
-                            out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                                Register::BP,
-                                Register::Zero,
-                                Register::B,
-                            )));
-                            out.push(UnresolvedInstruction::Instruction(
-                                Instruction::AddImmSigned(
-                                    Register::B,
-                                    Literal7Bit::from_signed(-2 * (index as i8 + 3)).unwrap(),
-                                ),
-                            ));
-                            out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
-                                Register::B,
-                                Register::Zero,
-                                Register::C,
-                            )));
+                            assign_from_stack_to_arg(&mut out, index as u8);
                         }
                         BlockVariable::Global(addr, tt) => {
                             // type check
@@ -271,6 +240,80 @@ fn compile_block(
                     Register::B,
                 )));
             }
+            ast::Statement::AssignStructField { fields, rhs } => {
+                let head = fields.first().expect("this is a parser issue");
+                let field = fields.get(1).expect("must have 2");
+                let rhs_type = type_of(ctx, &scope, &rhs);
+                let mut compiled_expr = compile_expression(ctx, &mut scope, rhs)?;
+                out.append(&mut compiled_expr);
+                let bv = scope
+                    .get(ctx, &head.0)
+                    .ok_or(CompilerError::VariableUndefined(head.0.to_string()))?;
+                let var_type = match &bv {
+                    BlockVariable::Local(_, ty) => ty,
+                    BlockVariable::Arg(_, ty) => ty,
+                    BlockVariable::Global(_, ty) => ty,
+                    BlockVariable::Const(_) => &Type::Int,
+                };
+                let struct_fields = match var_type.clone() {
+                    Type::Struct(sf) => sf,
+                    Type::Pointer(t) => {
+                        if let Type::Struct(sf) = *t {
+                            sf
+                        } else {
+                            return Err(CompilerError::NonStructFieldReference(
+                                head.to_string(),
+                                var_type.clone(),
+                            ));
+                        }
+                    }
+                    _ => {
+                        panic!("{head} {var_type} {bv:?}");
+                        // return Err(CompilerError::NonStructFieldReference(head.to_string(), var_type.clone())),
+                    }
+                };
+                let (field_type, field_offset) = struct_fields
+                    .get(&field.0)
+                    .ok_or(CompilerError::VariableUndefined(field.0.to_string()))?;
+                if !field_type.can_assign_from(&rhs_type) {
+                    return Err(CompilerError::TypeAssign {
+                        from: rhs_type,
+                        to: field_type.clone(),
+                    });
+                }
+
+                // 0. load address of thing based on var type -> C
+                match &bv {
+                    BlockVariable::Local(index, _) => {
+                        load_local_addr_to(&mut out, *index as u8, Register::C)
+                    }
+                    BlockVariable::Arg(index, _) => {
+                        load_arg_addr_to(&mut out, *index as u8, Register::C)
+                    }
+                    _ => todo!("{bv:?} not supported in struct field assignment"),
+                };
+
+                // 1. add field offset
+                if var_type.is_pointer() {
+                    out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
+                        Register::C,
+                        Register::C,
+                        Register::Zero,
+                    )));
+                }
+                out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
+                    Register::C,
+                    Literal7Bit::new_checked(*field_offset as u8).unwrap(),
+                )));
+                // 2. pop value to write from stack
+                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                    Register::B,
+                    Register::SP,
+                    StackOp::Pop,
+                )));
+                // 3. write value
+                write_value(&mut out, rhs_type, Register::B, Register::C);
+            }
             ast::Statement::Return(expr) => {
                 let mut compiled_expr = compile_expression(ctx, &mut scope, expr)?;
                 out.append(&mut compiled_expr);
@@ -310,8 +353,8 @@ fn compile_body(
     block
         .instructions
         .push(UnresolvedInstruction::Label(Symbol::new(name)));
-    for (name, _type) in &args {
-        block.define_arg(&name.0);
+    for (name, arg_type) in &args {
+        block.define_arg(&name.0, &Type::from_ast(ctx, &arg_type)?);
     }
     // function setup
     let local_count_sym = format!("__internal_{name}_local_count");
@@ -481,38 +524,26 @@ fn compile_expression(
         ast::Expression::AddressOf(s) => {
             if let Some(v) = scope.get(ctx, &s.0) {
                 match v {
-                    BlockVariable::Local(i, _) => Ok(vec![
-                        UnresolvedInstruction::Instruction(Instruction::Add(
-                            Register::BP,
-                            Register::Zero,
-                            Register::C,
-                        )),
-                        UnresolvedInstruction::Instruction(Instruction::AddImm(
-                            Register::C,
-                            Literal7Bit::new_checked(i as u8 * 2).unwrap(),
-                        )),
-                        UnresolvedInstruction::Instruction(Instruction::Stack(
+                    BlockVariable::Local(i, _) => {
+                        let mut out = Vec::new();
+                        load_local_addr_to(&mut out, i as u8, Register::C);
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                             Register::C,
                             Register::SP,
                             StackOp::Push,
-                        )),
-                    ]),
-                    BlockVariable::Arg(i, _) => Ok(vec![
-                        UnresolvedInstruction::Instruction(Instruction::Add(
-                            Register::BP,
-                            Register::Zero,
-                            Register::C,
-                        )),
-                        UnresolvedInstruction::Instruction(Instruction::AddImmSigned(
-                            Register::C,
-                            Literal7Bit::from_signed(-2 * (i as i8 + 3)).unwrap(),
-                        )),
-                        UnresolvedInstruction::Instruction(Instruction::Stack(
+                        )));
+                        Ok(out)
+                    }
+                    BlockVariable::Arg(i, _) => {
+                        let mut out = Vec::new();
+                        load_arg_addr_to(&mut out, i as u8, Register::C);
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                             Register::C,
                             Register::SP,
                             StackOp::Push,
-                        )),
-                    ]),
+                        )));
+                        Ok(out)
+                    }
                     BlockVariable::Global(addr, _) => {
                         let mut out = Vec::new();
                         out.extend(load_address_to(addr, Register::C, Register::Zero));
@@ -869,8 +900,11 @@ pub fn compile(
                     )));
 
                 // TODO: copy this for function defs rather than lookup in compile_body
-                for (name, _type) in args {
-                    block.define_arg(&name.0);
+                for (name, arg_type) in args {
+                    block.define_arg(
+                        &name.0,
+                        &Type::from_ast(&ctx, &arg_type).map_err(|e| (ctx.clone(), e))?,
+                    );
                 }
                 block.offset = program_offset;
                 let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
@@ -945,4 +979,98 @@ fn binop_compare(out: &mut Vec<UnresolvedInstruction>, a: Register, b: Register,
         Register::SP,
         StackOp::Push,
     )));
+}
+
+fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, index: u8) {
+    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+        Register::C,
+        Register::SP,
+        StackOp::Pop,
+    )));
+    out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+        Register::BP,
+        Register::Zero,
+        Register::B,
+    )));
+    out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
+        Register::B,
+        Literal7Bit::new_checked(index as u8 * 2).unwrap(),
+    )));
+    out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
+        Register::B,
+        Register::Zero,
+        Register::C,
+    )));
+}
+
+fn load_local_addr_to(out: &mut Vec<UnresolvedInstruction>, index: u8, reg: Register) {
+    out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+        Register::BP,
+        Register::Zero,
+        reg,
+    )));
+    out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
+        reg,
+        Literal7Bit::new_checked(index as u8 * 2).unwrap(),
+    )));
+}
+
+fn assign_from_stack_to_arg(out: &mut Vec<UnresolvedInstruction>, index: u8) {
+    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+        Register::C,
+        Register::SP,
+        StackOp::Pop,
+    )));
+    out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+        Register::BP,
+        Register::Zero,
+        Register::B,
+    )));
+    out.push(UnresolvedInstruction::Instruction(
+        Instruction::AddImmSigned(
+            Register::B,
+            Literal7Bit::from_signed(-2 * (index as i8 + 3)).unwrap(),
+        ),
+    ));
+    out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
+        Register::B,
+        Register::Zero,
+        Register::C,
+    )));
+}
+
+fn load_arg_addr_to(out: &mut Vec<UnresolvedInstruction>, index: u8, reg: Register) {
+    out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+        Register::BP,
+        Register::Zero,
+        reg,
+    )));
+    out.push(UnresolvedInstruction::Instruction(
+        Instruction::AddImmSigned(
+            reg,
+            Literal7Bit::from_signed(-2 * (index as i8 + 3)).unwrap(),
+        ),
+    ));
+}
+
+fn write_value(
+    out: &mut Vec<UnresolvedInstruction>,
+    ty: Type,
+    reg_value: Register,
+    reg_addr: Register,
+) {
+    match ty.size_bytes() {
+        0 => (),
+        1 => out.push(UnresolvedInstruction::Instruction(Instruction::StoreByte(
+            reg_addr,
+            Register::Zero,
+            reg_value,
+        ))),
+        2 => out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
+            reg_addr,
+            Register::Zero,
+            reg_value,
+        ))),
+        n => panic!("uh oh we can't assign {n} bytes by value"),
+    }
 }
