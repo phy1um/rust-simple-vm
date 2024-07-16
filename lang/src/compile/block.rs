@@ -20,11 +20,28 @@ pub struct LoopLabels {
     pub bottom: Symbol,
 }
 
+#[derive(Debug, Clone)]
+pub struct LocalDefinition {
+    name: String,
+    offset: usize,
+    var_type: Type,
+}
+
+impl LocalDefinition {
+    fn new(name: &str, offset: usize, var_type: &Type) -> Self {
+        Self {
+            name: name.to_owned(),
+            offset,
+            var_type: var_type.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct BlockScope {
     parent_func: Rc<RefCell<Block>>,
     pub loop_labels: Option<LoopLabels>,
-    pub locals: Vec<(String, usize, Type)>,
+    pub locals: Vec<LocalDefinition>,
 }
 
 impl BlockScope {
@@ -53,15 +70,15 @@ impl BlockScope {
 
     pub fn define_local(&mut self, s: &str, t: &Type) -> usize {
         let mut fn_block = self.parent_func.borrow_mut();
-        let index = fn_block.next_local_index();
-        self.locals.push((s.to_owned(), index, t.clone()));
-        index
+        let offset = fn_block.allocate_local_space(t);
+        self.locals.push(LocalDefinition::new(s, offset, t));
+        offset
     }
 
     fn get_local(&self, s: &str) -> Option<(usize, Type)> {
-        for (k, i, t) in &self.locals {
-            if k == s {
-                return Some((*i, t.clone()));
+        for def in &self.locals {
+            if def.name == s {
+                return Some((def.offset, def.var_type.clone()));
             }
         }
         None
@@ -96,6 +113,7 @@ pub struct Block {
     pub instructions: Vec<UnresolvedInstruction>,
     pub offset: u32,
     pub local_count: usize,
+    pub local_offset: usize,
     pub args: Vec<(String, Type)>,
 }
 
@@ -115,9 +133,11 @@ impl Block {
         self.args.push((s.to_owned(), t.clone()));
     }
 
-    pub fn next_local_index(&mut self) -> usize {
-        let out = self.local_count;
-        self.local_count += 1;
-        out
+    fn allocate_local_space(&mut self, t: &Type) -> usize {
+        let out = self.local_offset;
+        let size = t.size_bytes();
+        let align = if size > 1 && out % 2 == 0 { 1 } else { 0 };
+        self.local_offset += t.size_bytes() + align;
+        out + align
     }
 }

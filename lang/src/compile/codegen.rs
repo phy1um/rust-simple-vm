@@ -129,7 +129,7 @@ fn compile_block(
                     expr_type
                 };
 
-                let local_index = scope.define_local(&id.0, &var_type);
+                let local_offset = scope.define_local(&id.0, &var_type);
                 // put expression on top of stack
                 let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                 out.append(&mut compiled_expr);
@@ -145,7 +145,7 @@ fn compile_block(
                 )));
                 out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
                     Register::B,
-                    Literal7Bit::new_checked(local_index as u8 * 2).unwrap(),
+                    Literal7Bit::new_checked(local_offset as u8).unwrap(),
                 )));
                 write_value(&mut out, &var_type, Register::C, Register::B);
             }
@@ -168,10 +168,10 @@ fn compile_block(
             ast::Statement::Assign(id, expr) => {
                 if let Some(bv) = scope.get(ctx, &id.0) {
                     match bv {
-                        BlockVariable::Local(index, ty) => {
+                        BlockVariable::Local(offset, ty) => {
                             let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                             out.append(&mut compiled_expr);
-                            assign_from_stack_to_local(&mut out, &ty, index as u8);
+                            assign_from_stack_to_local(&mut out, &ty, offset as u8);
                         }
                         BlockVariable::Arg(index, tt) => {
                             let expr_type = type_of(ctx, &scope, expr.as_ref());
@@ -274,8 +274,8 @@ fn compile_block(
 
                 // 0. load address of thing based on var type -> C
                 match &bv {
-                    BlockVariable::Local(index, _) => {
-                        load_local_addr_to(&mut out, *index as u8, Register::C)
+                    BlockVariable::Local(offset, _) => {
+                        load_local_addr_to(&mut out, *offset as u8, Register::C)
                     }
                     BlockVariable::Arg(index, _) => {
                         load_arg_addr_to(&mut out, *index as u8, Register::C)
@@ -514,9 +514,9 @@ fn compile_expression(
         ast::Expression::AddressOf(s) => {
             if let Some(v) = scope.get(ctx, &s.0) {
                 match v {
-                    BlockVariable::Local(i, _) => {
+                    BlockVariable::Local(offset, _) => {
                         let mut out = Vec::new();
-                        load_local_addr_to(&mut out, i as u8, Register::C);
+                        load_local_addr_to(&mut out, offset as u8, Register::C);
                         out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                             Register::C,
                             Register::SP,
@@ -553,7 +553,7 @@ fn compile_expression(
         ast::Expression::Variable(s) => {
             if let Some(v) = scope.get(ctx, &s) {
                 match v {
-                    BlockVariable::Local(i, _) => Ok(vec![
+                    BlockVariable::Local(offset, _) => Ok(vec![
                         UnresolvedInstruction::Instruction(Instruction::Add(
                             Register::BP,
                             Register::Zero,
@@ -561,7 +561,7 @@ fn compile_expression(
                         )),
                         UnresolvedInstruction::Instruction(Instruction::AddImm(
                             Register::C,
-                            Literal7Bit::new_checked(i as u8 * 2).unwrap(),
+                            Literal7Bit::new_checked(offset as u8).unwrap(),
                         )),
                         UnresolvedInstruction::Instruction(Instruction::LoadWord(
                             Register::C,
@@ -803,7 +803,7 @@ pub fn compile(
                 block.register_labels(&mut ctx, program_offset);
                 let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
                 let local_count_sym = format!("__internal_{name}_local_count");
-                ctx.define(&Symbol::new(&local_count_sym), block.local_count as u32 * 2);
+                ctx.define(&Symbol::new(&local_count_sym), block.local_offset as u32);
                 ctx.functions.push(block);
                 program_offset += block_size;
             }
@@ -971,7 +971,7 @@ fn binop_compare(out: &mut Vec<UnresolvedInstruction>, a: Register, b: Register,
     )));
 }
 
-fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, ty: &Type, index: u8) {
+fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, ty: &Type, offset: u8) {
     out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
         Register::C,
         Register::SP,
@@ -984,12 +984,12 @@ fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, ty: &Type, i
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
         Register::B,
-        Literal7Bit::new_checked(index as u8 * 2).unwrap(),
+        Literal7Bit::new_checked(offset as u8).unwrap(),
     )));
     write_value(out, &ty, Register::C, Register::B);
 }
 
-fn load_local_addr_to(out: &mut Vec<UnresolvedInstruction>, index: u8, reg: Register) {
+fn load_local_addr_to(out: &mut Vec<UnresolvedInstruction>, offset: u8, reg: Register) {
     out.push(UnresolvedInstruction::Instruction(Instruction::Add(
         Register::BP,
         Register::Zero,
@@ -997,7 +997,7 @@ fn load_local_addr_to(out: &mut Vec<UnresolvedInstruction>, index: u8, reg: Regi
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
         reg,
-        Literal7Bit::new_checked(index as u8 * 2).unwrap(),
+        Literal7Bit::new_checked(offset as u8).unwrap(),
     )));
 }
 
