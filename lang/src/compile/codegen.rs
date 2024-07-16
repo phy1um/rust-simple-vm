@@ -155,9 +155,6 @@ fn compile_block(
                 }
                 if let Some(tt) = t {
                     let declared_type = Type::from_ast(ctx, &tt)?;
-                    if declared_type.is_struct() {
-                        todo!("struct value unsupported");
-                    }
                     scope.define_local(&id.0, &declared_type);
                 } else {
                     return Err(CompilerError::InvalidUntypedVariableDeclration(

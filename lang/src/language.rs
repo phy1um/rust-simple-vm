@@ -226,6 +226,14 @@ pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> 
     ))
 }
 
+pub fn statement_variable_declare_novalue(input: &str) -> CResult<&str, ast::Statement> {
+    let (s0, _) = skip_whitespace(token("let"))(input)?;
+    let (s1, variable_type) = skip_whitespace(parse_type)(s0)?;
+    let (s2, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s1)?;
+    let (s3, _) = skip_whitespace(token(";"))(s2).map_err(ConfidenceError::elevate)?;
+    Ok((s3, ast::Statement::Declare(id, Some(variable_type), None)))
+}
+
 pub fn statement_variable_declare_infer(input: &str) -> CResult<&str, ast::Statement> {
     let (s0, _) = skip_whitespace(token("let"))(input)?;
     let (s1, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
@@ -324,6 +332,7 @@ pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
         statement_variable_assign,
         statement_variable_declare_infer,
         statement_variable_declare,
+        statement_variable_declare_novalue,
         statement_return,
         statement_continue,
         statement_break,
@@ -535,15 +544,33 @@ mod test {
 
     #[test]
     fn test_declare() {
-        let expected = Statement::Declare(
-            Identifier::new("bar"),
-            Some(Type::Char),
-            Some(Box::new(Expression::LiteralChar('a'))),
-        );
-        assert_eq!(
-            expected,
-            run_parser(statement_variable_declare, "let char bar := 'a';").unwrap()
-        );
+        {
+            let expected = Statement::Declare(
+                Identifier::new("bar"),
+                Some(Type::Char),
+                Some(Box::new(Expression::LiteralChar('a'))),
+            );
+            assert_eq!(
+                expected,
+                run_parser(statement_variable_declare, "let char bar := 'a';").unwrap()
+            );
+        }
+        {
+            let expected = "let Foo x;";
+            assert_eq!(
+                expected,
+                run_parser(statement_variable_declare_novalue, expected)
+                    .unwrap()
+                    .to_string()
+            );
+        }
+        {
+            let expected = "let Foo x;";
+            assert_eq!(
+                expected,
+                run_parser(statement, expected).unwrap().to_string()
+            );
+        }
     }
 
     #[test]
