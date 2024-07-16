@@ -147,11 +147,7 @@ fn compile_block(
                     Register::B,
                     Literal7Bit::new_checked(local_index as u8 * 2).unwrap(),
                 )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
-                    Register::B,
-                    Register::Zero,
-                    Register::C,
-                )));
+                write_value(&mut out, &var_type, Register::C, Register::B);
             }
             ast::Statement::Declare(id, t, None) => {
                 if scope.get(ctx, &id.0).is_some() {
@@ -172,10 +168,10 @@ fn compile_block(
             ast::Statement::Assign(id, expr) => {
                 if let Some(bv) = scope.get(ctx, &id.0) {
                     match bv {
-                        BlockVariable::Local(index, _) => {
+                        BlockVariable::Local(index, ty) => {
                             let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
                             out.append(&mut compiled_expr);
-                            assign_from_stack_to_local(&mut out, index as u8);
+                            assign_from_stack_to_local(&mut out, &ty, index as u8);
                         }
                         BlockVariable::Arg(index, tt) => {
                             let expr_type = type_of(ctx, &scope, expr.as_ref());
@@ -207,11 +203,7 @@ fn compile_block(
                                 StackOp::Pop,
                             )));
                             out.extend(load_address_to(addr, Register::B, Register::M));
-                            out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
-                                Register::B,
-                                Register::Zero,
-                                Register::C,
-                            )));
+                            write_value(&mut out, &tt, Register::C, Register::B);
                         }
                         _ => todo!("unimplemented {bv:?}"),
                     }
@@ -220,6 +212,8 @@ fn compile_block(
                 }
             }
             ast::Statement::AssignDeref { lhs, rhs } => {
+                // TODO: check we can assign
+                let lhs_type = type_of(ctx, &scope, &lhs);
                 let compiled_addr = compile_expression(ctx, &mut scope, lhs)?;
                 let compiled_value = compile_expression(ctx, &mut scope, rhs)?;
                 out.extend(compiled_addr);
@@ -234,11 +228,7 @@ fn compile_block(
                     Register::SP,
                     StackOp::Pop,
                 )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
-                    Register::C,
-                    Register::Zero,
-                    Register::B,
-                )));
+                write_value(&mut out, &lhs_type, Register::B, Register::C);
             }
             ast::Statement::AssignStructField { fields, rhs } => {
                 let head = fields.first().expect("this is a parser issue");
@@ -312,7 +302,7 @@ fn compile_block(
                     StackOp::Pop,
                 )));
                 // 3. write value
-                write_value(&mut out, rhs_type, Register::B, Register::C);
+                write_value(&mut out, &rhs_type, Register::B, Register::C);
             }
             ast::Statement::Return(expr) => {
                 let mut compiled_expr = compile_expression(ctx, &mut scope, expr)?;
@@ -981,7 +971,7 @@ fn binop_compare(out: &mut Vec<UnresolvedInstruction>, a: Register, b: Register,
     )));
 }
 
-fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, index: u8) {
+fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, ty: &Type, index: u8) {
     out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
         Register::C,
         Register::SP,
@@ -996,11 +986,7 @@ fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, index: u8) {
         Register::B,
         Literal7Bit::new_checked(index as u8 * 2).unwrap(),
     )));
-    out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
-        Register::B,
-        Register::Zero,
-        Register::C,
-    )));
+    write_value(out, &ty, Register::C, Register::B);
 }
 
 fn load_local_addr_to(out: &mut Vec<UnresolvedInstruction>, index: u8, reg: Register) {
@@ -1055,7 +1041,7 @@ fn load_arg_addr_to(out: &mut Vec<UnresolvedInstruction>, index: u8, reg: Regist
 
 fn write_value(
     out: &mut Vec<UnresolvedInstruction>,
-    ty: Type,
+    ty: &Type,
     reg_value: Register,
     reg_addr: Register,
 ) {
