@@ -646,6 +646,20 @@ mod test {
                 run_parser(expression_binop, expected).unwrap().to_string()
             );
         }
+        {
+            let expected = "foo < 79";
+            assert_eq!(
+                expected,
+                run_parser(expression_binop, expected).unwrap().to_string()
+            );
+        }
+        {
+            let expected = "xyzz > 9";
+            assert_eq!(
+                expected,
+                run_parser(expression_binop, expected).unwrap().to_string()
+            );
+        }
     }
 
     #[test]
