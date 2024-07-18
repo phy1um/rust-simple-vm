@@ -249,6 +249,26 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
                 | ast::BinOp::LessThanEqual => Type::Int,
             }
         }
+        ast::Expression::FieldDeref(lhs, field) => {
+            let ty = type_of(ctx, scope, lhs);
+            let fields = {
+                if let Type::Struct(fs) = ty {
+                    fs
+                } else if let Type::Pointer(t) = ty {
+                    if let Type::Struct(fs) = *t {
+                        fs
+                    } else {
+                        HashMap::new()
+                    }
+                } else {
+                    HashMap::new()
+                }
+            };
+            fields
+                .get(&field.0)
+                .map(|(t, _)| t.clone())
+                .unwrap_or(Type::Void)
+        }
     }
 }
 

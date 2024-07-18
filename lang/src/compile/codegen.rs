@@ -43,7 +43,7 @@ fn compile_block(
                 let label_test = Symbol::new(&(block_identifier.to_string() + "_while_lbl_test"));
                 let label_out = Symbol::new(&(block_identifier + "_while_lbl_out"));
                 out.push(UnresolvedInstruction::Label(label_test.clone()));
-                let mut compiled_cond = compile_expression(ctx, &mut scope, cond)?;
+                let mut compiled_cond = compile_expression(ctx, &mut scope, &cond)?;
                 out.append(&mut compiled_cond);
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                     Register::C,
@@ -74,7 +74,7 @@ fn compile_block(
                 let block_identifier = gensym(rand::thread_rng());
                 let label_true = Symbol::new(&(block_identifier.to_string() + "_if_lbl_true"));
                 let label_out = Symbol::new(&(block_identifier + "_if_lbl_out"));
-                let mut compiled_cond = compile_expression(ctx, &mut scope, cond)?;
+                let mut compiled_cond = compile_expression(ctx, &mut scope, &cond)?;
                 out.append(&mut compiled_cond);
                 // test if condition is FALSY
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -131,7 +131,7 @@ fn compile_block(
 
                 let local_offset = scope.define_local(&id.0, &var_type);
                 // put expression on top of stack
-                let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
+                let mut compiled_expr = compile_expression(ctx, &mut scope, &expr)?;
                 out.append(&mut compiled_expr);
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                     Register::C,
@@ -166,7 +166,7 @@ fn compile_block(
                 if let Some(bv) = scope.get(ctx, &id.0) {
                     match bv {
                         BlockVariable::Local(offset, ty) => {
-                            let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
+                            let mut compiled_expr = compile_expression(ctx, &mut scope, &expr)?;
                             out.append(&mut compiled_expr);
                             assign_from_stack_to_local(&mut out, &ty, offset as u8);
                         }
@@ -178,7 +178,7 @@ fn compile_block(
                                     to: tt,
                                 });
                             }
-                            let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
+                            let mut compiled_expr = compile_expression(ctx, &mut scope, &expr)?;
                             out.append(&mut compiled_expr);
                             assign_from_stack_to_arg(&mut out, index as u8);
                         }
@@ -192,7 +192,7 @@ fn compile_block(
                                 });
                             }
 
-                            let mut compiled_expr = compile_expression(ctx, &mut scope, *expr)?;
+                            let mut compiled_expr = compile_expression(ctx, &mut scope, &expr)?;
                             out.append(&mut compiled_expr);
                             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                                 Register::C,
@@ -211,8 +211,8 @@ fn compile_block(
             ast::Statement::AssignDeref { lhs, rhs } => {
                 // TODO: check we can assign
                 let lhs_type = type_of(ctx, &scope, &lhs);
-                let compiled_addr = compile_expression(ctx, &mut scope, lhs)?;
-                let compiled_value = compile_expression(ctx, &mut scope, rhs)?;
+                let compiled_addr = compile_expression(ctx, &mut scope, &lhs)?;
+                let compiled_value = compile_expression(ctx, &mut scope, &rhs)?;
                 out.extend(compiled_addr);
                 out.extend(compiled_value);
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -231,7 +231,7 @@ fn compile_block(
                 let head = fields.first().expect("this is a parser issue");
                 let field = fields.get(1).expect("must have 2");
                 let rhs_type = type_of(ctx, &scope, &rhs);
-                let mut compiled_expr = compile_expression(ctx, &mut scope, rhs)?;
+                let mut compiled_expr = compile_expression(ctx, &mut scope, &rhs)?;
                 out.append(&mut compiled_expr);
                 let bv = scope
                     .get(ctx, &head.0)
@@ -302,7 +302,7 @@ fn compile_block(
                 write_value(&mut out, &rhs_type, Register::B, Register::C);
             }
             ast::Statement::Return(expr) => {
-                let mut compiled_expr = compile_expression(ctx, &mut scope, expr)?;
+                let mut compiled_expr = compile_expression(ctx, &mut scope, &expr)?;
                 out.append(&mut compiled_expr);
                 // return in the A register
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -312,7 +312,7 @@ fn compile_block(
                 )));
             }
             ast::Statement::Expression(expr) => {
-                let mut compiled_expr = compile_expression(ctx, &mut scope, expr)?;
+                let mut compiled_expr = compile_expression(ctx, &mut scope, &expr)?;
                 out.append(&mut compiled_expr);
                 // forget what we just did
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -403,16 +403,16 @@ fn compile_body(
 fn compile_expression(
     ctx: &Context,
     scope: &mut BlockScope,
-    expr: ast::Expression,
+    expr: &ast::Expression,
 ) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     match expr {
-        ast::Expression::Bracketed(e) => compile_expression(ctx, scope, *e),
+        ast::Expression::Bracketed(e) => compile_expression(ctx, scope, &e),
         ast::Expression::LiteralInt(i) => {
-            if i <= 0xfff {
+            if *i <= 0xfff {
                 Ok(vec![
                     UnresolvedInstruction::Instruction(Instruction::Imm(
                         Register::C,
-                        Literal12Bit::new_checked(i as u16).unwrap(),
+                        Literal12Bit::new_checked(*i as u16).unwrap(),
                     )),
                     UnresolvedInstruction::Instruction(Instruction::Stack(
                         Register::C,
@@ -420,11 +420,11 @@ fn compile_expression(
                         StackOp::Push,
                     )),
                 ])
-            } else if i <= 0xffff && (i & 0xf) == 0 {
+            } else if *i <= 0xffff && (*i & 0xf) == 0 {
                 Ok(vec![
                     UnresolvedInstruction::Instruction(Instruction::Imm(
                         Register::C,
-                        Literal12Bit::new_checked((i >> 4) as u16).unwrap(),
+                        Literal12Bit::new_checked((*i >> 4) as u16).unwrap(),
                     )),
                     UnresolvedInstruction::Instruction(Instruction::ShiftLeft(
                         Register::C,
@@ -437,11 +437,11 @@ fn compile_expression(
                         StackOp::Push,
                     )),
                 ])
-            } else if i <= 0xffff {
+            } else if *i <= 0xffff {
                 Ok(vec![
                     UnresolvedInstruction::Instruction(Instruction::Imm(
                         Register::C,
-                        Literal12Bit::new_checked((i >> 4) as u16).unwrap(),
+                        Literal12Bit::new_checked((*i >> 4) as u16).unwrap(),
                     )),
                     UnresolvedInstruction::Instruction(Instruction::ShiftLeft(
                         Register::C,
@@ -450,7 +450,7 @@ fn compile_expression(
                     )),
                     UnresolvedInstruction::Instruction(Instruction::AddImm(
                         Register::C,
-                        Literal7Bit::new_checked((i & 0xf) as u8).unwrap(),
+                        Literal7Bit::new_checked((*i & 0xf) as u8).unwrap(),
                     )),
                     UnresolvedInstruction::Instruction(Instruction::Stack(
                         Register::C,
@@ -465,7 +465,7 @@ fn compile_expression(
         ast::Expression::LiteralChar(c) => Ok(vec![
             UnresolvedInstruction::Instruction(Instruction::Imm(
                 Register::C,
-                Literal12Bit::new_checked(c as u16).unwrap(),
+                Literal12Bit::new_checked(*c as u16).unwrap(),
             )),
             UnresolvedInstruction::Instruction(Instruction::Stack(
                 Register::C,
@@ -480,7 +480,7 @@ fn compile_expression(
                 return Err(CompilerError::DerefInvalidType(inner_type));
             }
             let mut out = Vec::new();
-            out.extend(compile_expression(ctx, scope, *e)?);
+            out.extend(compile_expression(ctx, scope, &e)?);
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                 Register::C,
                 Register::SP,
@@ -601,13 +601,13 @@ fn compile_expression(
                     _ => panic!("block variable type unhandled"),
                 }
             } else {
-                Err(CompilerError::VariableUndefined(s))
+                Err(CompilerError::VariableUndefined(s.to_string()))
             }
         }
         ast::Expression::FunctionCall(id, args) => {
             let mut out = Vec::new();
             for a in args.iter().rev() {
-                out.append(&mut compile_expression(ctx, scope, a.clone())?);
+                out.append(&mut compile_expression(ctx, scope, a)?);
             }
             out.append(&mut vec![
                 UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -637,9 +637,9 @@ fn compile_expression(
         }
         ast::Expression::BinOp(e0, e1, op) => {
             let mut out = Vec::new();
-            out.append(&mut compile_expression(ctx, scope, *e1)?);
+            out.append(&mut compile_expression(ctx, scope, &e1)?);
             // expression 1 is on top of stack
-            out.append(&mut compile_expression(ctx, scope, *e0)?);
+            out.append(&mut compile_expression(ctx, scope, &e0)?);
             // stack = [rv0, rv1]
             match op {
                 ast::BinOp::Add => out.push(UnresolvedInstruction::Instruction(
@@ -682,6 +682,56 @@ fn compile_expression(
 
                 _ => panic!("unimplemented binop {op}"),
             }
+            Ok(out)
+        }
+        ast::Expression::FieldDeref(lhs, field) => {
+            let mut out = Vec::new();
+            let expr = compile_expression(ctx, scope, lhs)?;
+            out.extend(expr);
+            let ty = type_of(ctx, scope, &lhs);
+            let fields = {
+                if let Type::Struct(fs) = ty.clone() {
+                    fs
+                } else if let Type::Pointer(t) = ty.clone() {
+                    if let Type::Struct(fs) = *t {
+                        fs
+                    } else {
+                        return Err(CompilerError::NonStructFieldReference(
+                            lhs.to_string(),
+                            ty.clone(),
+                        ));
+                    }
+                } else {
+                    return Err(CompilerError::NonStructFieldReference(
+                        lhs.to_string(),
+                        ty.clone(),
+                    ));
+                }
+            };
+            let (field_type, offset) = fields
+                .get(&field.0)
+                .ok_or(CompilerError::VariableUndefined(field.0.to_string()))?;
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                Register::C,
+                Register::SP,
+                StackOp::Pop,
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
+                Register::C,
+                Literal7Bit::new_checked(*offset as u8).unwrap(),
+            )));
+            if !field_type.is_struct() {
+                out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
+                    Register::C,
+                    Register::C,
+                    Register::Zero,
+                )));
+            }
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                Register::C,
+                Register::SP,
+                StackOp::Push,
+            )));
             Ok(out)
         }
     }

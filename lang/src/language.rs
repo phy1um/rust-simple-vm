@@ -160,11 +160,37 @@ pub fn expression_binop(input: &str) -> CResult<&str, ast::Expression> {
     ))
 }
 
+fn build_struct_fields_expr(fields: &[ast::Identifier]) -> ast::Expression {
+    if fields.len() == 2 {
+        ast::Expression::FieldDeref(
+            Box::new(ast::Expression::Variable(
+                fields.get(0).unwrap().to_string(),
+            )),
+            fields.get(1).unwrap().clone(),
+        )
+    } else if fields.len() > 2 {
+        ast::Expression::FieldDeref(
+            Box::new(build_struct_fields_expr(&fields[0..fields.len() - 1])),
+            fields.last().unwrap().clone(),
+        )
+    } else {
+        panic!("uh oh");
+    }
+}
+
+pub fn expression_struct_fields(input: &str) -> CResult<&str, ast::Expression> {
+    let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
+    let (s1, mut fields) = repeat1(dotted_field)(s0)?;
+    fields.insert(0, id);
+    Ok((s1, build_struct_fields_expr(&fields)))
+}
+
 fn expression_lhs(input: &str) -> CResult<&str, ast::Expression> {
     AnyCollectErr::new(vec![
         expression_literal_int_base16,
         expression_literal_int_base10,
         expression_literal_char,
+        expression_struct_fields,
         expression_call,
         expression_address_of,
         expression_variable,
@@ -689,6 +715,33 @@ int y,
             assert_eq!(
                 expected,
                 run_parser(type_definition, expected).unwrap().to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn test_struct_fields() {
+        {
+            let expected = "foo.bar.baz.xyz";
+            assert_eq!(
+                expected,
+                run_parser(expression_struct_fields, expected)
+                    .unwrap()
+                    .to_string()
+            );
+        }
+        {
+            let expected = "foo.bar.baz.xyz";
+            assert_eq!(
+                expected,
+                run_parser(expression, expected).unwrap().to_string()
+            );
+        }
+        {
+            let expected = "bar.baz.xyz + foo.x.y";
+            assert_eq!(
+                expected,
+                run_parser(expression, expected).unwrap().to_string()
             );
         }
     }

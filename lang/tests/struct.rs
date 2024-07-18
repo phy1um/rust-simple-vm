@@ -23,3 +23,32 @@ void main() {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 5);
 }
+
+#[test]
+fn struct_field_set() {
+    let test = "
+type Array := struct {
+  *void ptr,
+  int len,
+};
+
+int main() {
+  let *Array y := makearray();
+  setlen(y, 82);
+  return y.len;
+}
+
+*Array makearray() {
+  let *Array out := 0x1000;
+  out.ptr := 0x2000;
+  out.len := 0;
+  return out;
+}
+
+void setlen(*Array a, int len) {
+  a.len := len; 
+}
+";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 82);
+}
