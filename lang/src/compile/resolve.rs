@@ -186,22 +186,6 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
     match expr {
         ast::Expression::LiteralInt(_) => Type::Int,
         ast::Expression::LiteralChar(_) => Type::Char,
-        ast::Expression::Variable(name) => {
-            if let Some(bv) = scope.get(ctx, name) {
-                match bv {
-                    BlockVariable::Local(_, t) => t,
-                    BlockVariable::Arg(_, t) => t,
-                    BlockVariable::Const(_) => Type::Int,
-                    BlockVariable::Global(_, t) => t,
-                }
-            } else if ctx.symbols.contains_key(name) {
-                Type::Int
-            } else {
-                // undefined variables become void to maximize error info?
-                // alternate: cast to unchecked ints which cast to anything
-                Type::Void
-            }
-        }
         ast::Expression::AddressOf(fields) => get_fields_type(ctx, scope, fields),
         ast::Expression::Deref(expr) => {
             let inner_type = type_of(ctx, scope, expr);
@@ -235,16 +219,29 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
                 | ast::BinOp::LessThanEqual => Type::Int,
             }
         }
-        ast::Expression::FieldDeref(fields) => get_fields_type(ctx, scope, fields),
+        ast::Expression::Variable(fields) => get_fields_type(ctx, scope, fields),
+    }
+}
+
+fn variable_type(ctx: &Context, scope: &BlockScope, name: &str) -> Type {
+    if let Some(bv) = scope.get(ctx, name) {
+        match bv {
+            BlockVariable::Local(_, t) => t,
+            BlockVariable::Arg(_, t) => t,
+            BlockVariable::Const(_) => Type::Int,
+            BlockVariable::Global(_, t) => t,
+        }
+    } else if ctx.symbols.contains_key(name) {
+        Type::Int
+    } else {
+        // undefined variables become void to maximize error info?
+        // alternate: cast to unchecked ints which cast to anything
+        Type::Void
     }
 }
 
 fn get_fields_type(ctx: &Context, scope: &BlockScope, fields: &[ast::Identifier]) -> Type {
-    let mut head_type = type_of(
-        ctx,
-        scope,
-        &ast::Expression::Variable(fields.first().unwrap().to_string()),
-    );
+    let mut head_type = variable_type(ctx, scope, &fields.first().unwrap().0);
     for field in &fields[1..] {
         let struct_fields = {
             if let Type::Struct(fs) = head_type {

@@ -494,63 +494,6 @@ fn compile_expression(
             )));
             Ok(out)
         }
-        ast::Expression::Variable(s) => {
-            if let Some(v) = scope.get(ctx, &s) {
-                match v {
-                    BlockVariable::Local(offset, _) => Ok(vec![
-                        UnresolvedInstruction::Instruction(Instruction::Add(
-                            Register::BP,
-                            Register::Zero,
-                            Register::C,
-                        )),
-                        UnresolvedInstruction::Instruction(Instruction::AddImm(
-                            Register::C,
-                            Literal7Bit::new_checked(offset as u8).unwrap(),
-                        )),
-                        UnresolvedInstruction::Instruction(Instruction::LoadWord(
-                            Register::C,
-                            Register::C,
-                            Register::Zero,
-                        )),
-                        UnresolvedInstruction::Instruction(Instruction::Stack(
-                            Register::C,
-                            Register::SP,
-                            StackOp::Push,
-                        )),
-                    ]),
-                    BlockVariable::Arg(i, _) => Ok(vec![
-                        UnresolvedInstruction::Instruction(Instruction::LoadStackOffset(
-                            Register::C,
-                            Register::BP,
-                            Nibble::new_checked(i as u8 + 3).unwrap(),
-                        )),
-                        UnresolvedInstruction::Instruction(Instruction::Stack(
-                            Register::C,
-                            Register::SP,
-                            StackOp::Push,
-                        )),
-                    ]),
-                    BlockVariable::Global(addr, _) => {
-                        let mut out = Vec::new();
-                        out.extend(load_address_to(addr, Register::B, Register::M));
-                        out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
-                            Register::C,
-                            Register::B,
-                            Register::Zero,
-                        )));
-                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                            Register::C,
-                            Register::SP,
-                            StackOp::Push,
-                        )));
-                        Ok(out)
-                    }
-                    _ => panic!("block variable type unhandled"),
-                }
-            } else {
-                Err(CompilerError::VariableUndefined(s.to_string()))
-            }
-        }
         ast::Expression::FunctionCall(id, args) => {
             let mut out = Vec::new();
             for a in args.iter().rev() {
@@ -631,9 +574,9 @@ fn compile_expression(
             }
             Ok(out)
         }
-        ast::Expression::FieldDeref(fields) => {
+        ast::Expression::Variable(fields) => {
             let mut out = Vec::new();
-            let expr_type = type_of(ctx, &scope, &ast::Expression::FieldDeref(fields.to_vec()));
+            let expr_type = type_of(ctx, &scope, &ast::Expression::Variable(fields.to_vec()));
             if fields.is_empty() {
                 panic!("unreachable");
             }
@@ -1061,7 +1004,9 @@ fn get_stack_field_offset(
 ) -> Result<(), CompilerError> {
     let head_name = fields.first().unwrap();
 
-    if var_type.is_pointer() {
+    // check for special case of 1 field, as then we don't want to deref
+    // eg let *int b := 2; return b; <-- this needs to return 2
+    if var_type.is_pointer() && fields.len() > 1 {
         match head_var {
             BlockVariable::Local(offset, _) => {
                 load_local_addr_to(out, *offset as u8, target_register);
@@ -1149,7 +1094,7 @@ fn get_stack_field_offset(
             target_register,
             Literal7Bit::new_checked(field_offset as u8).unwrap(),
         )));
-        if field_type.is_pointer() && i != fields.len() - 1 {
+        if field_type.is_pointer() && i < fields.len() - 2 {
             out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
                 target_register,
                 target_register,
