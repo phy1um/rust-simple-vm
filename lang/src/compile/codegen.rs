@@ -228,70 +228,33 @@ fn compile_block(
                 write_value(&mut out, &lhs_type, Register::B, Register::C);
             }
             ast::Statement::AssignStructField { fields, rhs } => {
-                let head = fields.first().expect("this is a parser issue");
-                let field = fields.get(1).expect("must have 2");
-                let rhs_type = type_of(ctx, &scope, &rhs);
-                let mut compiled_expr = compile_expression(ctx, &mut scope, &rhs)?;
-                out.append(&mut compiled_expr);
-                let bv = scope
+                println!("asssign struct field: {fields:?} = {rhs}");
+                let compiled_expr = compile_expression(ctx, &mut scope, &rhs)?;
+                out.extend(compiled_expr);
+                if fields.is_empty() {
+                    panic!("unreachable");
+                }
+                let head = fields.first().expect("parser issue");
+                let head_var = scope
                     .get(ctx, &head.0)
                     .ok_or(CompilerError::VariableUndefined(head.0.to_string()))?;
-                let var_type = match &bv {
+
+                let var_type = match &head_var {
                     BlockVariable::Local(_, ty) => ty,
                     BlockVariable::Arg(_, ty) => ty,
                     BlockVariable::Global(_, ty) => ty,
                     BlockVariable::Const(_) => &Type::Int,
                 };
-                let struct_fields = match var_type.clone() {
-                    Type::Struct(sf) => sf,
-                    Type::Pointer(t) => {
-                        if let Type::Struct(sf) = *t {
-                            sf
-                        } else {
-                            return Err(CompilerError::NonStructFieldReference(
-                                head.to_string(),
-                                var_type.clone(),
-                            ));
-                        }
-                    }
-                    _ => {
-                        panic!("{head} {var_type} {bv:?}");
-                        // return Err(CompilerError::NonStructFieldReference(head.to_string(), var_type.clone())),
-                    }
-                };
-                let (field_type, field_offset) = struct_fields
-                    .get(&field.0)
-                    .ok_or(CompilerError::VariableUndefined(field.0.to_string()))?;
-                if !field_type.can_assign_from(&rhs_type) {
-                    return Err(CompilerError::TypeAssign {
-                        from: rhs_type,
-                        to: field_type.clone(),
-                    });
-                }
 
-                // 0. load address of thing based on var type -> C
-                match &bv {
-                    BlockVariable::Local(offset, _) => {
-                        load_local_addr_to(&mut out, *offset as u8, Register::C)
-                    }
-                    BlockVariable::Arg(index, _) => {
-                        load_arg_addr_to(&mut out, *index as u8, Register::C)
-                    }
-                    _ => todo!("{bv:?} not supported in struct field assignment"),
-                };
-
-                // 1. add field offset
-                if var_type.is_pointer() {
-                    out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
-                        Register::C,
-                        Register::C,
-                        Register::Zero,
-                    )));
-                }
-                out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
+                get_stack_field_offset(
+                    &mut out,
+                    &fields,
+                    var_type,
+                    &head_var,
+                    &head.0,
                     Register::C,
-                    Literal7Bit::new_checked(*field_offset as u8).unwrap(),
-                )));
+                )?;
+
                 // 2. pop value to write from stack
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                     Register::B,
@@ -299,7 +262,12 @@ fn compile_block(
                     StackOp::Pop,
                 )));
                 // 3. write value
-                write_value(&mut out, &rhs_type, Register::B, Register::C);
+                write_value(
+                    &mut out,
+                    &type_of(ctx, &scope, &rhs),
+                    Register::B,
+                    Register::C,
+                );
             }
             ast::Statement::Return(expr) => {
                 let mut compiled_expr = compile_expression(ctx, &mut scope, &expr)?;
@@ -684,49 +652,45 @@ fn compile_expression(
             }
             Ok(out)
         }
-        ast::Expression::FieldDeref(lhs, field) => {
+        ast::Expression::FieldDeref(fields) => {
             let mut out = Vec::new();
-            let expr = compile_expression(ctx, scope, lhs)?;
-            out.extend(expr);
-            let ty = type_of(ctx, scope, &lhs);
-            let fields = {
-                if let Type::Struct(fs) = ty.clone() {
-                    fs
-                } else if let Type::Pointer(t) = ty.clone() {
-                    if let Type::Struct(fs) = *t {
-                        fs
-                    } else {
-                        return Err(CompilerError::NonStructFieldReference(
-                            lhs.to_string(),
-                            ty.clone(),
-                        ));
-                    }
-                } else {
-                    return Err(CompilerError::NonStructFieldReference(
-                        lhs.to_string(),
-                        ty.clone(),
-                    ));
-                }
+            let expr_type = type_of(ctx, &scope, &ast::Expression::FieldDeref(fields.to_vec()));
+            if fields.is_empty() {
+                panic!("unreachable");
+            }
+            let head = fields.first().expect("parser issue");
+            let head_var = scope
+                .get(ctx, &head.0)
+                .ok_or(CompilerError::VariableUndefined(head.0.to_string()))?;
+
+            let var_type = match &head_var {
+                BlockVariable::Local(_, ty) => ty,
+                BlockVariable::Arg(_, ty) => ty,
+                BlockVariable::Global(_, ty) => ty,
+                BlockVariable::Const(_) => &Type::Int,
             };
-            let (field_type, offset) = fields
-                .get(&field.0)
-                .ok_or(CompilerError::VariableUndefined(field.0.to_string()))?;
-            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
-                Register::SP,
-                StackOp::Pop,
-            )));
-            out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
-                Register::C,
-                Literal7Bit::new_checked(*offset as u8).unwrap(),
-            )));
-            if !field_type.is_struct() {
+
+            // get addr of field
+            get_stack_field_offset(&mut out, &fields, var_type, &head_var, &head.0, Register::C)?;
+
+            // deref
+            if expr_type.size_bytes() == 1 {
+                out.push(UnresolvedInstruction::Instruction(Instruction::LoadByte(
+                    Register::C,
+                    Register::C,
+                    Register::Zero,
+                )));
+            } else if expr_type.size_bytes() == 2 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
                     Register::C,
                     Register::C,
                     Register::Zero,
                 )));
+            } else {
+                return Err(CompilerError::ValueTooLargeForStack(expr_type.clone()));
             }
+
+            // push
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                 Register::C,
                 Register::SP,
@@ -1106,4 +1070,129 @@ fn write_value(
         ))),
         n => panic!("uh oh we can't assign {n} bytes by value"),
     }
+}
+
+fn get_stack_field_offset(
+    out: &mut Vec<UnresolvedInstruction>,
+    fields: &[ast::Identifier],
+    var_type: &Type,
+    head_var: &BlockVariable,
+    head_name: &str,
+    target_register: Register,
+) -> Result<(), CompilerError> {
+    let mut struct_fields = match var_type.clone() {
+        Type::Struct(sf) => sf,
+        Type::Pointer(t) => {
+            if let Type::Struct(sf) = *t {
+                sf
+            } else {
+                return Err(CompilerError::NonStructFieldReference(
+                    head_name.to_string(),
+                    var_type.clone(),
+                ));
+            }
+        }
+        _ => {
+            panic!("{head_name} {var_type} {head_var:?}");
+            // return Err(CompilerError::NonStructFieldReference(head.to_string(), var_type.clone())),
+        }
+    };
+
+    if var_type.is_pointer() {
+        match head_var {
+            BlockVariable::Local(offset, _) => {
+                load_local_addr_to(out, *offset as u8, target_register);
+                out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
+                    target_register,
+                    target_register,
+                    Register::Zero,
+                )));
+            }
+            BlockVariable::Arg(offset, _) => {
+                load_arg_addr_to(out, *offset as u8, target_register);
+                out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
+                    target_register,
+                    target_register,
+                    Register::Zero,
+                )));
+            }
+            BlockVariable::Global(addr, _) => {
+                out.extend(load_address_to(*addr, target_register, Register::M))
+            }
+            BlockVariable::Const(_) => {
+                return Err(CompilerError::NonStructFieldReference(
+                    head_name.to_string(),
+                    Type::Int,
+                ));
+            }
+        }
+    } else {
+        match head_var {
+            BlockVariable::Local(offset, _) => {
+                load_local_addr_to(out, *offset as u8, target_register)
+            }
+            BlockVariable::Arg(offset, _) => load_arg_addr_to(out, *offset as u8, target_register),
+            // TODO: probably not valid or reachable
+            BlockVariable::Global(addr, _) => {
+                out.extend(load_address_to(*addr, target_register, Register::M))
+            }
+            BlockVariable::Const(_) => {
+                return Err(CompilerError::NonStructFieldReference(
+                    head_name.to_string(),
+                    Type::Int,
+                ));
+            }
+        }
+    };
+
+    let mut current_type = var_type.clone();
+    for (i, field) in fields[1..].iter().enumerate() {
+        let (field_type, field_offset) = {
+            let (field_type, field_offset) =
+                struct_fields
+                    .get(&field.0)
+                    .ok_or(CompilerError::StructFieldDoesNotExist(
+                        field.to_string(),
+                        current_type.clone(),
+                    ))?;
+            (field_type.clone(), *field_offset)
+        };
+
+        out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
+            target_register,
+            Literal7Bit::new_checked(field_offset as u8).unwrap(),
+        )));
+        if field_type.is_pointer() && i != fields.len() - 1 {
+            out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
+                target_register,
+                target_register,
+                Register::Zero,
+            )));
+        }
+
+        current_type = field_type.clone();
+
+        if i < fields.len() - 2 {
+            struct_fields = match field_type {
+                Type::Struct(sf) => sf,
+                Type::Pointer(t) => {
+                    if let Type::Struct(sf) = *t {
+                        sf
+                    } else {
+                        return Err(CompilerError::NonStructFieldReference(
+                            field.0.to_string(),
+                            var_type.clone(),
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(CompilerError::NonStructFieldReference(
+                        field.to_string(),
+                        field_type.clone(),
+                    ));
+                }
+            };
+        };
+    }
+    Ok(())
 }

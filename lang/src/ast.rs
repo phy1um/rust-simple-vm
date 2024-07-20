@@ -196,7 +196,7 @@ pub enum Expression {
     BinOp(Box<Expression>, Box<Expression>, BinOp),
     FunctionCall(Identifier, Vec<Expression>),
     Bracketed(Box<Expression>),
-    FieldDeref(Box<Expression>, Identifier),
+    FieldDeref(Vec<Identifier>),
 }
 
 impl fmt::Display for Expression {
@@ -209,7 +209,15 @@ impl fmt::Display for Expression {
             Self::Deref(i) => write!(f, "*{i}"),
             Self::BinOp(e0, e1, op) => write!(f, "{e0} {op} {e1}"),
             Self::Bracketed(e) => write!(f, "({e})"),
-            Self::FieldDeref(e, field) => write!(f, "{e}.{field}"),
+            Self::FieldDeref(fields) => write!(
+                f,
+                "{}",
+                fields
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(".")
+            ),
             Self::FunctionCall(name, args) => write!(
                 f,
                 "{name}({})",

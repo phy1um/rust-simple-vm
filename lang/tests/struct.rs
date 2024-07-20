@@ -52,3 +52,103 @@ void setlen(*Array a, int len) {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 82);
 }
+
+#[test]
+fn struct_nested_fields() {
+    let test = "
+type Bar := struct {
+    int x, 
+};
+
+type Foo := struct {
+  int x,
+  Bar bar,
+};
+
+int main() {
+    let Foo foo;
+    foo.bar.x := 5;
+    return foo.bar.x;
+}
+";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 5);
+}
+
+#[test]
+fn struct_more_nested_fields() {
+    let test = "
+type Baz := struct {
+    int x,
+    int y,
+    int z,
+    struct {
+        int x,
+        int y,
+        struct {
+            int x,
+            int y,
+        } deeper,
+    } deep,
+};
+
+type Bar := struct {
+    int x, 
+    int y,
+    Baz baz,
+};
+
+type Foo := struct {
+  int x,
+  Bar bar,
+};
+
+int main() {
+    let Foo foo;
+    foo.bar.baz.deep.deeper.y := 51;
+    return foo.bar.baz.deep.deeper.y;
+}
+";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 51);
+}
+
+#[test]
+fn struct_ptr_nested_fields() {
+    let test = "
+type Baz := struct {
+    int x,
+    int y,
+    int z,
+    struct {
+        int x,
+        int y,
+        struct {
+            int x,
+            int y,
+        } deeper,
+    } deep,
+};
+
+type Bar := struct {
+    int x, 
+    int y,
+    *Baz baz,
+};
+
+type Foo := struct {
+  int x,
+  *Bar bar,
+};
+
+int main() {
+    let Foo foo;
+    foo.bar := 0x1000;
+    foo.bar.baz := 0x1100;
+    foo.bar.baz.deep.deeper.y := 99;
+    return foo.bar.baz.deep.deeper.y;
+}
+";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 99);
+}

@@ -14,4 +14,6 @@ pub enum CompilerError {
     DerefInvalidType(Type),
     InvalidUntypedVariableDeclration(String),
     NonStructFieldReference(String, Type),
+    StructFieldDoesNotExist(String, Type),
+    ValueTooLargeForStack(Type),
 }
