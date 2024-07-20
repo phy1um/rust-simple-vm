@@ -246,14 +246,7 @@ fn compile_block(
                     BlockVariable::Const(_) => &Type::Int,
                 };
 
-                get_stack_field_offset(
-                    &mut out,
-                    &fields,
-                    var_type,
-                    &head_var,
-                    &head.0,
-                    Register::C,
-                )?;
+                get_stack_field_offset(&mut out, &fields, var_type, &head_var, Register::C)?;
 
                 // 2. pop value to write from stack
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -476,44 +469,30 @@ fn compile_expression(
             )));
             Ok(out)
         }
-        ast::Expression::AddressOf(s) => {
-            if let Some(v) = scope.get(ctx, &s.0) {
-                match v {
-                    BlockVariable::Local(offset, _) => {
-                        let mut out = Vec::new();
-                        load_local_addr_to(&mut out, offset as u8, Register::C);
-                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                            Register::C,
-                            Register::SP,
-                            StackOp::Push,
-                        )));
-                        Ok(out)
-                    }
-                    BlockVariable::Arg(i, _) => {
-                        let mut out = Vec::new();
-                        load_arg_addr_to(&mut out, i as u8, Register::C);
-                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                            Register::C,
-                            Register::SP,
-                            StackOp::Push,
-                        )));
-                        Ok(out)
-                    }
-                    BlockVariable::Global(addr, _) => {
-                        let mut out = Vec::new();
-                        out.extend(load_address_to(addr, Register::C, Register::Zero));
-                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                            Register::C,
-                            Register::SP,
-                            StackOp::Push,
-                        )));
-                        Ok(out)
-                    }
-                    _ => todo!("address of var no implemented: {v:?}"),
-                }
-            } else {
-                Err(CompilerError::VariableUndefined(s.to_string()))
+        ast::Expression::AddressOf(fields) => {
+            let mut out = Vec::new();
+            if fields.is_empty() {
+                panic!("unreachable");
             }
+            let head = fields.first().expect("parser issue");
+            let head_var = scope
+                .get(ctx, &head.0)
+                .ok_or(CompilerError::VariableUndefined(head.0.to_string()))?;
+
+            let var_type = match &head_var {
+                BlockVariable::Local(_, ty) => ty,
+                BlockVariable::Arg(_, ty) => ty,
+                BlockVariable::Global(_, ty) => ty,
+                BlockVariable::Const(_) => &Type::Int,
+            };
+
+            get_stack_field_offset(&mut out, &fields, var_type, &head_var, Register::C)?;
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                Register::C,
+                Register::SP,
+                StackOp::Push,
+            )));
+            Ok(out)
         }
         ast::Expression::Variable(s) => {
             if let Some(v) = scope.get(ctx, &s) {
@@ -671,7 +650,7 @@ fn compile_expression(
             };
 
             // get addr of field
-            get_stack_field_offset(&mut out, &fields, var_type, &head_var, &head.0, Register::C)?;
+            get_stack_field_offset(&mut out, &fields, var_type, &head_var, Register::C)?;
 
             // deref
             if expr_type.size_bytes() == 1 {
@@ -1072,31 +1051,15 @@ fn write_value(
     }
 }
 
+// ASSUME len fields >= 1
 fn get_stack_field_offset(
     out: &mut Vec<UnresolvedInstruction>,
     fields: &[ast::Identifier],
     var_type: &Type,
     head_var: &BlockVariable,
-    head_name: &str,
     target_register: Register,
 ) -> Result<(), CompilerError> {
-    let mut struct_fields = match var_type.clone() {
-        Type::Struct(sf) => sf,
-        Type::Pointer(t) => {
-            if let Type::Struct(sf) = *t {
-                sf
-            } else {
-                return Err(CompilerError::NonStructFieldReference(
-                    head_name.to_string(),
-                    var_type.clone(),
-                ));
-            }
-        }
-        _ => {
-            panic!("{head_name} {var_type} {head_var:?}");
-            // return Err(CompilerError::NonStructFieldReference(head.to_string(), var_type.clone())),
-        }
-    };
+    let head_name = fields.first().unwrap();
 
     if var_type.is_pointer() {
         match head_var {
@@ -1142,6 +1105,30 @@ fn get_stack_field_offset(
                     Type::Int,
                 ));
             }
+        }
+    };
+
+    if fields.len() == 1 {
+        return Ok(());
+    }
+
+    let mut struct_fields = match var_type.clone() {
+        Type::Struct(sf) => sf,
+        Type::Pointer(t) => {
+            if let Type::Struct(sf) = *t {
+                sf
+            } else {
+                return Err(CompilerError::NonStructFieldReference(
+                    head_name.to_string(),
+                    var_type.clone(),
+                ));
+            }
+        }
+        _ => {
+            return Err(CompilerError::NonStructFieldReference(
+                head_name.to_string(),
+                var_type.clone(),
+            ));
         }
     };
 

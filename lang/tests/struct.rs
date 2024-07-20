@@ -152,3 +152,23 @@ int main() {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 99);
 }
+
+#[test]
+fn nested_field_address() {
+    let test = "
+type Foo := struct {
+    int x,
+    int y,
+    int z,
+};
+
+int main() {
+    let Foo foo;
+    let a := &foo.y;
+    *a := 72;
+    return foo.y;
+}
+    ";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 72);
+}

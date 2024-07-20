@@ -99,7 +99,9 @@ fn expression_variable(input: &str) -> CResult<&str, ast::Expression> {
 fn expression_address_of(input: &str) -> CResult<&str, ast::Expression> {
     let (s0, _) = skip_whitespace(token("&"))(input)?;
     let (s1, name) = identifier(s0).map_err(|v| ConfidenceError::from(v, Confidence::Medium))?;
-    Ok((s1, ast::Expression::AddressOf(name)))
+    let (s2, mut fields) = repeat0(dotted_field)(s1)?;
+    fields.insert(0, name);
+    Ok((s2, ast::Expression::AddressOf(fields)))
 }
 
 pub fn expression_call(input: &str) -> CResult<&str, ast::Expression> {

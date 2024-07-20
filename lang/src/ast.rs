@@ -191,11 +191,13 @@ pub enum Expression {
     LiteralInt(i32),
     LiteralChar(char),
     Variable(String),
-    AddressOf(Identifier),
+    AddressOf(Vec<Identifier>),
     Deref(Box<Expression>),
     BinOp(Box<Expression>, Box<Expression>, BinOp),
+    // TODO: is an identifier the only thing we can call?
     FunctionCall(Identifier, Vec<Expression>),
     Bracketed(Box<Expression>),
+    // TODO: rename this
     FieldDeref(Vec<Identifier>),
 }
 
@@ -205,7 +207,15 @@ impl fmt::Display for Expression {
             Self::LiteralInt(i) => write!(f, "{i}"),
             Self::LiteralChar(c) => write!(f, "'{c}'"),
             Self::Variable(v) => write!(f, "{v}"),
-            Self::AddressOf(i) => write!(f, "&{i}"),
+            Self::AddressOf(fields) => write!(
+                f,
+                "&{}",
+                fields
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(".")
+            ),
             Self::Deref(i) => write!(f, "*{i}"),
             Self::BinOp(e0, e1, op) => write!(f, "{e0} {op} {e1}"),
             Self::Bracketed(e) => write!(f, "({e})"),

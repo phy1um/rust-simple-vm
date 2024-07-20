@@ -202,21 +202,7 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
                 Type::Void
             }
         }
-        ast::Expression::AddressOf(name) => {
-            if let Some(bv) = scope.get(ctx, &name.0) {
-                Type::Pointer(Box::new(match bv {
-                    BlockVariable::Local(_, t) => t,
-                    BlockVariable::Arg(_, t) => t,
-                    // TODO: wtf do we do here
-                    BlockVariable::Const(_) => Type::Int,
-                    BlockVariable::Global(_, t) => t,
-                }))
-            } else if ctx.symbols.contains_key(&name.0) {
-                Type::Pointer(Box::new(Type::Int))
-            } else {
-                panic!("cannot take addr of {name}");
-            }
-        }
+        ast::Expression::AddressOf(fields) => get_fields_type(ctx, scope, fields),
         ast::Expression::Deref(expr) => {
             let inner_type = type_of(ctx, scope, expr);
             if let Type::Pointer(t) = inner_type {
@@ -249,34 +235,36 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
                 | ast::BinOp::LessThanEqual => Type::Int,
             }
         }
-        ast::Expression::FieldDeref(fields) => {
-            let mut head_type = type_of(
-                ctx,
-                scope,
-                &ast::Expression::Variable(fields.first().unwrap().to_string()),
-            );
-            for field in &fields[1..] {
-                let struct_fields = {
-                    if let Type::Struct(fs) = head_type {
-                        fs
-                    } else if let Type::Pointer(t) = head_type {
-                        if let Type::Struct(fs) = *t {
-                            fs
-                        } else {
-                            HashMap::new()
-                        }
-                    } else {
-                        HashMap::new()
-                    }
-                };
-                head_type = struct_fields
-                    .get(&field.0)
-                    .map(|(t, _)| t.clone())
-                    .unwrap_or(Type::Void);
-            }
-            head_type
-        }
+        ast::Expression::FieldDeref(fields) => get_fields_type(ctx, scope, fields),
     }
+}
+
+fn get_fields_type(ctx: &Context, scope: &BlockScope, fields: &[ast::Identifier]) -> Type {
+    let mut head_type = type_of(
+        ctx,
+        scope,
+        &ast::Expression::Variable(fields.first().unwrap().to_string()),
+    );
+    for field in &fields[1..] {
+        let struct_fields = {
+            if let Type::Struct(fs) = head_type {
+                fs
+            } else if let Type::Pointer(t) = head_type {
+                if let Type::Struct(fs) = *t {
+                    fs
+                } else {
+                    HashMap::new()
+                }
+            } else {
+                HashMap::new()
+            }
+        };
+        head_type = struct_fields
+            .get(&field.0)
+            .map(|(t, _)| t.clone())
+            .unwrap_or(Type::Void);
+    }
+    head_type
 }
 
 #[cfg(test)]
