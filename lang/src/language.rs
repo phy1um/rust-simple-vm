@@ -130,6 +130,20 @@ pub fn expression_bracketed(input: &str) -> CResult<&str, ast::Expression> {
     )(input)
 }
 
+pub fn expression_array_index(input: &str) -> CResult<&str, ast::Expression> {
+    let (s0, lhs) = skip_whitespace(expression_array_index_lhs)(input)?;
+    let (s1, _) = token("[")(s0)?;
+    let (s2, index) = skip_whitespace(expression)(s1)?;
+    let (s3, _) = token("]")(s2)?;
+    Ok((
+        s3,
+        ast::Expression::ArrayDeref {
+            lhs: Box::new(lhs),
+            index: Box::new(index),
+        },
+    ))
+}
+
 pub fn binop(input: &str) -> CResult<&str, ast::BinOp> {
     map(
         require(
@@ -170,6 +184,23 @@ pub fn expression_struct_fields(input: &str) -> CResult<&str, ast::Expression> {
 }
 
 fn expression_lhs(input: &str) -> CResult<&str, ast::Expression> {
+    AnyCollectErr::new(vec![
+        expression_literal_int_base16,
+        expression_literal_int_base10,
+        expression_literal_char,
+        expression_array_index,
+        expression_struct_fields,
+        expression_call,
+        expression_address_of,
+        expression_variable,
+        expression_bracketed,
+        expression_deref,
+    ])
+    .run(input)
+    .map_err(|v| ConfidenceError::select(&v))
+}
+
+fn expression_array_index_lhs(input: &str) -> CResult<&str, ast::Expression> {
     AnyCollectErr::new(vec![
         expression_literal_int_base16,
         expression_literal_int_base10,
@@ -221,6 +252,17 @@ pub fn statement_variable_assign_deref(input: &str) -> CResult<&str, ast::Statem
     let (s3, rhs) = skip_whitespace(expression)(s2).map_err(ConfidenceError::elevate)?;
     let (s4, _) = skip_whitespace(token(";"))(s3).map_err(ConfidenceError::elevate)?;
     Ok((s4, ast::Statement::AssignDeref { lhs, rhs }))
+}
+
+pub fn statement_array_index(input: &str) -> CResult<&str, ast::Statement> {
+    let (s0, lhs) = skip_whitespace(expression_array_index_lhs)(input)?;
+    let (s1, _) = token("[")(s0)?;
+    let (s2, index) = skip_whitespace(expression)(s1).map_err(ConfidenceError::elevate)?;
+    let (s3, _) = skip_whitespace(token("]"))(s2).map_err(ConfidenceError::elevate)?;
+    let (s4, _) = skip_whitespace(token(":="))(s3).map_err(ConfidenceError::elevate)?;
+    let (s5, rhs) = skip_whitespace(expression)(s4).map_err(ConfidenceError::elevate)?;
+    let (s6, _) = skip_whitespace(token(";"))(s5).map_err(ConfidenceError::elevate)?;
+    Ok((s6, ast::Statement::AssignArray { lhs, index, rhs }))
 }
 
 pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> {
@@ -335,6 +377,7 @@ pub fn statement_expression(input: &str) -> CResult<&str, ast::Statement> {
 
 pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
     AnyCollectErr::new(vec![
+        statement_array_index,
         statement_if,
         statement_while,
         statement_variable_assign_deref,
@@ -740,6 +783,45 @@ int y,
             assert_eq!(
                 expected,
                 run_parser(expression, expected).unwrap().to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn test_array_index() {
+        {
+            let expected = "a[5]";
+            assert_eq!(
+                expected,
+                run_parser(expression, expected).unwrap().to_string(),
+            );
+        }
+        {
+            let expected = "(foo.bar + 3)[6]";
+            assert_eq!(
+                expected,
+                run_parser(expression, expected).unwrap().to_string(),
+            );
+        }
+        {
+            let expected = "a[5] := 7;";
+            assert_eq!(
+                expected,
+                run_parser(statement, expected).unwrap().to_string(),
+            );
+        }
+        {
+            let expected = "(foo.bar + 3)[6] := baz;";
+            assert_eq!(
+                expected,
+                run_parser(statement, expected).unwrap().to_string(),
+            );
+        }
+        {
+            let expected = "(a + 3)[(b + 6)[c + 9]] := (foo.bar[16] + 12)[18 + foo()];";
+            assert_eq!(
+                expected,
+                run_parser(statement, expected).unwrap().to_string(),
             );
         }
     }

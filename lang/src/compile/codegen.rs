@@ -208,6 +208,13 @@ fn compile_block(
                     return Err(CompilerError::VariableUndefined(id.0.to_string()));
                 }
             }
+            ast::Statement::AssignArray { lhs, index, rhs } => {
+                let new_statement = ast::Statement::AssignDeref {
+                    lhs: ast::Expression::BinOp(Box::new(lhs), Box::new(index), ast::BinOp::Add),
+                    rhs,
+                };
+                out.extend(compile_block(ctx, scope.child(), vec![new_statement])?);
+            }
             ast::Statement::AssignDeref { lhs, rhs } => {
                 // TODO: check we can assign
                 let lhs_type = type_of(ctx, &scope, &lhs);
@@ -528,13 +535,45 @@ fn compile_expression(
         ast::Expression::BinOp(e0, e1, op) => {
             let mut out = Vec::new();
             out.append(&mut compile_expression(ctx, scope, &e1)?);
-            // expression 1 is on top of stack
             out.append(&mut compile_expression(ctx, scope, &e0)?);
             // stack = [rv0, rv1]
+            let e0_type = type_of(ctx, &scope, &e0);
             match op {
-                ast::BinOp::Add => out.push(UnresolvedInstruction::Instruction(
-                    Instruction::Stack(Register::Zero, Register::SP, StackOp::Add),
-                )),
+                ast::BinOp::Add => {
+                    if let Type::Pointer(t) = e0_type {
+                        let size = t.size_bytes();
+                        println!("pointer arith: += *sizeof({t}) (== {size})");
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                            Register::C,
+                            Register::SP,
+                            StackOp::Swap,
+                        )));
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                            Register::C,
+                            Register::SP,
+                            StackOp::Pop,
+                        )));
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Imm(
+                            Register::B,
+                            Literal12Bit::new_checked(size as u16).unwrap(),
+                        )));
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
+                            Register::C,
+                            Register::B,
+                            Register::C,
+                        )));
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                            Register::C,
+                            Register::SP,
+                            StackOp::Push,
+                        )));
+                    }
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        Register::Zero,
+                        Register::SP,
+                        StackOp::Add,
+                    )));
+                }
                 ast::BinOp::Subtract => out.push(UnresolvedInstruction::Instruction(
                     Instruction::Stack(Register::Zero, Register::SP, StackOp::Sub),
                 )),
@@ -619,6 +658,22 @@ fn compile_expression(
                 StackOp::Push,
             )));
             Ok(out)
+        }
+        ast::Expression::ArrayDeref { lhs, index } => {
+            let lhs_type = type_of(ctx, &scope, &lhs);
+            if !lhs_type.is_pointer() {
+                return Err(CompilerError::DerefInvalidType(lhs_type));
+            }
+            let index_type = type_of(ctx, &scope, &index);
+            if !index_type.is_numeric() {
+                return Err(CompilerError::InvalidIndexType(index_type));
+            }
+            let new_expr = ast::Expression::Deref(Box::new(ast::Expression::BinOp(
+                lhs.clone(),
+                index.clone(),
+                ast::BinOp::Add,
+            )));
+            return compile_expression(ctx, scope, &new_expr);
         }
     }
 }

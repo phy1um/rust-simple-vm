@@ -108,6 +108,15 @@ impl Type {
         matches!(self, Self::Pointer(_))
     }
 
+    pub fn is_numeric(&self) -> bool {
+        match self {
+            Self::Int => true,
+            Self::Char => true,
+            Self::UncheckedInt => true,
+            _ => false,
+        }
+    }
+
     pub fn is_struct(&self) -> bool {
         matches!(self, Self::Struct(_))
     }
@@ -187,6 +196,13 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
         ast::Expression::LiteralInt(_) => Type::Int,
         ast::Expression::LiteralChar(_) => Type::Char,
         ast::Expression::AddressOf(fields) => get_fields_type(ctx, scope, fields),
+        ast::Expression::ArrayDeref { lhs, index: _ } => {
+            if let Type::Pointer(t) = type_of(ctx, scope, lhs.as_ref()) {
+                *t.clone()
+            } else {
+                Type::Void
+            }
+        }
         ast::Expression::Deref(expr) => {
             let inner_type = type_of(ctx, scope, expr);
             if let Type::Pointer(t) = inner_type {

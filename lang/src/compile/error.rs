@@ -16,4 +16,5 @@ pub enum CompilerError {
     NonStructFieldReference(String, Type),
     StructFieldDoesNotExist(String, Type),
     ValueTooLargeForStack(Type),
+    InvalidIndexType(Type),
 }
