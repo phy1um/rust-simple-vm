@@ -441,6 +441,21 @@ fn compile_expression(
                 StackOp::Push,
             )),
         ]),
+        ast::Expression::BuiltinSizeof(t) => {
+            let tt = Type::from_ast(ctx, t)?;
+            let size = tt.size_bytes();
+            let mut out = Vec::new();
+            out.push(UnresolvedInstruction::Instruction(Instruction::Imm(
+                Register::C,
+                Literal12Bit::new_checked(size as u16).unwrap(),
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                Register::C,
+                Register::SP,
+                StackOp::Push,
+            )));
+            Ok(out)
+        }
         ast::Expression::Deref(e) => {
             let inner_type = type_of(ctx, scope, &e);
             if !inner_type.is_pointer() {
@@ -503,6 +518,7 @@ fn compile_expression(
         }
         ast::Expression::FunctionCall(id, args) => {
             let mut out = Vec::new();
+            // TODO: check # args correct
             for a in args.iter().rev() {
                 out.append(&mut compile_expression(ctx, scope, a)?);
             }

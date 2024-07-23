@@ -144,6 +144,12 @@ pub fn expression_array_index(input: &str) -> CResult<&str, ast::Expression> {
     ))
 }
 
+pub fn expression_builtin_sizeof(input: &str) -> CResult<&str, ast::Expression> {
+    let (s0, _) = skip_whitespace(token("sizeof"))(input)?;
+    let (s1, tt) = skip_whitespace(wrapped(token("("), parse_type, token(")")))(s0)?;
+    Ok((s1, ast::Expression::BuiltinSizeof(tt)))
+}
+
 pub fn binop(input: &str) -> CResult<&str, ast::BinOp> {
     map(
         require(
@@ -190,6 +196,7 @@ fn expression_lhs(input: &str) -> CResult<&str, ast::Expression> {
         expression_literal_char,
         expression_array_index,
         expression_struct_fields,
+        expression_builtin_sizeof,
         expression_call,
         expression_address_of,
         expression_variable,
@@ -206,6 +213,7 @@ fn expression_array_index_lhs(input: &str) -> CResult<&str, ast::Expression> {
         expression_literal_int_base10,
         expression_literal_char,
         expression_struct_fields,
+        expression_builtin_sizeof,
         expression_call,
         expression_address_of,
         expression_variable,
@@ -822,6 +830,28 @@ int y,
             assert_eq!(
                 expected,
                 run_parser(statement, expected).unwrap().to_string(),
+            );
+        }
+    }
+
+    #[test]
+    fn sizeof() {
+        {
+            let expected = "sizeof(int)";
+            assert_eq!(
+                expected,
+                run_parser(expression_builtin_sizeof, expected)
+                    .unwrap()
+                    .to_string(),
+            );
+        }
+        {
+            let expected = "sizeof(FooBar)";
+            assert_eq!(
+                expected,
+                run_parser(expression_builtin_sizeof, expected)
+                    .unwrap()
+                    .to_string(),
             );
         }
     }

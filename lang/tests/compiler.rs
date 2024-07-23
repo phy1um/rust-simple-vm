@@ -59,3 +59,38 @@ int mult(int a, int b) {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 56);
 }
+
+#[test]
+fn test_sizeof() {
+    let test = "
+void main() {
+    let asize := sizeof(int);
+    return asize;
+}
+    ";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 2);
+}
+
+#[test]
+fn test_sizeof_struct() {
+    let test = "
+type FooBar := struct {
+    struct {
+        struct {
+            int x,
+            char y,
+        } foo,
+        int b,
+    } a,
+    int z,
+};
+
+void main() {
+    let asize := sizeof(FooBar);
+    return asize;
+}
+    ";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 7);
+}

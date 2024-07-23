@@ -195,6 +195,7 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
     match expr {
         ast::Expression::LiteralInt(_) => Type::Int,
         ast::Expression::LiteralChar(_) => Type::Char,
+        ast::Expression::BuiltinSizeof(_) => Type::Int,
         ast::Expression::AddressOf(fields) => get_fields_type(ctx, scope, fields),
         ast::Expression::ArrayDeref { lhs, index: _ } => {
             if let Type::Pointer(t) = type_of(ctx, scope, lhs.as_ref()) {

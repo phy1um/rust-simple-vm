@@ -203,6 +203,7 @@ pub enum Expression {
     // TODO: is an identifier the only thing we can call?
     FunctionCall(Identifier, Vec<Expression>),
     Bracketed(Box<Expression>),
+    BuiltinSizeof(Type),
     ArrayDeref {
         lhs: Box<Expression>,
         index: Box<Expression>,
@@ -227,6 +228,7 @@ impl fmt::Display for Expression {
             Self::BinOp(e0, e1, op) => write!(f, "{e0} {op} {e1}"),
             Self::Bracketed(e) => write!(f, "({e})"),
             Self::ArrayDeref { lhs, index } => write!(f, "{lhs}[{index}]"),
+            Self::BuiltinSizeof(t) => write!(f, "sizeof({t})"),
             Self::Variable(fields) => write!(
                 f,
                 "{}",
