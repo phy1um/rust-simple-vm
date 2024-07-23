@@ -80,9 +80,9 @@ pub fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, ty: &Typ
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
         Register::B,
-        Literal7Bit::new_checked(offset as u8).unwrap(),
+        Literal7Bit::new_checked(offset).unwrap(),
     )));
-    write_value(out, &ty, Register::C, Register::B);
+    write_value(out, ty, Register::C, Register::B);
 }
 
 pub fn load_local_addr_to(out: &mut Vec<UnresolvedInstruction>, offset: u8, reg: Register) {
@@ -93,7 +93,7 @@ pub fn load_local_addr_to(out: &mut Vec<UnresolvedInstruction>, offset: u8, reg:
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
         reg,
-        Literal7Bit::new_checked(offset as u8).unwrap(),
+        Literal7Bit::new_checked(offset).unwrap(),
     )));
 }
 

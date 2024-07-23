@@ -109,12 +109,7 @@ impl Type {
     }
 
     pub fn is_numeric(&self) -> bool {
-        match self {
-            Self::Int => true,
-            Self::Char => true,
-            Self::UncheckedInt => true,
-            _ => false,
-        }
+        matches!(self, Self::Int | Self::Char | Self::UncheckedInt)
     }
 
     pub fn is_struct(&self) -> bool {

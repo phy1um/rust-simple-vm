@@ -15,7 +15,7 @@ pub fn compile_expression(
     expr: &ast::Expression,
 ) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     match expr {
-        ast::Expression::Bracketed(e) => compile_expression(ctx, scope, &e),
+        ast::Expression::Bracketed(e) => compile_expression(ctx, scope, e),
         ast::Expression::LiteralInt(i) => {
             if *i <= 0xfff {
                 Ok(vec![
@@ -85,26 +85,26 @@ pub fn compile_expression(
         ast::Expression::BuiltinSizeof(t) => {
             let tt = Type::from_ast(ctx, t)?;
             let size = tt.size_bytes();
-            let mut out = Vec::new();
-            out.push(UnresolvedInstruction::Instruction(Instruction::Imm(
-                Register::C,
-                Literal12Bit::new_checked(size as u16).unwrap(),
-            )));
-            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
-                Register::SP,
-                StackOp::Push,
-            )));
-            Ok(out)
+            Ok(vec![
+                UnresolvedInstruction::Instruction(Instruction::Imm(
+                    Register::C,
+                    Literal12Bit::new_checked(size as u16).unwrap(),
+                )),
+                UnresolvedInstruction::Instruction(Instruction::Stack(
+                    Register::C,
+                    Register::SP,
+                    StackOp::Push,
+                )),
+            ])
         }
         ast::Expression::Deref(e) => {
-            let inner_type = type_of(ctx, scope, &e);
+            let inner_type = type_of(ctx, scope, e);
             if !inner_type.is_pointer() {
                 println!("{:?}", scope);
                 return Err(CompilerError::DerefInvalidType(inner_type));
             }
             let mut out = Vec::new();
-            out.extend(compile_expression(ctx, scope, &e)?);
+            out.extend(compile_expression(ctx, scope, e)?);
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                 Register::C,
                 Register::SP,
@@ -149,7 +149,7 @@ pub fn compile_expression(
                 BlockVariable::Const(_) => &Type::Int,
             };
 
-            get_stack_field_offset(&mut out, &fields, var_type, &head_var, Register::C)?;
+            get_stack_field_offset(&mut out, fields, var_type, &head_var, Register::C)?;
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                 Register::C,
                 Register::SP,
@@ -202,10 +202,10 @@ pub fn compile_expression(
         }
         ast::Expression::BinOp(e0, e1, op) => {
             let mut out = Vec::new();
-            out.append(&mut compile_expression(ctx, scope, &e1)?);
-            out.append(&mut compile_expression(ctx, scope, &e0)?);
+            out.append(&mut compile_expression(ctx, scope, e1)?);
+            out.append(&mut compile_expression(ctx, scope, e0)?);
             // stack = [rv0, rv1]
-            let e0_type = type_of(ctx, &scope, &e0);
+            let e0_type = type_of(ctx, scope, e0);
             match op {
                 ast::BinOp::Add => {
                     if let Type::Pointer(t) = e0_type {
@@ -283,7 +283,7 @@ pub fn compile_expression(
         }
         ast::Expression::Variable(fields) => {
             let mut out = Vec::new();
-            let expr_type = type_of(ctx, &scope, &ast::Expression::Variable(fields.to_vec()));
+            let expr_type = type_of(ctx, scope, &ast::Expression::Variable(fields.to_vec()));
             if fields.is_empty() {
                 panic!("unreachable");
             }
@@ -300,7 +300,7 @@ pub fn compile_expression(
             };
 
             // get addr of field
-            get_stack_field_offset(&mut out, &fields, var_type, &head_var, Register::C)?;
+            get_stack_field_offset(&mut out, fields, var_type, &head_var, Register::C)?;
 
             // deref
             if expr_type.size_bytes() == 1 {
@@ -328,11 +328,11 @@ pub fn compile_expression(
             Ok(out)
         }
         ast::Expression::ArrayDeref { lhs, index } => {
-            let lhs_type = type_of(ctx, &scope, &lhs);
+            let lhs_type = type_of(ctx, scope, lhs);
             if !lhs_type.is_pointer() {
                 return Err(CompilerError::DerefInvalidType(lhs_type));
             }
-            let index_type = type_of(ctx, &scope, &index);
+            let index_type = type_of(ctx, scope, index);
             if !index_type.is_numeric() {
                 return Err(CompilerError::InvalidIndexType(index_type));
             }
@@ -341,7 +341,7 @@ pub fn compile_expression(
                 index.clone(),
                 ast::BinOp::Add,
             )));
-            return compile_expression(ctx, scope, &new_expr);
+            compile_expression(ctx, scope, &new_expr)
         }
     }
 }

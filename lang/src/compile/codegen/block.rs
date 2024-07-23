@@ -306,7 +306,7 @@ pub(super) fn compile_body(
         .instructions
         .push(UnresolvedInstruction::Label(Symbol::new(name)));
     for (name, arg_type) in &args {
-        block.define_arg(&name.0, &Type::from_ast(ctx, &arg_type)?);
+        block.define_arg(&name.0, &Type::from_ast(ctx, arg_type)?);
     }
     // function setup
     let local_count_sym = format!("__internal_{name}_local_count");
