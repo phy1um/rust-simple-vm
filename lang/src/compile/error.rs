@@ -5,6 +5,7 @@ pub enum CompilerError {
     LiteralOutOfBounds(u32, u32, u32),
     UnknownSymbol(Symbol),
     UnknownType(String),
+    UnknownFunction(String),
     VariableAlreadyDefined(String),
     VariableUndefined(String),
     BreakNotInLoop,
@@ -22,7 +23,7 @@ pub enum CompilerError {
     InvalidIndexType(Type),
     IncorrectFunctionArgCount {
         name: String,
-        expected: u32,
-        got: u32,
+        expected: usize,
+        got: usize,
     },
 }

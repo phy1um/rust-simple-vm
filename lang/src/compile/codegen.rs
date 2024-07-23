@@ -517,6 +517,17 @@ fn compile_expression(
             Ok(out)
         }
         ast::Expression::FunctionCall(id, args) => {
+            let def = ctx
+                .function_defs
+                .get(&id.0)
+                .ok_or(CompilerError::UnknownFunction(id.0.to_string()))?;
+            if def.args.len() != args.len() {
+                return Err(CompilerError::IncorrectFunctionArgCount {
+                    name: id.0.to_string(),
+                    expected: def.args.len(),
+                    got: args.len(),
+                });
+            }
             let mut out = Vec::new();
             // TODO: check # args correct
             for a in args.iter().rev() {
