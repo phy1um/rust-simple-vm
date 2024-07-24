@@ -16,3 +16,33 @@ void main() {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 17);
 }
+
+#[test]
+fn array_in_struct() {
+    let test = "
+global int mhead;
+
+type Foo := struct {
+    int size,
+    struct {
+        *int elems,
+    } bar,
+};
+
+*int malloc(int n) {
+    let out := mhead;    
+    mhead := mhead + n;
+    return out;
+}
+
+void main() {
+    let Foo foo;
+    foo.bar.elems := malloc(100);
+    foo.bar.elems[20] := 0xff;
+    return foo.bar.elems[20];
+}
+   ";
+    let vm = run_program(test).unwrap();
+    assert_eq!(vm.get_register(A), 0xff);
+}
+
