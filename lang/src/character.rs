@@ -69,6 +69,19 @@ pub fn whitespace(input: &str) -> Result<(&str, char), ParseError> {
     char_predicate(char::is_whitespace, "whitespace".to_string())(input)
 }
 
+pub fn char_predicate_or(
+    a: impl Fn(&str) -> Result<(&str, char), ParseError>,
+    b: impl Fn(&str) -> Result<(&str, char), ParseError>,
+) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
+    move |input| {
+        if let Ok(x) = a(input) {
+            Ok(x)
+        } else {
+            b(input)
+        }
+    }
+}
+
 pub fn char_predicate(
     f: fn(char) -> bool,
     name: String,

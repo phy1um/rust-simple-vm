@@ -1,5 +1,7 @@
 use crate::ast;
-use crate::character::{alpha, alphanumeric, not_char, numeric, whitespace};
+use crate::character::{
+    alpha, alphanumeric, char_predicate_or, is_char, not_char, numeric, whitespace,
+};
 use crate::combinator::*;
 use crate::error::{Confidence, ConfidenceError, ParseError, ParseErrorKind};
 use crate::parse::Parser;
@@ -53,10 +55,9 @@ fn parse_type(input: &str) -> CResult<&str, ast::Type> {
     }
 }
 
-// TODO: underscore :)
 fn identifier(input: &str) -> Result<(&str, ast::Identifier), ParseError> {
-    let (s0, fst) = alpha(input)?;
-    let (s1, rest) = repeat0(alphanumeric)(s0)?;
+    let (s0, fst) = char_predicate_or(alpha, is_char('_'))(input)?;
+    let (s1, rest) = repeat0(char_predicate_or(alphanumeric, is_char('_')))(s0)?;
     let id_str = fst.to_string() + &rest.iter().collect::<String>();
     Ok((s1, ast::Identifier::new(&id_str)))
 }
@@ -853,6 +854,28 @@ int y,
                     .unwrap()
                     .to_string(),
             );
+        }
+    }
+
+    #[test]
+    fn test_identifier() {
+        {
+            let expected = "__foo_bar";
+            assert_eq!(
+                expected,
+                run_parser(identifier, expected).unwrap().to_string(),
+            );
+        }
+        {
+            let expected = "Aa123___foo";
+            assert_eq!(
+                expected,
+                run_parser(identifier, expected).unwrap().to_string(),
+            );
+        }
+        {
+            let res = run_parser(identifier, "1abcde");
+            assert!(matches!(res, Err(_)));
         }
     }
 }
