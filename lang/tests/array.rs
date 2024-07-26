@@ -45,4 +45,3 @@ void main() {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 0xff);
 }
-
