@@ -183,20 +183,25 @@ Flags: {:016b}",
             Instruction::Add(dst, r0, r1) => {
                 let a = self.get_register(r0);
                 let b = self.get_register(r1);
-                self.set_register(dst, a + b);
+                let (res, overflow) = a.overflowing_add(b);
+                self.set_register(dst, res);
+                self.set_flag(Flag::Overflow, overflow);
                 Ok(())
             }
             Instruction::Sub(dst, r0, r1) => {
                 let a = self.get_register(r0);
                 let b = self.get_register(r1);
-                self.set_register(dst, a.wrapping_sub(b));
+                let (res, overflow) = a.overflowing_sub(b);
+                self.set_register(dst, res);
+                self.set_flag(Flag::Overflow, overflow);
                 Ok(())
             }
             Instruction::Mul(dst, r0, r1) => {
                 let a = self.get_register(r0);
                 let b = self.get_register(r1);
-                let (res, _overflow) = a.overflowing_mul(b);
+                let (res, overflow) = a.overflowing_mul(b);
                 self.set_register(dst, res);
+                self.set_flag(Flag::Overflow, overflow);
                 Ok(())
             }
             Instruction::And(dst, r0, r1) => {

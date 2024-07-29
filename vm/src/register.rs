@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub enum Flag {
     Compare = 0b1,
     DidJump = 0b10,
+    Overflow = 0b100,
 }
 
 #[cfg(not(target_family = "wasm"))]
