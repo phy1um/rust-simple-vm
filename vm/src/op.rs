@@ -57,6 +57,8 @@ pub enum Instruction {
     Or(Register, Register, Register),
     #[opcode(0x6)]
     Xor(Register, Register, Register),
+    #[opcode(0x1e)]
+    Mod(Register, Register, Register),
     // Register+Imm
     #[opcode(0x7)]
     AddImm(Register, Literal7Bit),
@@ -116,6 +118,7 @@ mod test {
             And(PC, BP, SP),
             Or(PC, BP, SP),
             Xor(PC, BP, SP),
+            Mod(C, A, Zero),
             ShiftLeft(M, BP, Nibble::new_checked(0xe)?),
             ShiftRightLogical(M, BP, Nibble::new_checked(0xe)?),
             ShiftRightArithmetic(M, BP, Nibble::new_checked(0xe)?),

@@ -93,9 +93,8 @@ fn test_or() {
 
 #[test]
 fn test_xor() {
-    let cases = vec![(1, 12), (42, 51), (1000, 52), (32, 33), (111, 97)];
     let mut vm = make_test_vm(1024 * 4).unwrap();
-    for (a, b) in cases.iter() {
+    for (a, b) in CASES.iter() {
         run(
             &mut vm,
             &[
@@ -107,6 +106,24 @@ fn test_xor() {
         )
         .unwrap();
         assert_reg!(vm, A, a ^ b);
+    }
+}
+
+#[test]
+fn test_mod() {
+    let mut vm = make_test_vm(1024 * 4).unwrap();
+    for (a, b) in CASES.iter() {
+        run(
+            &mut vm,
+            &[
+                Imm(C, Literal12Bit::new_checked(*a).unwrap()),
+                Imm(B, Literal12Bit::new_checked(*b).unwrap()),
+                Mod(A, C, B),
+                System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
+            ],
+        )
+        .unwrap();
+        assert_reg!(vm, A, a % b);
     }
 }
 
