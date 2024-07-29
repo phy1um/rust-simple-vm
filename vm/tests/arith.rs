@@ -25,14 +25,14 @@ fn test_add() {
         run(
             &mut vm,
             &[
-                Imm(A, Literal12Bit::new_checked(a).unwrap()),
+                Imm(C, Literal12Bit::new_checked(a).unwrap()),
                 Imm(B, Literal12Bit::new_checked(b).unwrap()),
                 Add(A, B, C),
                 System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
             ],
         )
         .unwrap();
-        assert_reg!(vm, C, a + b);
+        assert_reg!(vm, A, a + b);
     }
 }
 
@@ -43,14 +43,14 @@ fn test_mul() {
         run(
             &mut vm,
             &[
-                Imm(A, Literal12Bit::new_checked(a).unwrap()),
+                Imm(C, Literal12Bit::new_checked(a).unwrap()),
                 Imm(B, Literal12Bit::new_checked(b).unwrap()),
                 Mul(A, B, C),
                 System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
             ],
         )
         .unwrap();
-        assert_reg!(vm, C, a.wrapping_mul(b));
+        assert_reg!(vm, A, a.wrapping_mul(b));
     }
 }
 
@@ -61,14 +61,14 @@ fn test_and() {
         run(
             &mut vm,
             &[
-                Imm(A, Literal12Bit::new_checked(*a).unwrap()),
+                Imm(C, Literal12Bit::new_checked(*a).unwrap()),
                 Imm(B, Literal12Bit::new_checked(*b).unwrap()),
                 And(A, B, C),
                 System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
             ],
         )
         .unwrap();
-        assert_reg!(vm, C, a & b);
+        assert_reg!(vm, A, a & b);
     }
 }
 
@@ -80,14 +80,14 @@ fn test_or() {
         run(
             &mut vm,
             &[
-                Imm(A, Literal12Bit::new_checked(*a).unwrap()),
+                Imm(C, Literal12Bit::new_checked(*a).unwrap()),
                 Imm(B, Literal12Bit::new_checked(*b).unwrap()),
                 Or(A, B, C),
                 System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
             ],
         )
         .unwrap();
-        assert_reg!(vm, C, a | b);
+        assert_reg!(vm, A, a | b);
     }
 }
 
@@ -99,14 +99,14 @@ fn test_xor() {
         run(
             &mut vm,
             &[
-                Imm(A, Literal12Bit::new_checked(*a).unwrap()),
+                Imm(C, Literal12Bit::new_checked(*a).unwrap()),
                 Imm(B, Literal12Bit::new_checked(*b).unwrap()),
                 Xor(A, B, C),
                 System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
             ],
         )
         .unwrap();
-        assert_reg!(vm, C, a ^ b);
+        assert_reg!(vm, A, a ^ b);
     }
 }
 
@@ -117,14 +117,14 @@ fn test_sub() {
         run(
             &mut vm,
             &[
-                Imm(A, Literal12Bit::new_checked(a).unwrap()),
-                Imm(B, Literal12Bit::new_checked(b).unwrap()),
+                Imm(B, Literal12Bit::new_checked(a).unwrap()),
+                Imm(C, Literal12Bit::new_checked(b).unwrap()),
                 Sub(A, B, C),
                 System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
             ],
         )
         .unwrap();
-        assert_reg!(vm, C, a.wrapping_sub(b));
+        assert_reg!(vm, A, a.wrapping_sub(b));
     }
 
     {
@@ -132,14 +132,14 @@ fn test_sub() {
         run(
             &mut vm,
             &[
-                Imm(A, Literal12Bit::new_checked(10).unwrap()),
-                Imm(B, Literal12Bit::new_checked(52).unwrap()),
+                Imm(B, Literal12Bit::new_checked(10).unwrap()),
+                Imm(C, Literal12Bit::new_checked(52).unwrap()),
                 Sub(A, B, C),
                 System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
             ],
         )
         .unwrap();
-        assert_reg!(vm, C, u16::MAX - 41);
+        assert_reg!(vm, A, u16::MAX - 41);
     }
 }
 
@@ -190,7 +190,7 @@ fn test_shift_left() -> Result<(), String> {
         &mut vm,
         &[
             Imm(C, Literal12Bit::new_checked(0xff)?),
-            ShiftLeft(C, B, Nibble::new_checked(4)?),
+            ShiftLeft(B, C, Nibble::new_checked(4)?),
             System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
@@ -208,7 +208,7 @@ fn test_shift_right() -> Result<(), String> {
             ShiftLeft(A, A, Nibble::new_checked(4)?),
             AddImm(A, Literal7Bit::new_checked(0x7)?),
             // A = 0x8FC7
-            ShiftRightLogical(A, C, Nibble::new_checked(3)?),
+            ShiftRightLogical(C, A, Nibble::new_checked(3)?),
             System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;
@@ -221,7 +221,7 @@ fn test_shift_right() -> Result<(), String> {
             ShiftLeft(A, A, Nibble::new_checked(4)?),
             AddImm(A, Literal7Bit::new_checked(0x70)?),
             // A = 0xff70
-            ShiftRightArithmetic(A, C, Nibble::new_checked(2)?),
+            ShiftRightArithmetic(C, A, Nibble::new_checked(2)?),
             System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
         ],
     )?;

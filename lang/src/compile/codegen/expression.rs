@@ -186,9 +186,9 @@ pub fn compile_expression(
                     StackOp::Push,
                 )),
                 UnresolvedInstruction::Instruction(Instruction::Add(
+                    Register::BP,
                     Register::SP,
                     Register::Zero,
-                    Register::BP,
                 )),
                 UnresolvedInstruction::Imm(Register::PC, Symbol::new(&id.0)),
                 // functions return in register A, so push this
@@ -227,8 +227,8 @@ pub fn compile_expression(
                         )));
                         out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
                             Register::C,
-                            Register::B,
                             Register::C,
+                            Register::B,
                         )));
                         out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                             Register::C,
@@ -258,8 +258,8 @@ pub fn compile_expression(
                     )),
                     UnresolvedInstruction::Instruction(Instruction::Mul(
                         Register::C,
-                        Register::B,
                         Register::C,
+                        Register::B,
                     )),
                     UnresolvedInstruction::Instruction(Instruction::Stack(
                         Register::C,

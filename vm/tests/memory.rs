@@ -35,9 +35,9 @@ fn test_store() -> Result<(), String> {
         {},
         Imm(A, Literal12Bit::new_checked(0x99)?),
         Imm(B, Literal12Bit::new_checked(0x11)?),
-        StoreWord(B, Zero, A),
+        StoreWord(A, B, Zero),
         Imm(B, Literal12Bit::new_checked(0x22)?),
-        StoreWord(B, Zero, A),
+        StoreWord(A, B, Zero),
         System(Zero, Zero, Nibble::new_checked(SIGHALT)?)
     );
     assert_mem!(vm, 0x11, 0x99);

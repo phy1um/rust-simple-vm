@@ -51,9 +51,9 @@ pub fn binop_compare(out: &mut Vec<UnresolvedInstruction>, a: Register, b: Regis
         a, b, op,
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-        Register::Zero,
-        Register::Zero,
         Register::C,
+        Register::Zero,
+        Register::Zero,
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::AddIf(
         Register::C,
@@ -74,9 +74,9 @@ pub fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, ty: &Typ
         StackOp::Pop,
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+        Register::B,
         Register::BP,
         Register::Zero,
-        Register::B,
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
         Register::B,
@@ -87,9 +87,9 @@ pub fn assign_from_stack_to_local(out: &mut Vec<UnresolvedInstruction>, ty: &Typ
 
 pub fn load_local_addr_to(out: &mut Vec<UnresolvedInstruction>, offset: u8, reg: Register) {
     out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+        reg,
         Register::BP,
         Register::Zero,
-        reg,
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
         reg,
@@ -104,9 +104,9 @@ pub fn assign_from_stack_to_arg(out: &mut Vec<UnresolvedInstruction>, index: u8)
         StackOp::Pop,
     )));
     out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+        Register::B,
         Register::BP,
         Register::Zero,
-        Register::B,
     )));
     out.push(UnresolvedInstruction::Instruction(
         Instruction::AddImmSigned(
@@ -115,17 +115,17 @@ pub fn assign_from_stack_to_arg(out: &mut Vec<UnresolvedInstruction>, index: u8)
         ),
     ));
     out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
+        Register::C,
         Register::B,
         Register::Zero,
-        Register::C,
     )));
 }
 
 pub fn load_arg_addr_to(out: &mut Vec<UnresolvedInstruction>, index: u8, reg: Register) {
     out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+        reg,
         Register::BP,
         Register::Zero,
-        reg,
     )));
     out.push(UnresolvedInstruction::Instruction(
         Instruction::AddImmSigned(
@@ -149,9 +149,9 @@ pub fn write_value(
             reg_value,
         ))),
         2 => out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
+            reg_value,
             reg_addr,
             Register::Zero,
-            reg_value,
         ))),
         n => panic!("uh oh we can't assign {n} bytes by value"),
     }

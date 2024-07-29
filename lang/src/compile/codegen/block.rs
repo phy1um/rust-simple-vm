@@ -136,9 +136,9 @@ pub(super) fn compile_block(
                     StackOp::Pop,
                 )));
                 out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+                    Register::B,
                     Register::BP,
                     Register::Zero,
-                    Register::B,
                 )));
                 out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
                     Register::B,
@@ -332,9 +332,9 @@ pub(super) fn compile_body(
         block
             .instructions
             .push(UnresolvedInstruction::Instruction(Instruction::Add(
+                Register::SP,
                 Register::BP,
                 Register::Zero,
-                Register::SP,
             )));
         let offset = -4 - 2 * (args.len() as i8);
         block.instructions.push(UnresolvedInstruction::Instruction(
@@ -357,9 +357,9 @@ pub(super) fn compile_body(
         block
             .instructions
             .push(UnresolvedInstruction::Instruction(Instruction::Add(
+                Register::PC,
                 Register::C,
                 Register::Zero,
-                Register::PC,
             )));
         Ok(block)
     }

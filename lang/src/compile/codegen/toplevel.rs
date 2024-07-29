@@ -40,9 +40,9 @@ pub fn compile(
             StackOp::Push,
         )),
         UnresolvedInstruction::Instruction(Instruction::Add(
+            Register::BP,
             Register::SP,
             Register::Zero,
-            Register::BP,
         )),
         UnresolvedInstruction::Imm(Register::PC, Symbol::new("main")),
         UnresolvedInstruction::Instruction(Instruction::Imm(
@@ -180,9 +180,9 @@ pub fn compile(
                 block
                     .instructions
                     .push(UnresolvedInstruction::Instruction(Instruction::Add(
+                        Register::SP,
                         Register::BP,
                         Register::Zero,
-                        Register::SP,
                     )));
                 let offset = -4 - 2 * (args.len() as i8);
                 block.instructions.push(UnresolvedInstruction::Instruction(
@@ -208,9 +208,9 @@ pub fn compile(
                 block
                     .instructions
                     .push(UnresolvedInstruction::Instruction(Instruction::Add(
+                        Register::PC,
                         Register::C,
                         Register::Zero,
-                        Register::PC,
                     )));
 
                 // TODO: copy this for function defs rather than lookup in compile_body
