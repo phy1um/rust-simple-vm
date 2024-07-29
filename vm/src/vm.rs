@@ -195,7 +195,8 @@ Flags: {:016b}",
             Instruction::Mul(r0, r1, dst) => {
                 let a = self.get_register(r0);
                 let b = self.get_register(r1);
-                self.set_register(dst, a * b);
+                let (res, _overflow) = a.overflowing_mul(b);
+                self.set_register(dst, res);
                 Ok(())
             }
             Instruction::And(r0, r1, dst) => {
