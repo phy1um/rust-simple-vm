@@ -41,52 +41,61 @@ pub trait InstructionPart {
 #[derive(Debug, VmInstruction, PartialEq, Eq, Clone)]
 pub enum Instruction {
     #[opcode(0xff)]
-    // TODO: make u16 more restrictive
     Imm(Register, Literal12Bit), // Imm has unique instruction format, it doesn't use an opcode.
     #[opcode(0x0)]
     Invalid,
+    // Binary Operators
     #[opcode(0x1)]
     Add(Register, Register, Register),
     #[opcode(0x2)]
     Sub(Register, Register, Register),
-    #[opcode(0x15)]
-    Mul(Register, Register, Register),
     #[opcode(0x3)]
-    AddImm(Register, Literal7Bit),
+    Mul(Register, Register, Register),
     #[opcode(0x4)]
-    AddImmSigned(Register, Literal7Bit),
+    And(Register, Register, Register),
     #[opcode(0x5)]
-    ShiftLeft(Register, Register, Nibble),
+    Or(Register, Register, Register),
     #[opcode(0x6)]
-    ShiftRightLogical(Register, Register, Nibble),
+    Xor(Register, Register, Register),
+    // Register+Imm
     #[opcode(0x7)]
-    ShiftRightArithmetic(Register, Register, Nibble),
-    // TODO: and, or, xor, not
+    AddImm(Register, Literal7Bit),
     #[opcode(0x8)]
-    LoadWord(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
+    AddImmSigned(Register, Literal7Bit),
+    // Shifts
     #[opcode(0x9)]
-    StoreWord(Register, Register, Register), // RAM[R1 | (R2<<16)] = R0
+    ShiftLeft(Register, Register, Nibble),
     #[opcode(0xa)]
-    JumpOffset(Literal10Bit),
+    ShiftRightLogical(Register, Register, Nibble),
+    #[opcode(0xb)]
+    ShiftRightArithmetic(Register, Register, Nibble),
+    // Load and Store
+    #[opcode(0xc)]
+    LoadWord(Register, Register, Register), // R0 = RAM[R1 | (R2<<16)]
+    #[opcode(0xd)]
+    StoreWord(Register, Register, Register), // RAM[R1 | (R2<<16)] = R0
+    #[opcode(0xe)]
+    LoadByte(Register, Register, Register),
+    #[opcode(0xf)]
+    StoreByte(Register, Register, Register),
+    // Compound operations
     #[opcode(0x10)]
     SetAndSave(Register, Register, Register), // R2 = R0, R0 = R1
     #[opcode(0x11)]
     AddAndSave(Register, Register, Register), // R2 = R0, R0 = R0+R1
-    #[opcode(0xb)]
-    Test(Register, Register, TestOp),
-    #[opcode(0xc)]
-    AddIf(Register, Register, Nibble),
-    #[opcode(0xd)]
-    Stack(Register, Register, StackOp),
-    #[opcode(0xe)]
-    LoadStackOffset(Register, Register, Nibble),
-    #[opcode(0xf)]
-    System(Register, Register, Nibble),
-
+    // Control flow
     #[opcode(0x12)]
-    LoadByte(Register, Register, Register),
+    Test(Register, Register, TestOp),
     #[opcode(0x13)]
-    StoreByte(Register, Register, Register),
+    AddIf(Register, Register, Nibble),
+    // Stack
+    #[opcode(0x14)]
+    Stack(Register, Register, StackOp),
+    #[opcode(0x15)]
+    LoadStackOffset(Register, Register, Nibble),
+    // Syscalls
+    #[opcode(0x1f)]
+    System(Register, Register, Nibble),
 }
 
 #[cfg(test)]
@@ -103,6 +112,10 @@ mod test {
             AddImmSigned(A, Literal7Bit::new_checked(0x7)?),
             Add(C, B, A),
             Sub(PC, BP, SP),
+            Mul(PC, BP, SP),
+            And(PC, BP, SP),
+            Or(PC, BP, SP),
+            Xor(PC, BP, SP),
             ShiftLeft(M, BP, Nibble::new_checked(0xe)?),
             ShiftRightLogical(M, BP, Nibble::new_checked(0xe)?),
             ShiftRightArithmetic(M, BP, Nibble::new_checked(0xe)?),
@@ -110,7 +123,6 @@ mod test {
             LoadByte(A, C, M),
             StoreWord(C, A, M),
             StoreByte(C, A, M),
-            JumpOffset(Literal10Bit::new_checked(1000)?),
             SetAndSave(A, B, C),
             AddAndSave(PC, B, C),
             Test(BP, A, TestOp::Gte),

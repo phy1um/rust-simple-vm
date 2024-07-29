@@ -22,6 +22,63 @@ fn test_add() -> Result<(), String> {
 }
 
 #[test]
+fn test_and() {
+    let cases = vec![(1, 12), (42, 51), (1000, 52), (32, 33), (111, 97)];
+    let mut vm = make_test_vm(1024 * 4).unwrap();
+    for (a, b) in cases.iter() {
+        run(
+            &mut vm,
+            &[
+                Imm(A, Literal12Bit::new_checked(*a).unwrap()),
+                Imm(B, Literal12Bit::new_checked(*b).unwrap()),
+                And(A, B, C),
+                System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
+            ],
+        )
+        .unwrap();
+        assert_reg!(vm, C, a & b);
+    }
+}
+
+#[test]
+fn test_or() {
+    let cases = vec![(1, 12), (42, 51), (1000, 52), (32, 33), (111, 97)];
+    let mut vm = make_test_vm(1024 * 4).unwrap();
+    for (a, b) in cases.iter() {
+        run(
+            &mut vm,
+            &[
+                Imm(A, Literal12Bit::new_checked(*a).unwrap()),
+                Imm(B, Literal12Bit::new_checked(*b).unwrap()),
+                Or(A, B, C),
+                System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
+            ],
+        )
+        .unwrap();
+        assert_reg!(vm, C, a | b);
+    }
+}
+
+#[test]
+fn test_xor() {
+    let cases = vec![(1, 12), (42, 51), (1000, 52), (32, 33), (111, 97)];
+    let mut vm = make_test_vm(1024 * 4).unwrap();
+    for (a, b) in cases.iter() {
+        run(
+            &mut vm,
+            &[
+                Imm(A, Literal12Bit::new_checked(*a).unwrap()),
+                Imm(B, Literal12Bit::new_checked(*b).unwrap()),
+                Xor(A, B, C),
+                System(Zero, Zero, Nibble::new_checked(SIGHALT).unwrap()),
+            ],
+        )
+        .unwrap();
+        assert_reg!(vm, C, a ^ b);
+    }
+}
+
+#[test]
 fn test_sub() -> Result<(), String> {
     let mut vm = make_test_vm(1024 * 4)?;
     run(

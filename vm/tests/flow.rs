@@ -24,27 +24,6 @@ fn test_jump() -> Result<(), String> {
 }
 
 #[test]
-fn test_jump_offset() -> Result<(), String> {
-    let mut vm = make_test_vm(1024 * 4)?;
-    run(
-        &mut vm,
-        &[
-            Add(Zero, Zero, Zero),
-            Add(Zero, Zero, Zero),
-            Add(Zero, Zero, Zero),
-            JumpOffset(Literal10Bit::new_checked(10)?),
-            Invalid,
-            Invalid,
-            Invalid,
-            Invalid,
-            System(Zero, Zero, Nibble::new_checked(SIGHALT)?),
-        ],
-    )?;
-    assert_reg!(vm, PC, 18);
-    Ok(())
-}
-
-#[test]
 fn test_branch() -> Result<(), String> {
     let mut vm = make_test_vm(1024 * 4)?;
     run(

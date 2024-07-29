@@ -179,6 +179,7 @@ Flags: {:016b}",
                 self.set_register(reg, v.value);
                 Ok(())
             }
+            // binops
             Instruction::Add(r0, r1, dst) => {
                 let a = self.get_register(r0);
                 let b = self.get_register(r1);
@@ -197,6 +198,25 @@ Flags: {:016b}",
                 self.set_register(dst, a * b);
                 Ok(())
             }
+            Instruction::And(r0, r1, dst) => {
+                let a = self.get_register(r0);
+                let b = self.get_register(r1);
+                self.set_register(dst, a & b);
+                Ok(())
+            }
+            Instruction::Or(r0, r1, dst) => {
+                let a = self.get_register(r0);
+                let b = self.get_register(r1);
+                self.set_register(dst, a | b);
+                Ok(())
+            }
+            Instruction::Xor(r0, r1, dst) => {
+                let a = self.get_register(r0);
+                let b = self.get_register(r1);
+                self.set_register(dst, a ^ b);
+                Ok(())
+            }
+            // immediates
             Instruction::AddImm(r, i) => {
                 self.set_register(r, self.get_register(r) + (i.value as u16));
                 Ok(())
@@ -264,10 +284,6 @@ Flags: {:016b}",
                 self.memory
                     .write(addr, (self.get_register(r2) & 0xff) as u8)
                     .map_err(|x| x.to_string())
-            }
-            Instruction::JumpOffset(b) => {
-                self.set_register(Register::PC, self.get_register(Register::PC) + b.value);
-                Ok(())
             }
             Instruction::SetAndSave(r0, r1, save) => {
                 let v = self.get_register(r1); // save this upfront in case r0 == r1!
