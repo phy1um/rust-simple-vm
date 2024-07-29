@@ -1,4 +1,4 @@
-use simplevm::{Instruction, Literal10Bit, Literal12Bit, Literal7Bit, Register};
+use simplevm::{Instruction, Literal12Bit, Literal7Bit, Register};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -29,7 +29,6 @@ pub enum UnresolvedInstruction {
     Imm(Register, Symbol),
     AddImm(Register, Symbol),
     AddImmSigned(Register, Symbol),
-    JumpOffset(Symbol),
     Label(Symbol),
 }
 
@@ -40,7 +39,6 @@ impl fmt::Display for UnresolvedInstruction {
             Self::Imm(r, s) => write!(f, "Imm {r} !{s}"),
             Self::AddImm(r, s) => write!(f, "AddImm {r} !{s}"),
             Self::AddImmSigned(r, s) => write!(f, "AddImmSigned {r} !{s}"),
-            Self::JumpOffset(s) => write!(f, "JumpOffset !{s}"),
             Self::Label(s) => write!(f, ":{s}"),
         }
     }
@@ -64,11 +62,6 @@ impl UnresolvedInstruction {
                 Literal7Bit::new_checked(v as u8)
                     .map_err(|_| CompilerError::LiteralOutOfBounds(v, 0, 0x7f))
                     .map(|x| Some(Instruction::AddImmSigned(*reg, x)))
-            }),
-            Self::JumpOffset(sym) => ctx.get(sym).and_then(|v| {
-                Literal10Bit::new_checked(v as u16)
-                    .map_err(|_| CompilerError::LiteralOutOfBounds(v, 0, 0x3ff))
-                    .map(|x| Some(Instruction::JumpOffset(x)))
             }),
             Self::Label(_) => Ok(None),
         }
