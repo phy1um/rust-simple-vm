@@ -10,7 +10,7 @@ use crate::compile::resolve::{type_of, Symbol, Type, UnresolvedInstruction};
 // use crate::compile::util::*;
 
 pub fn compile_expression(
-    ctx: &Context,
+    ctx: &mut Context,
     scope: &mut BlockScope,
     expr: &ast::Expression,
 ) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
@@ -82,6 +82,24 @@ pub fn compile_expression(
                 StackOp::Push,
             )),
         ]),
+        ast::Expression::LiteralString(s) => {
+            let mut const_data = Vec::<u8>::new();
+            // TODO: danger utf8 + str len assuming ascii
+            let str_len = s.len();
+            const_data.push((str_len & 0xff) as u8);
+            const_data.push(((str_len & 0xff00) >> 8) as u8);
+            let s_bytes = s.clone().into_bytes();
+            const_data.extend(s_bytes);
+            let addr = ctx.push_static_data(const_data);
+            let mut out = Vec::new();
+            out.extend(load_address_to(addr as usize, Register::C, Register::M));
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                Register::C,
+                Register::SP,
+                StackOp::Push,
+            )));
+            Ok(out)
+        }
         ast::Expression::BuiltinSizeof(t) => {
             let tt = Type::from_ast(ctx, t)?;
             let size = tt.size_bytes();
@@ -210,7 +228,7 @@ pub fn compile_expression(
                 ast::BinOp::Add => {
                     if let Type::Pointer(t) = e0_type {
                         let size = t.size_bytes();
-                        println!("pointer arith: += *sizeof({t}) (== {size})");
+                        // println!("pointer arith: += *sizeof({t}) (== {size})");
                         out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                             Register::C,
                             Register::SP,

@@ -196,6 +196,7 @@ impl FromStr for BinOp {
 pub enum Expression {
     LiteralInt(i32),
     LiteralChar(char),
+    LiteralString(String),
     Variable(Vec<Identifier>),
     AddressOf(Vec<Identifier>),
     Deref(Box<Expression>),
@@ -215,6 +216,7 @@ impl fmt::Display for Expression {
         match self {
             Self::LiteralInt(i) => write!(f, "{i}"),
             Self::LiteralChar(c) => write!(f, "'{c}'"),
+            Self::LiteralString(s) => write!(f, "\"{s}\""),
             Self::AddressOf(fields) => write!(
                 f,
                 "&{}",

@@ -232,7 +232,7 @@ pub(super) fn compile_block(
                 write_value(&mut out, &lhs_type, Register::B, Register::C);
             }
             ast::Statement::AssignStructField { fields, rhs } => {
-                println!("asssign struct field: {fields:?} = {rhs}");
+                // println!("asssign struct field: {fields:?} = {rhs}");
                 let compiled_expr = compile_expression(ctx, &mut scope, &rhs)?;
                 out.extend(compiled_expr);
                 if fields.is_empty() {

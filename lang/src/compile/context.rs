@@ -26,6 +26,7 @@ pub struct Context {
     pub functions: Vec<Block>,
     pub function_defs: HashMap<String, FunctionDefinition>,
     pub globals: HashMap<String, Global>,
+    pub static_data: Vec<(usize, Vec<u8>)>,
     pub user_types: HashMap<String, Type>,
     pub init: Vec<UnresolvedInstruction>,
     global_head: usize,
@@ -104,6 +105,16 @@ impl Context {
         );
     }
 
+    pub fn push_static_data(&mut self, data: Vec<u8>) -> u32 {
+        let offset = self.global_head;
+        self.global_head += data.len();
+        if self.global_head % 2 == 1 {
+            self.global_head += 1;
+        }
+        self.static_data.push((offset, data));
+        offset as u32
+    }
+
     pub fn define_user_type(&mut self, s: &str, t: Type) {
         self.user_types.insert(s.to_string(), t);
     }
@@ -144,5 +155,15 @@ impl Context {
             }
         }
         Ok(out)
+    }
+
+    pub fn get_static(&self) -> Result<(usize, Vec<u8>), CompilerError> {
+        let mut out = vec![0; self.global_head];
+        for (offset, data) in &self.static_data {
+            for (i, d) in data.iter().enumerate() {
+                out[offset + i] = *d;
+            }
+        }
+        Ok((0, out))
     }
 }

@@ -92,6 +92,17 @@ fn expression_literal_char(input: &str) -> CResult<&str, ast::Expression> {
     )(input)
 }
 
+fn expression_literal_string(input: &str) -> CResult<&str, ast::Expression> {
+    map(
+        wrapped(
+            token("\""),
+            with_confidence(repeat0(not_char("\"")), Confidence::Medium),
+            token("\""),
+        ),
+        |x| ast::Expression::LiteralString(x.into_iter().collect()),
+    )(input)
+}
+
 pub fn expression_variable(input: &str) -> CResult<&str, ast::Expression> {
     let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
     Ok((s0, ast::Expression::Variable(vec![id])))
@@ -195,6 +206,7 @@ fn expression_lhs(input: &str) -> CResult<&str, ast::Expression> {
         expression_literal_int_base16,
         expression_literal_int_base10,
         expression_literal_char,
+        expression_literal_string,
         expression_array_index,
         expression_struct_fields,
         expression_builtin_sizeof,
@@ -213,6 +225,7 @@ fn expression_array_index_lhs(input: &str) -> CResult<&str, ast::Expression> {
         expression_literal_int_base16,
         expression_literal_int_base10,
         expression_literal_char,
+        expression_literal_string,
         expression_struct_fields,
         expression_builtin_sizeof,
         expression_call,
@@ -876,6 +889,17 @@ int y,
         {
             let res = run_parser(identifier, "1abcde");
             assert!(matches!(res, Err(_)));
+        }
+    }
+
+    #[test]
+    fn test_string_literal() {
+        {
+            let expected = "\"foo bar baz\"";
+            assert_eq!(
+                expected,
+                run_parser(expression, expected).unwrap().to_string(),
+            );
         }
     }
 }

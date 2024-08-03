@@ -71,7 +71,6 @@ impl BlockScope {
     pub fn define_local(&mut self, s: &str, t: &Type) -> usize {
         let mut fn_block = self.parent_func.borrow_mut();
         let offset = fn_block.allocate_local_space(t);
-        println!("declare local: {s} {t} @ {offset:X}");
         self.locals.push(LocalDefinition::new(s, offset, t));
         offset
     }
