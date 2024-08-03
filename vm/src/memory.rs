@@ -9,6 +9,7 @@ pub enum MemoryError {
     InvalidMap(u32, usize),
     InternalMapperError(u32),
     InternalMapperWithMessage(u32, String),
+    ReadOnly,
 }
 
 impl fmt::Display for MemoryError {
@@ -20,6 +21,7 @@ impl fmt::Display for MemoryError {
             AddressTranslation(a, e) => write!(f, "translation @{:X}: {}", a, e),
             InternalMapperError(a) => write!(f, "internal mapper error @{:X}", a),
             InternalMapperWithMessage(a, s) => write!(f, "internal mapper error @{:X}: {s}", a),
+            ReadOnly => write!(f, "this memory is read only"),
         }
     }
 }

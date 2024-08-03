@@ -1,3 +1,4 @@
+pub mod binfmt;
 pub mod io;
 pub mod memory;
 pub mod op;
