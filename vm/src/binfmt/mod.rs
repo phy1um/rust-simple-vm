@@ -63,7 +63,7 @@ impl Header {
     }
 
     fn byte_size() -> usize {
-        26
+        22
     }
 }
 
@@ -111,6 +111,7 @@ impl Section {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct BinaryFile {
     pub version: u16,
     pub entrypoint: u16,
@@ -127,6 +128,10 @@ impl BinaryFile {
             hwconf: [0; 4],
             reserved: [0; 12],
         }
+    }
+
+    pub fn get_header_size(&self) -> usize {
+        Header::byte_size() + (self.sections.len()*Section::byte_size())
     }
 
     pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
@@ -155,8 +160,9 @@ impl BinaryFile {
     }
 
     pub fn load_to_vm(&self, vm: &mut Machine) -> Result<(), String> {
+        let header_size = self.get_header_size();
         for (i, section) in self.sections.iter().enumerate() {
-            let file_offset_start = section.file_offset as usize;
+            let file_offset_start = section.file_offset as usize - header_size;
             let file_offset_end = file_offset_start + section.size as usize;
             if let Some(sub_data) = self.data.get(file_offset_start..file_offset_end) {
                 let addressable = if section.mode == 1 {
@@ -171,10 +177,11 @@ impl BinaryFile {
                 )?;
             } else {
                 return Err(format!(
-                    "section {i} [{}, {}] => {}: file read out of bounds",
+                    "section {i} [{}, {}] => {}: file read out of bounds ({})",
                     section.file_offset,
                     section.file_offset + section.size as u32,
-                    section.address
+                    section.address,
+                    self.data.len(),
                 ));
             }
         }

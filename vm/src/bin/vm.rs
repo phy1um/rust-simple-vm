@@ -3,7 +3,8 @@ use std::fs::File;
 use std::io::{stdin, BufReader, Read};
 use std::path::Path;
 
-use simplevm::{LinearMemory, Machine, MemoryMappedBuffer, Register, VM};
+use simplevm::{LinearMemory, Machine, Register, VM};
+use simplevm::binfmt::BinaryFile;
 
 fn signal_halt(vm: &mut VM, _: u16) -> Result<(), String> {
     vm.halt = true;
@@ -31,11 +32,9 @@ pub fn main() -> Result<(), String> {
 
     let mut vm = Machine::default();
     vm.map(0x1000, 0x8000, Box::new(LinearMemory::new(0x8000)))?;
-    vm.map(
-        0x0,
-        program.len(),
-        Box::new(MemoryMappedBuffer::new(program)),
-    )?;
+    let bin = BinaryFile::from_bytes(&program)?; 
+    bin.load_to_vm(&mut vm)?;
+    vm.set_register(Register::PC, bin.entrypoint);
     vm.set_register(Register::SP, 0x1000);
     vm.define_handler(0xf0, signal_halt);
     while !vm.is_halt() {
