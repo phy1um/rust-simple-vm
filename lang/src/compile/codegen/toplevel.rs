@@ -1,5 +1,6 @@
 use crate::compile::codegen::block::compile_body;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use simplevm::pp;
@@ -107,29 +108,22 @@ pub fn compile(
         }
     }
     // global definition pass
-    let global_page_size = global_map
-        .iter()
-        .fold(0, |acc, (_, t)| acc + t.size_bytes());
     for (k, t) in global_map.iter() {
         ctx.define_global(k, t.clone());
     }
     // codegen pass
-    ctx.program_start_offset = offset + (global_page_size as u32);
-    let mut program_offset: u32 =
-        offset + (global_page_size as u32) + ctx.init.iter().map(|x| x.size()).sum::<u32>();
+    // TODO: just removed some global calc
+    // offset + (global_page_size as u32) + ctx.init.iter().map(|x| x.size()).sum::<u32>();
     for p in program {
         match p {
             ast::TopLevel::FunctionDefinition {
                 name, body, args, ..
             } => {
-                let block = compile_body(&mut ctx, body, &name.0, program_offset, args)
-                    .map_err(|x| (ctx.clone(), x))?;
-                block.register_labels(&mut ctx, program_offset);
-                let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
+                let block =
+                    compile_body(&mut ctx, body, &name.0, args).map_err(|x| (ctx.clone(), x))?;
                 let local_count_sym = format!("__internal_{name}_local_count");
                 ctx.define(&Symbol::new(&local_count_sym), block.local_offset as u32);
-                ctx.functions.push(block);
-                program_offset += block_size;
+                ctx.functions.push((name.0.clone(), block));
             }
             ast::TopLevel::InlineAsm { name, body, args } => {
                 let mut pp = PreProcessor::default();
@@ -220,15 +214,26 @@ pub fn compile(
                         &Type::from_ast(&ctx, &arg_type).map_err(|e| (ctx.clone(), e))?,
                     );
                 }
-                block.offset = program_offset;
-                let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
-                program_offset += block_size;
-                ctx.define(&Symbol::new(&name.0), block.offset);
-                ctx.functions.push(block);
+                ctx.functions.push((name.0.clone(), block));
             }
             ast::TopLevel::GlobalVariable { .. } => {}
             ast::TopLevel::TypeDefinition { .. } => {}
         }
     }
+
+    let mut offsets: HashMap<String, u32> = HashMap::new();
+
+    let mut program_offset = ctx.get_code_section_start();
+    // function offset allocation pass
+    for (name, block) in ctx.functions.clone() {
+        let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
+        offsets.insert(name.to_string(), program_offset);
+        block.register_labels(&mut ctx, program_offset);
+        program_offset += block_size;
+    }
+    for (name, offset) in offsets {
+        ctx.define(&Symbol::new(&name), offset);
+    }
+
     Ok(ctx)
 }

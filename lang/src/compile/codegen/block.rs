@@ -295,13 +295,9 @@ pub(super) fn compile_body(
     ctx: &mut Context,
     statements: Vec<ast::Statement>,
     name: &str,
-    offset: u32,
     args: Vec<(ast::Identifier, ast::Type)>,
 ) -> Result<Block, CompilerError> {
-    let mut block = Block {
-        offset,
-        ..Block::default()
-    };
+    let mut block = Block { ..Block::default() };
     block
         .instructions
         .push(UnresolvedInstruction::Label(Symbol::new(name)));

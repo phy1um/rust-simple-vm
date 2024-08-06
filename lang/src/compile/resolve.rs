@@ -183,7 +183,7 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
     match expr {
         ast::Expression::LiteralInt(_) => Type::Int,
         ast::Expression::LiteralChar(_) => Type::Char,
-        ast::Expression::LiteralString(_) => Type::Pointer(Box::new(Type::Char)),
+        ast::Expression::LiteralString(_) => Type::Pointer(Box::new(Type::Void)),
         ast::Expression::BuiltinSizeof(_) => Type::Int,
         ast::Expression::AddressOf(fields) => get_fields_type(ctx, scope, fields),
         ast::Expression::ArrayDeref { lhs, index: _ } => {

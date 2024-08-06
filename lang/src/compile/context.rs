@@ -23,15 +23,15 @@ pub struct Global {
 #[derive(Debug, Default, Clone)]
 pub struct Context {
     pub symbols: HashMap<String, u32>,
-    pub functions: Vec<Block>,
+    // (name of function, block)
+    pub functions: Vec<(String, Block)>,
     pub function_defs: HashMap<String, FunctionDefinition>,
     pub globals: HashMap<String, Global>,
     pub static_data: Vec<(usize, Vec<u8>)>,
     pub user_types: HashMap<String, Type>,
     pub init: Vec<UnresolvedInstruction>,
-    global_head: usize,
+    static_head: usize,
     pub global_base: usize,
-    pub program_start_offset: u32,
 }
 
 impl fmt::Display for Context {
@@ -70,7 +70,11 @@ impl fmt::Display for Context {
                 .join(", ")
         )?;
         writeln!(f, "globals start @ {}", self.global_base)?;
-        writeln!(f, "program start @ {}", self.program_start_offset)
+        writeln!(
+            f,
+            "program section start @ {}",
+            self.get_code_section_start()
+        )
     }
 }
 
@@ -94,8 +98,8 @@ impl Context {
     }
 
     pub fn define_global(&mut self, s: &str, t: Type) {
-        let offset = self.global_head;
-        self.global_head += t.size_bytes();
+        let offset = self.static_head;
+        self.static_head += t.size_bytes();
         self.globals.insert(
             s.to_string(),
             Global {
@@ -106,10 +110,10 @@ impl Context {
     }
 
     pub fn push_static_data(&mut self, data: Vec<u8>) -> u32 {
-        let offset = self.global_head;
-        self.global_head += data.len();
-        if self.global_head % 2 == 1 {
-            self.global_head += 1;
+        let offset = self.static_head;
+        self.static_head += data.len();
+        if self.static_head % 2 == 1 {
+            self.static_head += 1;
         }
         self.static_data.push((offset, data));
         offset as u32
@@ -132,7 +136,7 @@ impl Context {
         for ins in &self.init {
             out.push(ins.to_string());
         }
-        for func in &self.functions {
+        for (_, func) in &self.functions {
             for ins in &func.instructions {
                 out.push(ins.to_string());
             }
@@ -147,7 +151,7 @@ impl Context {
                 out.push(c);
             }
         }
-        for func in &self.functions {
+        for (_, func) in &self.functions {
             for ins in &func.instructions {
                 if let Some(c) = ins.resolve(self)? {
                     out.push(c);
@@ -158,12 +162,30 @@ impl Context {
     }
 
     pub fn get_static(&self) -> Result<(usize, Vec<u8>), CompilerError> {
-        let mut out = vec![0; self.global_head];
+        let mut out = vec![0; self.static_head];
         for (offset, data) in &self.static_data {
             for (i, d) in data.iter().enumerate() {
                 out[offset + i] = *d;
             }
         }
         Ok((0, out))
+    }
+
+    pub fn get_code_section_start(&self) -> u32 {
+        self.get_static_section_size()
+    }
+
+    fn get_static_section_size(&self) -> u32 {
+        let mut max: u32 = 0;
+        for (offset, data) in &self.static_data {
+            if (offset + data.len()) as u32 > max {
+                max = (offset + data.len()) as u32;
+            }
+        }
+        max + (max % 2)
+    }
+
+    pub fn get_static_section_start(&self) -> u32 {
+        0
     }
 }
