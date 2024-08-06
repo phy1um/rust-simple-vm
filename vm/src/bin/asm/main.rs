@@ -8,7 +8,10 @@ use std::str::FromStr;
 use simplevm::pp::macros;
 use simplevm::pp::PreProcessor;
 
-use simplevm::{Instruction, InstructionParseError, binfmt::{BinaryFile, Section}};
+use simplevm::{
+    binfmt::{BinaryFile, Section},
+    Instruction, InstructionParseError,
+};
 
 mod args;
 
@@ -44,7 +47,7 @@ fn main() -> Result<(), String> {
                 output.push(b);
             }
             output.push(b'\n');
-        } 
+        }
     } else {
         let mut program_bytes = Vec::<u8>::new();
         for line in processed {
@@ -71,8 +74,8 @@ fn main() -> Result<(), String> {
         let mut bin = BinaryFile::default();
         bin.entrypoint = 0;
         bin.version = 99;
-        bin.sections.push(Section{
-            size: program_bytes.len() as u16, 
+        bin.sections.push(Section {
+            size: program_bytes.len() as u16,
             mode: 0,
             address: 0,
             file_offset: 1,

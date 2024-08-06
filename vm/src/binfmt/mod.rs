@@ -131,7 +131,7 @@ impl BinaryFile {
     }
 
     pub fn get_header_size(&self) -> usize {
-        Header::byte_size() + (self.sections.len()*Section::byte_size())
+        Header::byte_size() + (self.sections.len() * Section::byte_size())
     }
 
     pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
