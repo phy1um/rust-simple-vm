@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use crate::binfmt::BinaryFile;
 use crate::*;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::convert::FromWasmAbi;
@@ -301,5 +302,12 @@ impl JSMachine {
                 result_callback,
             },
         );
+    }
+
+    #[wasm_bindgen]
+    pub fn load_binary(&mut self, bin: &[u8]) -> Result<(), String> {
+        let bin_file = BinaryFile::from_bytes(bin)?;
+        bin_file.load_to_vm(&mut self.m)?;
+        Ok(())
     }
 }
