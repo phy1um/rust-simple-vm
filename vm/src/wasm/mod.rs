@@ -308,6 +308,7 @@ impl JSMachine {
     pub fn load_binary(&mut self, bin: &[u8]) -> Result<(), String> {
         let bin_file = BinaryFile::from_bytes(bin)?;
         bin_file.load_to_vm(&mut self.m)?;
+        self.m.set_register(Register::PC, bin_file.entrypoint);
         Ok(())
     }
 }

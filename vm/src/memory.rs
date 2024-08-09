@@ -119,7 +119,10 @@ impl Addressable for MemoryMapper {
                 if addr_local >= *size as u32 {
                     Err(AddressTranslation(addr, Box::new(OutOfBounds(addr_local))))
                 } else {
-                    a.try_borrow_mut().unwrap().read(addr_local)
+                    a.try_borrow_mut()
+                        .unwrap()
+                        .read(addr_local)
+                        .map_err(|e| AddressTranslation(addr, Box::new(e)))
                 }
             }
             None => Err(InvalidMap(addr, i)),

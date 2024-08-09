@@ -9,7 +9,7 @@ use simplevm::pp::macros;
 use simplevm::pp::PreProcessor;
 
 use simplevm::{
-    binfmt::{BinaryFile, Section},
+    binfmt::{BinaryFile, Section, SectionMode},
     Instruction, InstructionParseError,
 };
 
@@ -76,9 +76,15 @@ fn main() -> Result<(), String> {
         bin.version = 99;
         bin.sections.push(Section {
             size: program_bytes.len() as u16,
-            mode: 0,
+            mode: SectionMode::RW,
             address: 0,
             file_offset: 1,
+        });
+        bin.sections.push(Section {
+            size: 0x8000,
+            mode: SectionMode::Heap,
+            address: 0x1000,
+            ..Section::default()
         });
         let header_size = bin.get_header_size();
         bin.sections.get_mut(0).unwrap().file_offset = header_size as u32;

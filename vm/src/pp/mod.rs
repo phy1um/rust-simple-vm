@@ -49,6 +49,7 @@ pub struct PreProcessor {
     instruction_count: u32,
 }
 
+// TODO(phy1um): use unresolvedinstrction abstraction from lang
 #[derive(Debug)]
 pub struct ProcessedLine {
     source_line_number: usize,
