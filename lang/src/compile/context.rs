@@ -3,7 +3,10 @@ use crate::compile::error::CompilerError;
 use crate::compile::resolve::{Symbol, Type, UnresolvedInstruction};
 use std::collections::HashMap;
 
-use simplevm::Instruction;
+use simplevm::{
+    binfmt::{BinaryFile, Section, SectionMode},
+    Instruction,
+};
 
 use std::fmt;
 
@@ -29,7 +32,6 @@ pub struct Context {
     pub globals: HashMap<String, Global>,
     pub static_data: Vec<(usize, Vec<u8>)>,
     pub user_types: HashMap<String, Type>,
-    pub init: Vec<UnresolvedInstruction>,
     static_head: usize,
     pub global_base: usize,
 }
@@ -107,6 +109,7 @@ impl Context {
                 var_type: t,
             },
         );
+        self.static_data.push((offset, vec![0, 0]));
     }
 
     pub fn push_static_data(&mut self, data: Vec<u8>) -> u32 {
@@ -128,14 +131,18 @@ impl Context {
     }
 
     pub fn load_init(&mut self, prog: Vec<UnresolvedInstruction>) {
-        self.init = prog;
+        let block = Block {
+            instructions: prog,
+            local_count: 0,
+            local_offset: 0,
+            args: Vec::new(),
+            offset: 1,
+        };
+        self.functions.push(("_init".to_string(), block));
     }
 
     pub fn get_lines_unresolved(&self) -> Result<Vec<String>, CompilerError> {
         let mut out = Vec::new();
-        for ins in &self.init {
-            out.push(ins.to_string());
-        }
         for (_, func) in &self.functions {
             for ins in &func.instructions {
                 out.push(ins.to_string());
@@ -146,11 +153,6 @@ impl Context {
 
     pub fn get_instructions(&self) -> Result<Vec<Instruction>, CompilerError> {
         let mut out = Vec::new();
-        for ins in &self.init {
-            if let Some(c) = ins.resolve(self)? {
-                out.push(c);
-            }
-        }
         for (_, func) in &self.functions {
             for ins in &func.instructions {
                 if let Some(c) = ins.resolve(self)? {
@@ -171,6 +173,10 @@ impl Context {
         Ok((0, out))
     }
 
+    pub fn get_entrypoint(&self) -> Option<u32> {
+        self.symbols.get("_init").copied()
+    }
+
     pub fn get_code_section_start(&self) -> u32 {
         self.get_static_section_size()
     }
@@ -187,5 +193,52 @@ impl Context {
 
     pub fn get_static_section_start(&self) -> u32 {
         0
+    }
+
+    pub fn to_binary(&self) -> Result<BinaryFile, String> {
+        let (static_offset, static_data) = self.get_static().unwrap();
+        let instructions = self
+            .get_instructions()
+            .map_err(|x| format!("resolving: {x:?}"))?;
+        let mut code_bytes: Vec<u8> = Vec::new();
+        for i in instructions.iter() {
+            let raw_instruction: u16 = i.encode_u16();
+            code_bytes.extend_from_slice(&raw_instruction.to_le_bytes());
+        }
+        let mut bin = BinaryFile::default();
+        let entrypoint = self
+            .get_entrypoint()
+            .ok_or("no function _init".to_string())? as u16;
+        bin.entrypoint = entrypoint;
+        bin.version = 1;
+        bin.sections.push(Section {
+            size: code_bytes.len() as u16,
+            mode: SectionMode::RO,
+            address: self.get_code_section_start(),
+            file_offset: 1,
+        });
+        bin.sections.push(Section {
+            size: 0x8000,
+            mode: SectionMode::Heap,
+            address: self.get_code_section_start() + code_bytes.len() as u32,
+            ..Section::default()
+        });
+        if !static_data.is_empty() {
+            bin.sections.push(Section {
+                size: static_data.len() as u16,
+                mode: SectionMode::RW,
+                address: static_offset as u32,
+                file_offset: 1,
+            });
+        }
+        let header_size = bin.get_header_size();
+        bin.sections.get_mut(0).unwrap().file_offset = header_size as u32;
+        let static_data_start = header_size + code_bytes.len();
+        bin.data.extend(code_bytes);
+        if !static_data.is_empty() {
+            bin.sections.get_mut(2).unwrap().file_offset = static_data_start as u32;
+            bin.data.extend(static_data);
+        }
+        Ok(bin)
     }
 }

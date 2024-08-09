@@ -56,21 +56,9 @@ fn main() -> Result<(), String> {
                     .write_all(instructions_txt.as_bytes())
                     .map_err(|x| format!("{x}"))?
             } else {
-                let (_static_offset, static_data) = res.get_static().unwrap();
-                let instructions = res
-                    .get_instructions()
-                    .map_err(|x| format!("resolving: {x:?}"))?;
-                let mut output: Vec<u8> = vec![0; instructions.len() * 2 + static_data.len()];
-                for (i, d) in static_data.iter().enumerate() {
-                    output[i] = *d;
-                }
-                for (index, i) in instructions.iter().enumerate() {
-                    let offset = static_data.len() + (index * 2);
-                    let raw_instruction: u16 = i.encode_u16();
-                    // assumption: >>8 needs to mask for u16
-                    output[offset] = (raw_instruction & 0xff) as u8;
-                    output[offset + 1] = (raw_instruction >> 8) as u8;
-                }
+                let bin = res.to_binary()?;
+                let mut output: Vec<u8> = Vec::new();
+                bin.to_bytes(&mut output);
                 let mut stdout = stdout().lock();
                 stdout.write_all(&output).map_err(|x| format!("{}", x))?;
             }
