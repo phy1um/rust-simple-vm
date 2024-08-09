@@ -36,7 +36,7 @@ pub fn signal_halt(vm: &mut VM, _: u16) -> Result<(), String> {
 }
 
 const MAX_TEST_CYCLES: u32 = 100_000;
-pub fn run_program_with_memory_size(program: &str, memory: usize) -> Result<Machine, String> {
+pub fn run_program(program: &str) -> Result<Machine, String> {
     let mut vm = Machine::default();
     vm.set_register(Register::SP, 1024 * 3);
     vm.define_handler(SIGHALT, signal_halt);
@@ -44,20 +44,13 @@ pub fn run_program_with_memory_size(program: &str, memory: usize) -> Result<Mach
     let prog = run_parser(parse_ast, program).unwrap();
     let res = compile(prog, 0).unwrap();
     println!("{res}");
-    let instructions = res.get_instructions().unwrap();
-    let program_words: Vec<_> = instructions.iter().map(|x| x.encode_u16()).collect();
-    unsafe {
-        vm.map(0, memory, Box::new(LinearMemory::new(memory)))?;
-        let program_bytes = program_words.align_to::<u8>().1;
-        vm.vm
-            .memory
-            .load_from_vec(&program_bytes, res.program_start_offset)
-            .map_err(|x| x.to_string())?;
-    }
-    vm.set_register(Register::PC, res.program_start_offset as u16);
+    let bin = res.to_binary()?;
+    println!("{bin}");
+    bin.load_to_vm(&mut vm)?;
+    vm.set_register(Register::PC, bin.entrypoint);
     let mut cycle_count = 0;
     while !vm.is_halt() {
-        vm.step()?;
+        vm.step().map_err(|s| error_with_context(&vm, &s))?;
         cycle_count += 1;
         if cycle_count >= MAX_TEST_CYCLES {
             return Err("max cycles exceeded".to_string());
@@ -66,6 +59,15 @@ pub fn run_program_with_memory_size(program: &str, memory: usize) -> Result<Mach
     Ok(vm)
 }
 
-pub fn run_program(program: &str) -> Result<Machine, String> {
-    run_program_with_memory_size(program, 0x8000)
+fn error_with_context(vm: &Machine, s: &str) -> String {
+    format!(
+        "!! VM ERROR !!: {s}\nA: {} | B: {} | C: {} | M: {} |\n PC: {} | BP: {} | SP: {}",
+        vm.get_register(Register::A),
+        vm.get_register(Register::B),
+        vm.get_register(Register::C),
+        vm.get_register(Register::M),
+        vm.get_register(Register::PC),
+        vm.get_register(Register::BP),
+        vm.get_register(Register::SP),
+    )
 }

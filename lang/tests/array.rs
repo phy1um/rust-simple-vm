@@ -36,6 +36,7 @@ type Foo := struct {
 }
 
 void main() {
+    mhead := 0x1000;
     let Foo foo;
     foo.bar.elems := malloc(100);
     foo.bar.elems[20] := 0xff;
