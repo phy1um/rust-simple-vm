@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum MemoryError {
@@ -93,7 +92,7 @@ where
     }
 }
 
-pub type MemoryRecord = (usize, usize, Rc<RefCell<Box<dyn Addressable>>>);
+pub type MemoryRecord = (usize, usize, RefCell<Box<dyn Addressable>>);
 
 #[derive(Default)]
 pub struct MemoryMapper {
@@ -107,7 +106,7 @@ impl MemoryMapper {
         size: usize,
         a: Box<dyn Addressable>,
     ) -> Result<(), String> {
-        self.mapped.push((start, size, Rc::new(RefCell::new(a))));
+        self.mapped.push((start, size, RefCell::new(a)));
         Ok(())
     }
 
@@ -115,7 +114,7 @@ impl MemoryMapper {
         &mut self,
         start: usize,
         size: usize,
-        a: Rc<RefCell<Box<dyn Addressable>>>,
+        a: RefCell<Box<dyn Addressable>>,
     ) -> Result<(), String> {
         self.mapped.push((start, size, a));
         Ok(())

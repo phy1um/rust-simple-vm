@@ -1,5 +1,7 @@
 use lang::*;
 use simplevm::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[macro_export]
 macro_rules! assert_reg {
@@ -36,7 +38,7 @@ pub fn signal_halt(vm: &mut VM, _: u16) -> Result<(), String> {
 }
 
 const MAX_TEST_CYCLES: u32 = 100_000;
-pub fn run_program(program: &str) -> Result<Machine, String> {
+pub fn build_machine(program: &str) -> Result<Machine, String> {
     let mut vm = Machine::default();
     vm.set_register(Register::SP, 1024 * 3);
     vm.define_handler(SIGHALT, signal_halt);
@@ -48,6 +50,10 @@ pub fn run_program(program: &str) -> Result<Machine, String> {
     println!("{bin}");
     bin.load_to_vm(&mut vm)?;
     vm.set_register(Register::PC, bin.entrypoint);
+    Ok(vm)
+}
+
+pub fn execute_loaded_program(vm: &mut Machine) -> Result<(), String> {
     let mut cycle_count = 0;
     while !vm.is_halt() {
         vm.step().map_err(|s| error_with_context(&vm, &s))?;
@@ -56,6 +62,12 @@ pub fn run_program(program: &str) -> Result<Machine, String> {
             return Err("max cycles exceeded".to_string());
         }
     }
+    Ok(())
+}
+
+pub fn run_program(program: &str) -> Result<Machine, String> {
+    let mut vm = build_machine(program)?;
+    execute_loaded_program(&mut vm)?;
     Ok(vm)
 }
 
@@ -70,4 +82,29 @@ fn error_with_context(vm: &Machine, s: &str) -> String {
         vm.get_register(Register::BP),
         vm.get_register(Register::SP),
     )
+}
+
+pub struct SharedBufferDevice {
+    pub data: Rc<RefCell<Vec<u8>>>,
+}
+
+impl SharedBufferDevice {
+    pub fn new(data: Rc<RefCell<Vec<u8>>>) -> Self {
+        Self { data }
+    }
+}
+
+impl Addressable for SharedBufferDevice {
+    fn read(&mut self, _addr: u32) -> Result<u8, MemoryError> {
+        Ok(0)
+    }
+
+    fn write(&mut self, _addr: u32, value: u8) -> Result<(), MemoryError> {
+        self.data.borrow_mut().push(value);
+        Ok(())
+    }
+
+    fn zero_all(&mut self) -> Result<(), MemoryError> {
+        Ok(())
+    }
 }

@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use crate::memory::{Addressable, MemoryMapper};
 use crate::op::Instruction;
@@ -54,15 +52,6 @@ impl Machine {
         a: Box<dyn Addressable>,
     ) -> Result<(), String> {
         self.vm.map(start, size, a)
-    }
-
-    pub fn map_ref(
-        &mut self,
-        start: usize,
-        size: usize,
-        a: Rc<RefCell<Box<dyn Addressable>>>,
-    ) -> Result<(), String> {
-        self.vm.memory.map_ref(start, size, a)
     }
 
     pub fn reset(&mut self) {
