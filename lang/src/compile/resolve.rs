@@ -214,7 +214,11 @@ pub fn type_of(ctx: &Context, scope: &BlockScope, expr: &ast::Expression) -> Typ
             let type_b = type_of(ctx, scope, b);
             match op {
                 ast::BinOp::Add | ast::BinOp::Subtract | ast::BinOp::Multiply => {
-                    type_a.max(&type_b)
+                    if let Type::Pointer(_) = type_a {
+                        type_a
+                    } else {
+                        type_a.max(&type_b)
+                    }
                 }
                 ast::BinOp::Mod => type_a,
                 ast::BinOp::Equal

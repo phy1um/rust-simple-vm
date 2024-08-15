@@ -11,7 +11,7 @@ Test A Zero Lte
 AddIf PC C 0
 Imm C 1
 Sub A C A
-Store M Zero B
+StoreByte M Zero B
 AddImm M 2
 Imm C 16
 ShiftLeft C C 4

@@ -312,3 +312,80 @@ impl JSMachine {
         Ok(())
     }
 }
+
+#[wasm_bindgen(js_name = BinaryFile)]
+pub struct WasmBinFile(BinaryFile);
+
+#[wasm_bindgen(js_name = Section)]
+pub struct WasmSection {
+    pub address: u32,
+    data: Vec<u8>,
+}
+
+#[wasm_bindgen(js_class = Section)]
+impl WasmSection {
+    #[wasm_bindgen]
+    pub fn data(&self) -> Vec<u8> {
+        self.data.clone()
+    }
+}
+
+#[wasm_bindgen(js_class = BinaryFile)]
+impl WasmBinFile {
+    #[wasm_bindgen(constructor)]
+    pub fn parse(data: &[u8]) -> Self {
+        match BinaryFile::from_bytes(data) {
+            Ok(s) => Self(s),
+            Err(e) => panic!("error! {e}"),
+        }
+    }
+
+    #[wasm_bindgen(js_name = getEntrypoint)]
+    pub fn get_entrypoint(&self) -> u16 {
+        return self.0.entrypoint;
+    }
+
+    #[wasm_bindgen(js_name = getSectionCount)]
+    pub fn get_section_count(&self) -> usize {
+        return self.0.sections.len();
+    }
+
+    #[wasm_bindgen(js_name = getSection)]
+    pub fn get_section(&self, index: usize) -> Result<WasmSection, String> {
+        let section = self
+            .0
+            .sections
+            .get(index)
+            .ok_or(format!("no section {index}"))?;
+        let offset_start = section.file_offset as usize - self.0.get_header_size();
+        let offset_end = offset_start + section.size as usize;
+        let data = self
+            .0
+            .data
+            .get(offset_start..offset_end)
+            .ok_or("read oob".to_string())?;
+        Ok(WasmSection {
+            address: section.address,
+            data: data.to_vec(),
+        })
+    }
+}
+
+#[wasm_bindgen(js_name = parseBinary)]
+pub fn parse_binary(bin: &[u8]) -> Result<WasmBinFile, String> {
+    let bin_file = BinaryFile::from_bytes(bin)?;
+    Ok(WasmBinFile(bin_file))
+}
+
+#[wasm_bindgen(js_name = codeToInstructionText)]
+pub fn code_to_instruction_text(code_bytes: &[u8], offset: usize) -> Result<Vec<String>, String> {
+    let mut out = Vec::new();
+    unsafe {
+        let (_, ins, _) = code_bytes.align_to::<u16>();
+        for (index, raw_instruction) in ins.iter().enumerate() {
+            let instruction_parsed = Instruction::try_from(*raw_instruction)?;
+            out.push(format!("{:05}: {instruction_parsed}", (index * 2) + offset));
+        }
+    }
+    Ok(out)
+}

@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum MemoryError {
@@ -75,7 +76,24 @@ pub trait Addressable {
     }
 }
 
-pub type MemoryRecord = (usize, usize, RefCell<Box<dyn Addressable>>);
+impl<F> Addressable for RefCell<F>
+where
+    F: Addressable,
+{
+    fn read(&mut self, addr: u32) -> Result<u8, MemoryError> {
+        self.borrow_mut().read(addr)
+    }
+
+    fn write(&mut self, addr: u32, value: u8) -> Result<(), MemoryError> {
+        self.borrow_mut().write(addr, value)
+    }
+
+    fn zero_all(&mut self) -> Result<(), MemoryError> {
+        self.borrow_mut().zero_all()
+    }
+}
+
+pub type MemoryRecord = (usize, usize, Rc<RefCell<Box<dyn Addressable>>>);
 
 #[derive(Default)]
 pub struct MemoryMapper {
@@ -89,7 +107,17 @@ impl MemoryMapper {
         size: usize,
         a: Box<dyn Addressable>,
     ) -> Result<(), String> {
-        self.mapped.push((start, size, RefCell::new(a)));
+        self.mapped.push((start, size, Rc::new(RefCell::new(a))));
+        Ok(())
+    }
+
+    pub fn map_ref(
+        &mut self,
+        start: usize,
+        size: usize,
+        a: Rc<RefCell<Box<dyn Addressable>>>,
+    ) -> Result<(), String> {
+        self.mapped.push((start, size, a));
         Ok(())
     }
 

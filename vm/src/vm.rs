@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::memory::{Addressable, MemoryMapper};
 use crate::op::Instruction;
@@ -52,6 +54,15 @@ impl Machine {
         a: Box<dyn Addressable>,
     ) -> Result<(), String> {
         self.vm.map(start, size, a)
+    }
+
+    pub fn map_ref(
+        &mut self,
+        start: usize,
+        size: usize,
+        a: Rc<RefCell<Box<dyn Addressable>>>,
+    ) -> Result<(), String> {
+        self.vm.memory.map_ref(start, size, a)
     }
 
     pub fn reset(&mut self) {
@@ -172,7 +183,7 @@ Flags: {:016b}",
         let instruction = self.memory.read2(pc as u32).map_err(|x| x.to_string())?;
         self.set_flag(Flag::DidJump, false);
         let op = Instruction::try_from(instruction)?;
-        println!("running {}", op);
+        // println!("running {}", op);
         match op {
             Instruction::Invalid => Err("0 instruction".to_string()),
             Instruction::Imm(reg, v) => {

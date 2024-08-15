@@ -196,6 +196,9 @@ pub(super) fn compile_block(
                                 Register::SP,
                                 StackOp::Pop,
                             )));
+                            if addr > 0xfff {
+                                todo!("address too big: {addr}");
+                            }
                             out.extend(load_address_to(addr, Register::B, Register::M));
                             write_value(&mut out, &tt, Register::C, Register::B);
                         }
@@ -215,21 +218,25 @@ pub(super) fn compile_block(
             ast::Statement::AssignDeref { lhs, rhs } => {
                 // TODO: check we can assign
                 let lhs_type = type_of(ctx, &scope, &lhs);
-                let compiled_addr = compile_expression(ctx, &mut scope, &lhs)?;
-                let compiled_value = compile_expression(ctx, &mut scope, &rhs)?;
-                out.extend(compiled_addr);
-                out.extend(compiled_value);
-                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::B,
-                    Register::SP,
-                    StackOp::Pop,
-                )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::C,
-                    Register::SP,
-                    StackOp::Pop,
-                )));
-                write_value(&mut out, &lhs_type, Register::B, Register::C);
+                if let Type::Pointer(pointed_type) = lhs_type {
+                    let compiled_addr = compile_expression(ctx, &mut scope, &lhs)?;
+                    let compiled_value = compile_expression(ctx, &mut scope, &rhs)?;
+                    out.extend(compiled_addr);
+                    out.extend(compiled_value);
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        Register::B,
+                        Register::SP,
+                        StackOp::Pop,
+                    )));
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        Register::C,
+                        Register::SP,
+                        StackOp::Pop,
+                    )));
+                    write_value(&mut out, &pointed_type, Register::B, Register::C);
+                } else {
+                    return Err(CompilerError::DerefInvalidType(lhs_type));
+                }
             }
             ast::Statement::AssignStructField { fields, rhs } => {
                 // println!("asssign struct field: {fields:?} = {rhs}");

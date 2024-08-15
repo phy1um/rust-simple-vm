@@ -90,8 +90,11 @@ pub fn compile_expression(
             const_data.push(((str_len & 0xff00) >> 8) as u8);
             let s_bytes = s.clone().into_bytes();
             const_data.extend(s_bytes);
-            let addr = ctx.push_static_data(const_data);
+            let addr = ctx.push_static_data(const_data) + 2;
             let mut out = Vec::new();
+            if addr > 0xfff {
+                todo!("address too big: {addr}");
+            }
             out.extend(load_address_to(addr as usize, Register::C, Register::M));
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                 Register::C,
@@ -128,13 +131,17 @@ pub fn compile_expression(
                 Register::SP,
                 StackOp::Pop,
             )));
-            if inner_type.size_bytes() == 1 {
+            let pointed_type = match inner_type {
+                Type::Pointer(p) => p,
+                _ => panic!("we already asserted this was a pointer"),
+            };
+            if pointed_type.size_bytes() == 1 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadByte(
                     Register::C,
                     Register::C,
                     Register::Zero,
                 )));
-            } else if inner_type.size_bytes() == 2 {
+            } else if pointed_type.size_bytes() == 2 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
                     Register::C,
                     Register::C,

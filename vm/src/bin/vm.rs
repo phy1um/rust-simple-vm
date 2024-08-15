@@ -4,7 +4,25 @@ use std::io::{stdin, BufReader, Read};
 use std::path::Path;
 
 use simplevm::binfmt::BinaryFile;
-use simplevm::{LinearMemory, Machine, Register, VM};
+use simplevm::{Addressable, LinearMemory, Machine, MemoryError, Register, VM};
+
+struct IODevice;
+
+impl Addressable for IODevice {
+    fn read(&mut self, _addr: u32) -> Result<u8, MemoryError> {
+        Ok(0)
+    }
+
+    fn write(&mut self, _addr: u32, value: u8) -> Result<(), MemoryError> {
+        let c = value as char;
+        print!("{c}");
+        Ok(())
+    }
+
+    fn zero_all(&mut self) -> Result<(), MemoryError> {
+        Ok(())
+    }
+}
 
 fn signal_halt(vm: &mut VM, _: u16) -> Result<(), String> {
     vm.halt = true;
@@ -32,15 +50,16 @@ pub fn main() -> Result<(), String> {
 
     let mut vm = Machine::default();
     vm.map(0x1000, 0x8000, Box::new(LinearMemory::new(0x8000)))?;
+    vm.map(0xe000, 1, Box::new(IODevice))?;
     let bin = BinaryFile::from_bytes(&program)?;
     bin.load_to_vm(&mut vm)?;
     vm.set_register(Register::PC, bin.entrypoint);
     vm.set_register(Register::SP, 0x1000);
     vm.define_handler(0xf0, signal_halt);
     while !vm.is_halt() {
-        println!("{}", vm.state());
+        // println!("{}", vm.state());
         vm.step()?;
     }
-    println!("A = {}", vm.get_register(Register::A));
+    println!("");
     Ok(())
 }

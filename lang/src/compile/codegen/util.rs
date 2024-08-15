@@ -144,9 +144,9 @@ pub fn write_value(
     match ty.size_bytes() {
         0 => (),
         1 => out.push(UnresolvedInstruction::Instruction(Instruction::StoreByte(
+            reg_value,
             reg_addr,
             Register::Zero,
-            reg_value,
         ))),
         2 => out.push(UnresolvedInstruction::Instruction(Instruction::StoreWord(
             reg_value,
