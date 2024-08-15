@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use lang::*;
 use simplevm::*;
 use std::cell::RefCell;
