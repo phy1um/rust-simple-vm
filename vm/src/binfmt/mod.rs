@@ -34,25 +34,25 @@ fn slice_to_u32(data: &[u8], start: usize) -> Result<u32, String> {
 
 impl Header {
     fn from_bytes(data: &[u8]) -> Result<Self, String> {
-        let mut out = Self::default();
-        out.version = slice_to_u16(data, 0)?;
-        out.entrypoint = slice_to_u16(data, 2)?;
-        out.hwconf = data
-            .get(4..8)
-            .ok_or("not enough data".to_string())
-            .and_then(|x| {
-                x.try_into()
-                    .map_err(|e: std::array::TryFromSliceError| e.to_string())
-            })?;
-        out.section_count = slice_to_u16(data, 8)?;
-        out.reserved = data
-            .get(10..22)
-            .ok_or("not enough data".to_string())
-            .and_then(|x| {
-                x.try_into()
-                    .map_err(|e: std::array::TryFromSliceError| e.to_string())
-            })?;
-        Ok(out)
+        Ok(Self {
+            version: slice_to_u16(data, 0)?,
+            entrypoint: slice_to_u16(data, 2)?,
+            hwconf: data
+                .get(4..8)
+                .ok_or("not enough data".to_string())
+                .and_then(|x| {
+                    x.try_into()
+                        .map_err(|e: std::array::TryFromSliceError| e.to_string())
+                })?,
+            section_count: slice_to_u16(data, 8)?,
+            reserved: data
+                .get(10..22)
+                .ok_or("not enough data".to_string())
+                .and_then(|x| {
+                    x.try_into()
+                        .map_err(|e: std::array::TryFromSliceError| e.to_string())
+                })?,
+        })
     }
 
     fn to_bytes(&self, out: &mut Vec<u8>) {
@@ -117,12 +117,12 @@ impl Section {
     }
 
     fn from_bytes(data: &[u8]) -> Result<Self, String> {
-        let mut out = Self::default();
-        out.size = slice_to_u16(data, 0)?;
-        out.mode = SectionMode::try_from(slice_to_u16(data, 2)?)?;
-        out.address = slice_to_u32(data, 4)?;
-        out.file_offset = slice_to_u32(data, 8)?;
-        Ok(out)
+        Ok(Self {
+            size: slice_to_u16(data, 0)?,
+            mode: SectionMode::try_from(slice_to_u16(data, 2)?)?,
+            address: slice_to_u32(data, 4)?,
+            file_offset: slice_to_u32(data, 8)?,
+        })
     }
 
     fn to_bytes(&self, out: &mut Vec<u8>) {
@@ -184,11 +184,11 @@ impl BinaryFile {
         let sections = Section::vec_from_bytes(&data[sections_offset..], header.section_count)?;
         let tail_data = data
             .get(data_offset..data.len())
-            .ok_or(format!("no tail data"))?;
+            .ok_or("no tail data".to_string())?;
         Ok(BinaryFile {
             version: header.version,
             entrypoint: header.entrypoint,
-            sections: sections,
+            sections,
             data: tail_data.to_vec(),
         })
     }

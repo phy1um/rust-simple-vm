@@ -60,6 +60,6 @@ pub fn main() -> Result<(), String> {
         // println!("{}", vm.state());
         vm.step()?;
     }
-    println!("");
+    println!();
     Ok(())
 }

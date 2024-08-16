@@ -71,9 +71,11 @@ fn main() -> Result<(), String> {
                 _ => panic!("line {} ({}): error", line.get_line_number(), resolved),
             }
         }
-        let mut bin = BinaryFile::default();
-        bin.entrypoint = 0;
-        bin.version = 99;
+        let mut bin = BinaryFile {
+            entrypoint: 0,
+            version: 99,
+            ..BinaryFile::default()
+        };
         bin.sections.push(Section {
             size: program_bytes.len() as u16,
             mode: SectionMode::RW,
