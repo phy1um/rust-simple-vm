@@ -1,12 +1,15 @@
 use crate::compile::codegen::util::*;
 
-use simplevm::{Instruction, Literal12Bit, Literal7Bit, Nibble, Register, StackOp, TestOp};
+use simplevm::{
+    resolve::UnresolvedInstruction, Instruction, Literal12Bit, Literal7Bit, Nibble, Register,
+    StackOp, TestOp,
+};
 
 use crate::ast;
 use crate::compile::block::{BlockScope, BlockVariable};
 use crate::compile::context::Context;
 use crate::compile::error::CompilerError;
-use crate::compile::resolve::{type_of, Symbol, Type, UnresolvedInstruction};
+use crate::compile::resolve::{type_of, Symbol, Type};
 // use crate::compile::util::*;
 
 pub fn compile_expression(

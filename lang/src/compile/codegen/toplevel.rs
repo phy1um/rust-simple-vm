@@ -6,14 +6,15 @@ use std::str::FromStr;
 use simplevm::pp;
 use simplevm::pp::PreProcessor;
 use simplevm::{
-    Instruction, InstructionParseError, Literal12Bit, Literal7Bit, Nibble, Register, StackOp,
+    resolve::UnresolvedInstruction, Instruction, InstructionParseError, Literal12Bit, Literal7Bit,
+    Nibble, Register, StackOp,
 };
 
 use crate::ast;
 use crate::compile::block::Block;
 use crate::compile::context::{Context, FunctionDefinition};
 use crate::compile::error::CompilerError;
-use crate::compile::resolve::{Symbol, Type, UnresolvedInstruction};
+use crate::compile::resolve::{Symbol, Type};
 
 pub fn compile(
     program: Vec<ast::TopLevel>,

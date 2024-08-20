@@ -1,10 +1,11 @@
 use crate::compile::block::Block;
 use crate::compile::error::CompilerError;
-use crate::compile::resolve::{Symbol, Type, UnresolvedInstruction};
+use crate::compile::resolve::{Symbol, Type};
 use std::collections::HashMap;
 
 use simplevm::{
     binfmt::{BinaryFile, Section, SectionMode},
+    resolve::UnresolvedInstruction,
     Instruction,
 };
 

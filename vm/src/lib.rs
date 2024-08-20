@@ -5,6 +5,7 @@ pub mod op;
 pub mod op_fields;
 pub mod pp;
 pub mod register;
+pub mod resolve;
 pub mod vm;
 
 pub use crate::io::*;

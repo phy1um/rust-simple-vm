@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::compile::context::{Context, Global};
-use crate::compile::resolve::{Symbol, Type, UnresolvedInstruction};
+use crate::compile::resolve::{Symbol, Type};
+use simplevm::resolve::UnresolvedInstruction;
 
 #[allow(dead_code)]
 #[derive(Debug)]

@@ -35,21 +35,17 @@ fn main() -> Result<(), String> {
     reader
         .read_to_string(&mut content)
         .map_err(|_| "failed to read file".to_string())?;
-    let processed = processor
-        .resolve(&content)
+    processor
+        .handle(&content)
         .map_err(|_| "failed to resolve".to_string())?;
     if args.preprocess_only {
-        for line in processed {
-            let resolved = processor
-                .resolve_pass2(&line)
-                .map_err(|_| format!("failed to resolve line: {}", line.get_line_number()))?;
-            for &b in format!("{}: {}", line.get_line_number(), resolved).as_bytes() {
-                output.push(b);
-            }
-            output.push(b'\n');
-        }
+        todo!("wip rebuilding");
     } else {
-        let mut program_bytes = Vec::<u8>::new();
+        let mut bin = BinaryFile {
+            entrypoint: 0,
+            version: 99,
+            ..BinaryFile::default()
+        };
         for line in processed {
             let resolved = processor
                 .resolve_pass2(&line)
@@ -71,11 +67,6 @@ fn main() -> Result<(), String> {
                 _ => panic!("line {} ({}): error", line.get_line_number(), resolved),
             }
         }
-        let mut bin = BinaryFile {
-            entrypoint: 0,
-            version: 99,
-            ..BinaryFile::default()
-        };
         bin.sections.push(Section {
             size: program_bytes.len() as u16,
             mode: SectionMode::RW,

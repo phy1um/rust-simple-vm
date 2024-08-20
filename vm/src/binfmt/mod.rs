@@ -1,5 +1,6 @@
 use crate::{LinearMemory, Machine, MemoryMappedBuffer};
 use std::fmt;
+use std::str::FromStr;
 
 #[derive(Debug, Default)]
 pub struct Header {
@@ -85,6 +86,18 @@ impl TryFrom<u16> for SectionMode {
             x if x == SectionMode::RW as u16 => Ok(SectionMode::RW),
             x if x == SectionMode::Heap as u16 => Ok(SectionMode::Heap),
             _ => Err(format!("invalid value: {value}")),
+        }
+    }
+}
+
+impl FromStr for SectionMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "RO" => Ok(Self::RO),
+            "RW" => Ok(Self::RW),
+            "Heap" => Ok(Self::Heap),
+            _ => Err(format!("unknown mode: {s}")),
         }
     }
 }

@@ -4,13 +4,15 @@ use crate::compile::codegen::util::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use simplevm::{Instruction, Literal7Bit, Nibble, Register, StackOp, TestOp};
+use simplevm::{
+    resolve::UnresolvedInstruction, Instruction, Literal7Bit, Nibble, Register, StackOp, TestOp,
+};
 
 use crate::ast;
 use crate::compile::block::{Block, BlockScope, BlockVariable, LoopLabels};
 use crate::compile::context::Context;
 use crate::compile::error::CompilerError;
-use crate::compile::resolve::{type_of, Symbol, Type, UnresolvedInstruction};
+use crate::compile::resolve::{type_of, Symbol, Type};
 use crate::compile::util::*;
 
 pub(super) fn compile_block(
