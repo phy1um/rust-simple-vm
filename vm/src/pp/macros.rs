@@ -50,6 +50,7 @@ pub fn section(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, S
             return Err("cannot create heap using this macro, use `.heap` instead".to_string());
         };
         pp.create_section(name, offset, kind);
+        pp.set_active_section(name);
         Ok(Vec::new())
     }
 }

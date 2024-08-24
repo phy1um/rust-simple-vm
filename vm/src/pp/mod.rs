@@ -50,9 +50,9 @@ impl fmt::Display for Variable {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Data<T> {
-    offset: u32,
-    mode: SectionMode,
-    chunks: Vec<Chunk<T>>,
+    pub offset: u32,
+    pub mode: SectionMode,
+    pub chunks: Vec<Chunk<T>>,
 }
 
 impl<T> Data<T> {
@@ -167,6 +167,32 @@ impl PreProcessor {
 
     pub fn resolve_pass2(&self, p: &ProcessedLine) -> Result<String, Error> {
         self.reprocess_line(&p.line)
+    }
+
+    pub fn define_labels(
+        &mut self,
+        sections: &HashMap<String, Data<UnresolvedInstruction>>,
+    ) -> Result<(), Error> {
+        for (_key, s) in sections {
+            let mut head = s.offset;
+            for c in &s.chunks {
+                match c {
+                    Chunk::Raw(v) => head = head + (v.len() as u32),
+                    Chunk::Lines(urs) => {
+                        for ur in urs {
+                            match ur {
+                                UnresolvedInstruction::Label(name) => {
+                                    self.define_label(&name, head);
+                                }
+                                _ => (),
+                            };
+                            head += ur.size();
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn get_unresolved_instructions(
@@ -319,7 +345,7 @@ impl PreProcessor {
                         Ok(None)
                     }
                 }
-                ProcessedLinePart::Variable(v) => Err(Error::Other(
+                ProcessedLinePart::Variable(_) => Err(Error::Other(
                     "invalid variable in first position".to_string(),
                 )),
                 ProcessedLinePart::Label(l) => {
@@ -437,9 +463,8 @@ impl PreProcessor {
         self.variables.get(name).cloned()
     }
 
-    pub fn define_label(&mut self, name: &str, value: &str) {
-        self.variables
-            .insert(name.to_string(), Variable::Label(value.to_string()));
+    pub fn define_label(&mut self, name: &str, value: u32) {
+        self.labels.insert(name.to_string(), value);
     }
 
     pub fn define_user_variable(&mut self, name: &str, value: &str) {

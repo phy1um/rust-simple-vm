@@ -3,15 +3,11 @@ use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
-use std::str::FromStr;
 
 use simplevm::pp::macros;
-use simplevm::pp::PreProcessor;
+use simplevm::pp::{Chunk, PreProcessor};
 
-use simplevm::{
-    binfmt::{BinaryFile, Section, SectionMode},
-    Instruction, InstructionParseError,
-};
+use simplevm::binfmt::{BinaryFile, Section};
 
 mod args;
 
@@ -38,6 +34,12 @@ fn main() -> Result<(), String> {
     processor
         .handle(&content)
         .map_err(|_| "failed to resolve".to_string())?;
+    let sections = processor
+        .get_unresolved_instructions()
+        .map_err(|e| format!("part resolve: {e}"))?;
+    processor
+        .define_labels(&sections)
+        .map_err(|e| format!("define labels: {e}"))?;
     if args.preprocess_only {
         todo!("wip rebuilding");
     } else {
@@ -46,42 +48,32 @@ fn main() -> Result<(), String> {
             version: 99,
             ..BinaryFile::default()
         };
-        for line in processed {
-            let resolved = processor
-                .resolve_pass2(&line)
-                .map_err(|_| format!("failed to resolve line: {}", line.get_line_number()))?;
-            if resolved.is_empty() {
-                continue;
-            }
-            if let Some(';') = resolved.chars().next() {
-                continue;
-            }
-            match Instruction::from_str(&resolved) {
-                Ok(instruction) => {
-                    let raw_instruction: u16 = instruction.encode_u16();
-                    program_bytes.extend_from_slice(&raw_instruction.to_le_bytes());
+
+        for (_name, section) in sections {
+            let mut section_data: Vec<u8> = Vec::new();
+            for chunk in section.chunks {
+                match chunk {
+                    Chunk::Raw(v) => section_data.extend(v),
+                    Chunk::Lines(ls) => {
+                        for line in ls {
+                            let ins_res = line
+                                .resolve(&processor.labels)
+                                .map_err(|e| format!("resolve: {e:?}"))?;
+                            if let Some(ins) = ins_res {
+                                section_data.extend_from_slice(&ins.encode_u16().to_le_bytes());
+                            }
+                        }
+                    }
                 }
-                Err(InstructionParseError::Fail(s)) => {
-                    panic!("line {} ({}): {}", line.get_line_number(), resolved, s);
-                }
-                _ => panic!("line {} ({}): error", line.get_line_number(), resolved),
             }
+            bin.sections.push(Section {
+                size: section_data.len() as u16,
+                mode: section.mode,
+                address: section.offset,
+                file_offset: bin.data.len() as u32,
+            });
+            bin.data.extend(section_data);
         }
-        bin.sections.push(Section {
-            size: program_bytes.len() as u16,
-            mode: SectionMode::RW,
-            address: 0,
-            file_offset: 1,
-        });
-        bin.sections.push(Section {
-            size: 0x8000,
-            mode: SectionMode::Heap,
-            address: 0x1000,
-            ..Section::default()
-        });
-        let header_size = bin.get_header_size();
-        bin.sections.get_mut(0).unwrap().file_offset = header_size as u32;
-        bin.data = program_bytes;
         bin.to_bytes(&mut output);
     }
     let mut stdout = io::stdout().lock();
