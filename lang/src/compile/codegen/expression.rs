@@ -9,7 +9,7 @@ use crate::ast;
 use crate::compile::block::{BlockScope, BlockVariable};
 use crate::compile::context::Context;
 use crate::compile::error::CompilerError;
-use crate::compile::resolve::{type_of, Symbol, Type};
+use crate::compile::resolve::{type_of, Type};
 // use crate::compile::util::*;
 
 pub fn compile_expression(
@@ -218,7 +218,7 @@ pub fn compile_expression(
                     Register::SP,
                     Register::Zero,
                 )),
-                UnresolvedInstruction::Imm(Register::PC, Symbol::new(&id.0)),
+                UnresolvedInstruction::Imm(Register::PC, id.0.to_string()),
                 // functions return in register A, so push this
                 UnresolvedInstruction::Instruction(Instruction::Stack(
                     Register::A,

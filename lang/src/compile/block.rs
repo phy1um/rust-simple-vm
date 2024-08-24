@@ -123,7 +123,7 @@ impl Block {
         let mut offset = 0;
         for ins in &self.instructions {
             if let UnresolvedInstruction::Label(s) = ins {
-                ctx.define(s, function_offset + (offset as u32));
+                ctx.define(&Symbol::new(s), function_offset + (offset as u32));
             } else {
                 offset += 2;
             }

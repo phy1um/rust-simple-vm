@@ -26,4 +26,5 @@ pub enum CompilerError {
         expected: usize,
         got: usize,
     },
+    InstructionResolve(String),
 }

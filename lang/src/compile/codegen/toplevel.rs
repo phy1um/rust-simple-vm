@@ -1,13 +1,12 @@
 use crate::compile::codegen::block::compile_body;
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
-use simplevm::pp;
-use simplevm::pp::PreProcessor;
+use simplevm::binfmt::SectionMode;
+use simplevm::pp::{Chunk, PreProcessor};
 use simplevm::{
-    resolve::UnresolvedInstruction, Instruction, InstructionParseError, Literal12Bit, Literal7Bit,
-    Nibble, Register, StackOp,
+    resolve::UnresolvedInstruction, Instruction, Literal12Bit, Literal7Bit, Nibble, Register,
+    StackOp,
 };
 
 use crate::ast;
@@ -46,7 +45,7 @@ pub fn compile(
             Register::SP,
             Register::Zero,
         )),
-        UnresolvedInstruction::Imm(Register::PC, Symbol::new("main")),
+        UnresolvedInstruction::Imm(Register::PC, "main".to_string()),
         UnresolvedInstruction::Instruction(Instruction::Imm(
             Register::C,
             Literal12Bit::new_checked(0xf0).unwrap(),
@@ -128,40 +127,22 @@ pub fn compile(
             }
             ast::TopLevel::InlineAsm { name, body, args } => {
                 let mut pp = PreProcessor::default();
-                let lines = pp
-                    .resolve(&body)
+                pp.create_section("_test", 0, SectionMode::RW);
+                pp.set_active_section("_test");
+                pp.handle(&body)
                     .map_err(|x| (ctx.clone(), CompilerError::InlineAsm(x.to_string())))?;
-                let lines_str = lines
-                    .iter()
-                    .map(|x| pp.resolve_pass2(x))
-                    .collect::<Result<Vec<String>, pp::Error>>()
-                    .map_err(|x| (ctx.clone(), CompilerError::InlineAsm(x.to_string())))?;
+                let sections = pp
+                    .get_unresolved_instructions()
+                    .map_err(|e| (ctx.clone(), CompilerError::InlineAsm(e.to_string())))?;
+                let section = sections.get("_test").unwrap();
+
                 let mut block = Block::default();
-                for line in lines_str {
-                    match Instruction::from_str(&line) {
-                        Ok(instruction) => {
-                            block
-                                .instructions
-                                .push(UnresolvedInstruction::Instruction(instruction));
-                        }
-                        Err(InstructionParseError::Fail(s)) => {
-                            return Err((
-                                ctx.clone(),
-                                CompilerError::InlineAsm(format!(
-                                    "failed to parse instruction: {line}: {s}"
-                                )),
-                            ))
-                        }
-                        _ => {
-                            return Err((
-                                ctx.clone(),
-                                CompilerError::InlineAsm(format!(
-                                    "failed to parse instruction: {line}"
-                                )),
-                            ))
-                        }
+                for chunk in &section.chunks {
+                    if let Chunk::Lines(lines) = chunk {
+                        block.instructions.extend(lines.clone());
                     }
                 }
+
                 // function exit
                 // load return address -> C
                 block.instructions.push(UnresolvedInstruction::Instruction(

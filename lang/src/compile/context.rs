@@ -156,7 +156,10 @@ impl Context {
         let mut out = Vec::new();
         for (_, func) in &self.functions {
             for ins in &func.instructions {
-                if let Some(c) = ins.resolve(self)? {
+                if let Some(c) = ins
+                    .resolve(&self.symbols)
+                    .map_err(|e| CompilerError::InstructionResolve(format!("{e:?}")))?
+                {
                     out.push(c);
                 }
             }

@@ -25,14 +25,14 @@ pub(super) fn compile_block(
         match s {
             ast::Statement::Break => {
                 if let Some(LoopLabels { ref bottom, .. }) = scope.loop_labels {
-                    out.push(UnresolvedInstruction::Imm(Register::PC, bottom.clone()));
+                    out.push(UnresolvedInstruction::Imm(Register::PC, bottom.to_string()));
                 } else {
                     return Err(CompilerError::BreakNotInLoop);
                 }
             }
             ast::Statement::Continue => {
                 if let Some(LoopLabels { ref top, .. }) = scope.loop_labels {
-                    out.push(UnresolvedInstruction::Imm(Register::PC, top.clone()));
+                    out.push(UnresolvedInstruction::Imm(Register::PC, top.to_string()));
                 } else {
                     return Err(CompilerError::ContinueNotInLoop);
                 }
@@ -41,7 +41,7 @@ pub(super) fn compile_block(
                 let block_identifier = gensym(rand::thread_rng());
                 let label_test = Symbol::new(&(block_identifier.to_string() + "_while_lbl_test"));
                 let label_out = Symbol::new(&(block_identifier + "_while_lbl_out"));
-                out.push(UnresolvedInstruction::Label(label_test.clone()));
+                out.push(UnresolvedInstruction::Label(label_test.to_string()));
                 let mut compiled_cond = compile_expression(ctx, &mut scope, &cond)?;
                 out.append(&mut compiled_cond);
                 out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -59,11 +59,17 @@ pub(super) fn compile_block(
                     Register::PC,
                     Nibble::new_checked(2).unwrap(),
                 )));
-                out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
+                out.push(UnresolvedInstruction::Imm(
+                    Register::PC,
+                    label_out.to_string(),
+                ));
                 let child_scope = scope.child_in_loop(label_test.clone(), label_out.clone());
                 out.append(&mut compile_block(ctx, child_scope, body)?);
-                out.push(UnresolvedInstruction::Imm(Register::PC, label_test.clone()));
-                out.push(UnresolvedInstruction::Label(label_out));
+                out.push(UnresolvedInstruction::Imm(
+                    Register::PC,
+                    label_test.to_string(),
+                ));
+                out.push(UnresolvedInstruction::Label(label_out.to_string()));
             }
             ast::Statement::If {
                 cond,
@@ -91,19 +97,28 @@ pub(super) fn compile_block(
                     Register::PC,
                     Nibble::new_checked(2).unwrap(),
                 )));
-                out.push(UnresolvedInstruction::Imm(Register::PC, label_true.clone()));
+                out.push(UnresolvedInstruction::Imm(
+                    Register::PC,
+                    label_true.to_string(),
+                ));
                 // condition == FALSE
                 if let Some(b) = else_body {
                     let child_scope = scope.child();
                     out.append(&mut compile_block(ctx, child_scope, b)?);
                 };
-                out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
+                out.push(UnresolvedInstruction::Imm(
+                    Register::PC,
+                    label_out.to_string(),
+                ));
                 // condition == TRUE
-                out.push(UnresolvedInstruction::Label(label_true));
+                out.push(UnresolvedInstruction::Label(label_true.to_string()));
                 let child_scope = scope.child();
                 out.append(&mut compile_block(ctx, child_scope, body)?);
-                out.push(UnresolvedInstruction::Imm(Register::PC, label_out.clone()));
-                out.push(UnresolvedInstruction::Label(label_out.clone()));
+                out.push(UnresolvedInstruction::Imm(
+                    Register::PC,
+                    label_out.to_string(),
+                ));
+                out.push(UnresolvedInstruction::Label(label_out.to_string()));
             }
             ast::Statement::Declare(id, t, Some(expr)) => {
                 if scope.get(ctx, &id.0).is_some() {
@@ -309,16 +324,15 @@ pub(super) fn compile_body(
     let mut block = Block { ..Block::default() };
     block
         .instructions
-        .push(UnresolvedInstruction::Label(Symbol::new(name)));
+        .push(UnresolvedInstruction::Label(name.to_string()));
     for (name, arg_type) in &args {
         block.define_arg(&name.0, &Type::from_ast(ctx, arg_type)?);
     }
     // function setup
     let local_count_sym = format!("__internal_{name}_local_count");
-    block.instructions.push(UnresolvedInstruction::AddImm(
-        Register::SP,
-        Symbol::new(&local_count_sym),
-    ));
+    block
+        .instructions
+        .push(UnresolvedInstruction::AddImm(Register::SP, local_count_sym));
     let cell = Rc::new(RefCell::new(block));
     let mut compiled = compile_block(ctx, BlockScope::new(cell.clone()), statements)?;
     {
