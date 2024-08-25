@@ -173,18 +173,15 @@ impl PreProcessor {
         &mut self,
         sections: &HashMap<String, Data<UnresolvedInstruction>>,
     ) -> Result<(), Error> {
-        for (_key, s) in sections {
+        for s in sections.values() {
             let mut head = s.offset;
             for c in &s.chunks {
                 match c {
-                    Chunk::Raw(v) => head = head + (v.len() as u32),
+                    Chunk::Raw(v) => head += v.len() as u32,
                     Chunk::Lines(urs) => {
                         for ur in urs {
-                            match ur {
-                                UnresolvedInstruction::Label(name) => {
-                                    self.define_label(&name, head);
-                                }
-                                _ => (),
+                            if let UnresolvedInstruction::Label(name) = ur {
+                                self.define_label(name, head);
                             };
                             head += ur.size();
                         }
@@ -251,49 +248,43 @@ impl PreProcessor {
                 "Imm" => {
                     if parts.len() != 2 {
                         None
-                    } else {
-                        if let ProcessedLinePart::Body(reg_str) = parts.get(0).unwrap() {
-                            let reg = Register::from_str(reg_str).ok()?;
-                            if let ProcessedLinePart::Variable(label) = parts.get(1).unwrap() {
-                                Some(UnresolvedInstruction::Imm(reg, label.to_string()))
-                            } else {
-                                None
-                            }
+                    } else if let ProcessedLinePart::Body(reg_str) = parts.first().unwrap() {
+                        let reg = Register::from_str(reg_str).ok()?;
+                        if let ProcessedLinePart::Variable(label) = parts.get(1).unwrap() {
+                            Some(UnresolvedInstruction::Imm(reg, label.to_string()))
                         } else {
                             None
                         }
+                    } else {
+                        None
                     }
                 }
                 "AddImm" => {
                     if parts.len() != 2 {
                         None
-                    } else {
-                        if let ProcessedLinePart::Body(reg_str) = parts.get(0).unwrap() {
-                            let reg = Register::from_str(reg_str).ok()?;
-                            if let ProcessedLinePart::Variable(label) = parts.get(1).unwrap() {
-                                Some(UnresolvedInstruction::AddImm(reg, label.to_string()))
-                            } else {
-                                None
-                            }
+                    } else if let ProcessedLinePart::Body(reg_str) = parts.first().unwrap() {
+                        let reg = Register::from_str(reg_str).ok()?;
+                        if let ProcessedLinePart::Variable(label) = parts.get(1).unwrap() {
+                            Some(UnresolvedInstruction::AddImm(reg, label.to_string()))
                         } else {
                             None
                         }
+                    } else {
+                        None
                     }
                 }
                 "AddImmSigned" => {
                     if parts.len() != 2 {
                         None
-                    } else {
-                        if let ProcessedLinePart::Body(reg_str) = parts.get(0).unwrap() {
-                            let reg = Register::from_str(reg_str).ok()?;
-                            if let ProcessedLinePart::Variable(label) = parts.get(1).unwrap() {
-                                Some(UnresolvedInstruction::AddImmSigned(reg, label.to_string()))
-                            } else {
-                                None
-                            }
+                    } else if let ProcessedLinePart::Body(reg_str) = parts.first().unwrap() {
+                        let reg = Register::from_str(reg_str).ok()?;
+                        if let ProcessedLinePart::Variable(label) = parts.get(1).unwrap() {
+                            Some(UnresolvedInstruction::AddImmSigned(reg, label.to_string()))
                         } else {
                             None
                         }
+                    } else {
+                        None
                     }
                 }
                 _ => None,
@@ -307,7 +298,7 @@ impl PreProcessor {
         &self,
         p: &[ProcessedLinePart],
     ) -> Result<Option<UnresolvedInstruction>, Error> {
-        if let Some(head) = p.get(0) {
+        if let Some(head) = p.first() {
             match head {
                 ProcessedLinePart::Body(s) => {
                     if let Some(c) = s.chars().nth(0) {

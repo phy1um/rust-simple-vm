@@ -23,7 +23,7 @@ pub fn set_entrypoint(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<Str
         return Err("format <value>".to_string());
     }
     let value: u16 = input
-        .get(0)
+        .first()
         .unwrap()
         .parse()
         .map_err(|e| format!("parse entrypoint: {e}"))?;
@@ -33,13 +33,13 @@ pub fn set_entrypoint(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<Str
 
 pub fn section(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, String> {
     if input.len() == 1 {
-        let name = input.get(0).unwrap();
+        let name = input.first().unwrap();
         pp.set_active_section(name);
         Ok(Vec::new())
     } else if input.len() != 3 {
         Err("format <name> <offset> <kind>".to_string())
     } else {
-        let name = input.get(0).unwrap();
+        let name = input.first().unwrap();
         let offset: u32 = input
             .get(1)
             .unwrap()
@@ -60,7 +60,7 @@ pub fn add_heap(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, 
         Err("format <offset> <size>".to_string())
     } else {
         let offset: u32 = input
-            .get(0)
+            .first()
             .unwrap()
             .parse()
             .map_err(|e| format!("parse offset: {e}"))?;
