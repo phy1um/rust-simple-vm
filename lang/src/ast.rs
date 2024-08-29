@@ -156,6 +156,38 @@ pub enum BinOp {
     NotEqual,
 }
 
+impl BinOp {
+    pub fn get_precedence(&self) -> u32 {
+        match self {
+            Self::Add => 2,
+            Self::Subtract => 2,
+            Self::Multiply => 3,
+            Self::Mod => 3,
+            Self::Equal => 1,
+            Self::GreaterThan => 1,
+            Self::GreaterThanEqual => 1,
+            Self::LessThan => 1,
+            Self::LessThanEqual => 1,
+            Self::NotEqual => 1,
+        }
+    }
+
+    pub fn is_left_associative(&self) -> bool {
+        match self {
+            Self::Add => true,
+            Self::Subtract => true,
+            Self::Multiply => true,
+            Self::Mod => true,
+            Self::Equal => false,
+            Self::GreaterThan => false,
+            Self::GreaterThanEqual => false,
+            Self::LessThan => false,
+            Self::LessThanEqual => false,
+            Self::NotEqual => false,
+        }
+    }
+}
+
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

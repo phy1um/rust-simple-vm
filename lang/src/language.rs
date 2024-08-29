@@ -6,13 +6,64 @@ use crate::combinator::*;
 use crate::error::{Confidence, ConfidenceError, ParseError, ParseErrorKind};
 use crate::parse::Parser;
 
+use std::fmt;
 use std::str::FromStr;
 
 type CResult<S, T> = Result<(S, T), ConfidenceError<ParseError>>;
 type PResult<S, T> = Result<(S, T), ParseError>;
 
-fn token<'a, 'b>(t: &'a str) -> impl Fn(&'b str) -> CResult<&'b str, &'a str> {
-    with_confidence(crate::character::token(t), Confidence::Low)
+#[derive(Copy, Clone, Debug)]
+struct State<'a> {
+    input: &'a str,
+    expr_precedence: u32,
+}
+
+impl<'a> fmt::Display for State<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.input)
+    }
+}
+
+impl<'a> State<'a> {
+    fn new(input: &'a str) -> Self {
+        Self {
+            input,
+            expr_precedence: 0,
+        }
+    }
+
+    fn run<T, E>(self, p: impl Parser<&'a str, T, E>) -> Result<(Self, T), E> {
+        match p.run(self.input) {
+            Ok((st, res)) => Ok((
+                Self {
+                    input: st,
+                    expr_precedence: self.expr_precedence,
+                },
+                res,
+            )),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+fn lift_to_state<'a, T, E, F>(p: F) -> impl Fn(State<'a>) -> Result<(State<'a>, T), E>
+where
+    F: Parser<&'a str, T, E>,
+{
+    move |state| match p.run(state.input) {
+        Ok((st, res)) => Ok((
+            State {
+                input: st,
+                expr_precedence: state.expr_precedence,
+            },
+            res,
+        )),
+        Err(e) => Err(e),
+    }
+}
+
+fn token<'a>(t: &'a str) -> impl Fn(State) -> CResult<State, &'a str> {
+    move |state| state.run(with_confidence(crate::character::token(t), Confidence::Low))
 }
 
 fn with_confidence<S, T, E: Clone>(
@@ -22,11 +73,11 @@ fn with_confidence<S, T, E: Clone>(
     move |input| p.run(input).map_err(|e| ConfidenceError::from(e, conf))
 }
 
-fn parse_type_raw(input: &str) -> CResult<&str, ast::Type> {
-    let (s0, res) = with_confidence(
+fn parse_type_raw(input: State) -> CResult<State, ast::Type> {
+    let (s0, res) = input.run(with_confidence(
         map(repeat1(alpha), |x| x.iter().collect::<String>()),
         Confidence::Low,
-    )(input)?;
+    ))?;
     if res == "struct" {
         let (s1, _) = skip_whitespace(token("{"))(s0)?;
         let (s2, fields) = allow_empty(delimited(named_arg, skip_whitespace(token(","))))(s1)?;
@@ -45,7 +96,7 @@ fn parse_type_raw(input: &str) -> CResult<&str, ast::Type> {
     }
 }
 
-fn parse_type(input: &str) -> CResult<&str, ast::Type> {
+fn parse_type(input: State) -> CResult<State, ast::Type> {
     match skip_whitespace(token("*"))(input) {
         Ok((s, _)) => {
             let (sn, inner) = parse_type(s)?;
@@ -55,60 +106,61 @@ fn parse_type(input: &str) -> CResult<&str, ast::Type> {
     }
 }
 
-fn identifier(input: &str) -> Result<(&str, ast::Identifier), ParseError> {
-    let (s0, fst) = char_predicate_or(alpha, is_char('_'))(input)?;
-    let (s1, rest) = repeat0(char_predicate_or(alphanumeric, is_char('_')))(s0)?;
+fn identifier(input: State) -> Result<(State, ast::Identifier), ParseError> {
+    let (s0, fst) = input.run(char_predicate_or(alpha, is_char('_')))?;
+    let (s1, rest) = s0.run(repeat0(char_predicate_or(alphanumeric, is_char('_'))))?;
     let id_str = fst.to_string() + &rest.iter().collect::<String>();
     Ok((s1, ast::Identifier::new(&id_str)))
 }
 
-fn expression_literal_int_base10(input: &str) -> CResult<&str, ast::Expression> {
-    map(repeat1(numeric), |x| {
-        ast::Expression::LiteralInt(x.iter().collect::<String>().parse::<i32>().unwrap())
-    })(input)
-    .map_err(|v| ConfidenceError::from(v, Confidence::Low))
+fn expression_literal_int_base10(input: State) -> CResult<State, ast::Expression> {
+    input
+        .run(map(repeat1(numeric), |x| {
+            ast::Expression::LiteralInt(x.iter().collect::<String>().parse::<i32>().unwrap())
+        }))
+        .map_err(|v| ConfidenceError::from(v, Confidence::Low))
 }
 
-fn expression_literal_int_base16(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_literal_int_base16(input: State) -> CResult<State, ast::Expression> {
     let (s0, _) = token("0x")(input)?;
-    map_err(repeat1(alphanumeric), |x| {
+    s0.run(map_err(repeat1(alphanumeric), |x| {
         let num_str = x.iter().collect::<String>();
         match i32::from_str_radix(&num_str, 16) {
             Ok(num) => Ok(ast::Expression::LiteralInt(num)),
-            Err(e) => Err(ParseError::new(input, ParseErrorKind::Numeric(e))),
+            Err(e) => Err(ParseError::new(input.input, ParseErrorKind::Numeric(e))),
         }
-    })(s0)
+    }))
     .map_err(|v| ConfidenceError::from(v, Confidence::Low))
 }
 
-fn expression_literal_char(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_literal_char(input: State) -> CResult<State, ast::Expression> {
     map(
         wrapped(
             token("'"),
-            with_confidence(not_char("'"), Confidence::Low),
+            lift_to_state(with_confidence(not_char("'"), Confidence::Low)),
             token("'"),
         ),
         ast::Expression::LiteralChar,
     )(input)
 }
 
-fn expression_literal_string(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_literal_string(input: State) -> CResult<State, ast::Expression> {
     map(
         wrapped(
             token("\""),
-            with_confidence(repeat0(not_char("\"")), Confidence::Medium),
+            lift_to_state(with_confidence(repeat0(not_char("\"")), Confidence::Medium)),
             token("\""),
         ),
         |x| ast::Expression::LiteralString(x.into_iter().collect()),
     )(input)
 }
 
-pub fn expression_variable(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_variable(input: State) -> CResult<State, ast::Expression> {
     let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
     Ok((s0, ast::Expression::Variable(vec![id])))
 }
 
-fn expression_address_of(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_address_of(input: State) -> CResult<State, ast::Expression> {
     let (s0, _) = skip_whitespace(token("&"))(input)?;
     let (s1, name) = identifier(s0).map_err(|v| ConfidenceError::from(v, Confidence::Medium))?;
     let (s2, mut fields) = repeat0(dotted_field)(s1)?;
@@ -116,12 +168,21 @@ fn expression_address_of(input: &str) -> CResult<&str, ast::Expression> {
     Ok((s2, ast::Expression::AddressOf(fields)))
 }
 
-pub fn expression_call(input: &str) -> CResult<&str, ast::Expression> {
+fn reset_prec<'a, T, E>(
+    p: impl Parser<State<'a>, T, E>,
+) -> impl Fn(State<'a>) -> Result<(State<'a>, T), E> {
+    move |mut state| {
+        state.expr_precedence = 0;
+        p.run(state)
+    }
+}
+
+fn expression_call(input: State) -> CResult<State, ast::Expression> {
     let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
     let (s1, args) = wrapped(
         token("("),
         allow_empty(delimited(
-            skip_whitespace(expression),
+            reset_prec(skip_whitespace(expression)),
             skip_whitespace(token(",")),
         )),
         token(")"),
@@ -129,26 +190,28 @@ pub fn expression_call(input: &str) -> CResult<&str, ast::Expression> {
     Ok((s1, ast::Expression::FunctionCall(id, args)))
 }
 
-pub fn expression_deref(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_deref(input: State) -> CResult<State, ast::Expression> {
     let (s0, _) = skip_whitespace(token("*"))(input)?;
     let (sn, expr) = expression(s0)?;
     Ok((sn, ast::Expression::Deref(Box::new(expr))))
 }
 
-pub fn expression_bracketed(input: &str) -> CResult<&str, ast::Expression> {
-    map(
+fn expression_bracketed(input: State) -> CResult<State, ast::Expression> {
+    let (mut s, res) = map(
         skip_whitespace(wrapped(token("("), expression, token(")"))),
         |x| ast::Expression::Bracketed(Box::new(x)),
-    )(input)
+    )(input)?;
+    s.expr_precedence = 0;
+    Ok((s, res))
 }
 
-pub fn expression_builtin_sizeof(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_builtin_sizeof(input: State) -> CResult<State, ast::Expression> {
     let (s0, _) = skip_whitespace(token("sizeof"))(input)?;
     let (s1, tt) = skip_whitespace(wrapped(token("("), parse_type, token(")")))(s0)?;
     Ok((s1, ast::Expression::BuiltinSizeof(tt)))
 }
 
-pub fn binop(input: &str) -> CResult<&str, ast::BinOp> {
+fn binop(input: State) -> CResult<State, ast::BinOp> {
     map(
         require(
             Any::new(vec![
@@ -163,34 +226,43 @@ pub fn binop(input: &str) -> CResult<&str, ast::BinOp> {
                 token("<"),
                 token("!="),
             ]),
-            ConfidenceError::low(ParseError::new(input, ParseErrorKind::ExpectedBinop)),
+            ConfidenceError::low(ParseError::new(input.input, ParseErrorKind::ExpectedBinop)),
         ),
         |x| ast::BinOp::from_str(x).unwrap(),
     )
     .run(input)
 }
 
-pub fn expression_struct_fields(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_struct_fields(input: State) -> CResult<State, ast::Expression> {
     let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
     let (s1, mut fields) = repeat1(dotted_field)(s0)?;
     fields.insert(0, id);
     Ok((s1, ast::Expression::Variable(fields)))
 }
 
-pub fn expression_part_array_index(input: &str) -> CResult<&str, ast::Expression> {
+fn expression_part_array_index(input: State) -> CResult<State, ast::Expression> {
     let (s0, _) = skip_whitespace(token("["))(input)?;
     let (s1, index) = skip_whitespace(expression)(s0)?;
     let (s2, _) = token("]")(s1)?;
     Ok((s2, index))
 }
 
-pub fn expression_part_binop(input: &str) -> CResult<&str, (ast::BinOp, ast::Expression)> {
+fn precedence_climb_recursive(
+    res: ast::Expression,
+    input: State,
+) -> CResult<State, ast::Expression> {
     let (s0, op) = skip_whitespace(binop)(input)?;
-    let (s1, expr) = skip_whitespace(expression)(s0).map_err(ConfidenceError::elevate)?;
-    Ok((s1, (op, expr)))
+    println!("found op: {op}, prec: {}", s0.expr_precedence);
+    if op.get_precedence() >= s0.expr_precedence {
+        let (mut s1, rhs) = skip_whitespace(expression)(s0).map_err(ConfidenceError::elevate)?;
+        s1.expr_precedence = op.get_precedence() + if op.is_left_associative() { 1 } else { 0 };
+        Ok((s1, ast::Expression::BinOp(Box::new(res), Box::new(rhs), op)))
+    } else {
+        Ok((s0, res))
+    }
 }
 
-fn expression(input: &str) -> CResult<&str, ast::Expression> {
+fn expression(input: State) -> CResult<State, ast::Expression> {
     let (mut rest, mut expr) = AnyCollectErr::new(vec![
         expression_literal_int_base16,
         expression_literal_int_base10,
@@ -213,14 +285,13 @@ fn expression(input: &str) -> CResult<&str, ast::Expression> {
         };
         rest = tail;
     };
-    if let Ok((tail, (op, rhs))) = expression_part_binop(rest) {
-        let binop = ast::Expression::BinOp(Box::new(expr), Box::new(rhs), op);
-        return Ok((tail, binop));
+    if let Ok((tail, expr)) = precedence_climb_recursive(expr.clone(), rest) {
+        return Ok((tail, expr));
     };
     Ok((rest, expr))
 }
 
-pub fn statement_variable_assign(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_variable_assign(input: State) -> CResult<State, ast::Statement> {
     let (s0, id) = identifier(input).map_err(ConfidenceError::low)?;
     let (s1, _) = skip_whitespace(token(":="))(s0)?;
     let (s2, expr) = skip_whitespace(expression)(s1).map_err(ConfidenceError::elevate)?;
@@ -228,7 +299,7 @@ pub fn statement_variable_assign(input: &str) -> CResult<&str, ast::Statement> {
     Ok((s3, ast::Statement::Assign(id, Box::new(expr))))
 }
 
-pub fn statement_variable_assign_struct_fields(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_variable_assign_struct_fields(input: State) -> CResult<State, ast::Statement> {
     let (s0, id) = identifier(input).map_err(ConfidenceError::low)?;
     let (s1, mut fields) = repeat1(dotted_field)(s0)?;
     fields.insert(0, id);
@@ -238,24 +309,26 @@ pub fn statement_variable_assign_struct_fields(input: &str) -> CResult<&str, ast
     Ok((s4, ast::Statement::AssignStructField { fields, rhs }))
 }
 
-pub fn dotted_field(input: &str) -> CResult<&str, ast::Identifier> {
+fn dotted_field(input: State) -> CResult<State, ast::Identifier> {
     let (s0, _) = token(".")(input)?;
     with_confidence(identifier, Confidence::Low)(s0)
 }
 
-pub fn statement_variable_assign_deref(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_variable_assign_deref(input: State) -> CResult<State, ast::Statement> {
     let (s0, _) = skip_whitespace(token("*"))(input)?;
     let (s1, lhs) = skip_whitespace(expression)(s0)?;
-    let (s2, _) = skip_whitespace(token(":="))(s1)?;
+    let (mut s2, _) = skip_whitespace(token(":="))(s1)?;
+    s2.expr_precedence = 0;
     let (s3, rhs) = skip_whitespace(expression)(s2).map_err(ConfidenceError::elevate)?;
     let (s4, _) = skip_whitespace(token(";"))(s3).map_err(ConfidenceError::elevate)?;
     Ok((s4, ast::Statement::AssignDeref { lhs, rhs }))
 }
 
-pub fn statement_array_index(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_array_index(input: State) -> CResult<State, ast::Statement> {
     let (s0, lhs) = skip_whitespace(expression)(input)?;
     if let ast::Expression::ArrayDeref { lhs, index } = lhs {
-        let (s1, _) = skip_whitespace(token(":="))(s0).map_err(ConfidenceError::into_high)?;
+        let (mut s1, _) = skip_whitespace(token(":="))(s0).map_err(ConfidenceError::into_high)?;
+        s1.expr_precedence = 0;
         let (s2, rhs) = skip_whitespace(expression)(s1).map_err(ConfidenceError::into_high)?;
         let (s3, _) = skip_whitespace(token(";"))(s2).map_err(ConfidenceError::into_high)?;
         Ok((
@@ -268,13 +341,13 @@ pub fn statement_array_index(input: &str) -> CResult<&str, ast::Statement> {
         ))
     } else {
         Err(ConfidenceError::from(
-            ParseError::new(input, ParseErrorKind::ExpectedArrayDeref),
+            ParseError::new(input.input, ParseErrorKind::ExpectedArrayDeref),
             Confidence::Low,
         ))
     }
 }
 
-pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_variable_declare(input: State) -> CResult<State, ast::Statement> {
     let (s0, _) = skip_whitespace(token("let"))(input)?;
     let (s1, variable_type) = skip_whitespace(parse_type)(s0)?;
     let (s2, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s1)?;
@@ -287,7 +360,7 @@ pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> 
     ))
 }
 
-pub fn statement_variable_declare_novalue(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_variable_declare_novalue(input: State) -> CResult<State, ast::Statement> {
     let (s0, _) = skip_whitespace(token("let"))(input)?;
     let (s1, variable_type) = skip_whitespace(parse_type)(s0)?;
     let (s2, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s1)?;
@@ -295,7 +368,7 @@ pub fn statement_variable_declare_novalue(input: &str) -> CResult<&str, ast::Sta
     Ok((s3, ast::Statement::Declare(id, Some(variable_type), None)))
 }
 
-pub fn statement_variable_declare_infer(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_variable_declare_infer(input: State) -> CResult<State, ast::Statement> {
     let (s0, _) = skip_whitespace(token("let"))(input)?;
     let (s1, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
     let (s2, _) = skip_whitespace(token(":="))(s1)?;
@@ -304,14 +377,14 @@ pub fn statement_variable_declare_infer(input: &str) -> CResult<&str, ast::State
     Ok((s4, ast::Statement::Declare(id, None, Some(Box::new(expr)))))
 }
 
-pub fn statement_return(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_return(input: State) -> CResult<State, ast::Statement> {
     let (s0, _) = skip_whitespace(token("return"))(input)?;
     let (s1, expr) = skip_whitespace(expression)(s0)?;
     let (s2, _) = skip_whitespace(token(";"))(s1).map_err(ConfidenceError::elevate)?;
     Ok((s2, ast::Statement::Return(expr)))
 }
 
-pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_if(input: State) -> CResult<State, ast::Statement> {
     let (s0, _) = skip_whitespace(token("if"))(input)?;
     let (s1, cond) = wrapped(
         skip_whitespace(token("(")),
@@ -319,12 +392,13 @@ pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
         skip_whitespace(token(")")),
     )(s0)
     .map_err(ConfidenceError::elevate)?;
-    let (s2, body) = wrapped(
+    let (mut s2, body) = wrapped(
         skip_whitespace(token("{")),
         repeat1(skip_whitespace(statement)),
         skip_whitespace(token("}")),
     )(s1)
     .map_err(ConfidenceError::elevate)?;
+    s2.expr_precedence = 0;
     let (sn, else_body) = match skip_whitespace(token("else"))(s2) {
         Ok((s3, _)) => {
             let (s4, eb) = wrapped(
@@ -347,7 +421,7 @@ pub fn statement_if(input: &str) -> CResult<&str, ast::Statement> {
     ))
 }
 
-fn statement_while(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_while(input: State) -> CResult<State, ast::Statement> {
     let (s0, _) = skip_whitespace(token("while"))(input)?;
     let (s1, cond) = wrapped(
         skip_whitespace(token("(")),
@@ -364,7 +438,7 @@ fn statement_while(input: &str) -> CResult<&str, ast::Statement> {
     Ok((sn, ast::Statement::While { cond, body }))
 }
 
-pub fn statement_continue(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_continue(input: State) -> CResult<State, ast::Statement> {
     let (s0, res) = map(skip_whitespace(token("continue")), |_| {
         ast::Statement::Continue
     })(input)?;
@@ -372,19 +446,20 @@ pub fn statement_continue(input: &str) -> CResult<&str, ast::Statement> {
     Ok((s1, res))
 }
 
-pub fn statement_break(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_break(input: State) -> CResult<State, ast::Statement> {
     let (s0, res) = map(skip_whitespace(token("break")), |_| ast::Statement::Break)(input)?;
     let (s1, _) = skip_whitespace(token(";"))(s0).map_err(ConfidenceError::elevate)?;
     Ok((s1, res))
 }
 
-pub fn statement_expression(input: &str) -> CResult<&str, ast::Statement> {
+fn statement_expression(input: State) -> CResult<State, ast::Statement> {
     let (s0, res) = map(expression, ast::Statement::Expression)(input)?;
     let (s1, _) = skip_whitespace(token(";"))(s0).map_err(ConfidenceError::elevate)?;
     Ok((s1, res))
 }
 
-pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
+fn statement(mut input: State) -> CResult<State, ast::Statement> {
+    input.expr_precedence = 0;
     AnyCollectErr::new(vec![
         statement_array_index,
         statement_if,
@@ -404,23 +479,25 @@ pub fn statement(input: &str) -> CResult<&str, ast::Statement> {
     .map_err(|v| ConfidenceError::select(&v))
 }
 
-fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(&'a str) -> CResult<&'a str, T>
+fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(State<'a>) -> CResult<State<'a>, T>
 where
-    F: Parser<&'a str, T, ConfidenceError<ParseError>>,
+    F: Parser<State<'a>, T, ConfidenceError<ParseError>>,
 {
     move |input| {
-        let (s0, _) = discard(repeat0(whitespace))(input).map_err(ConfidenceError::low)?;
+        let (s0, _) = input
+            .run(discard(repeat0(whitespace)))
+            .map_err(ConfidenceError::low)?;
         f.run(s0)
     }
 }
 
-fn named_arg(input: &str) -> CResult<&str, (ast::Identifier, ast::Type)> {
+fn named_arg(input: State) -> CResult<State, (ast::Identifier, ast::Type)> {
     let (s0, ty) = skip_whitespace(parse_type)(input)?;
     let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
     Ok((s1, (name, ty)))
 }
 
-fn function_body(input: &str) -> CResult<&str, Vec<ast::Statement>> {
+fn function_body(input: State) -> CResult<State, Vec<ast::Statement>> {
     let (mut head, _) = skip_whitespace(token("{"))(input)?;
     let mut out = Vec::new();
     loop {
@@ -437,7 +514,7 @@ fn function_body(input: &str) -> CResult<&str, Vec<ast::Statement>> {
     }
 }
 
-fn type_definition(input: &str) -> CResult<&str, ast::TopLevel> {
+fn type_definition(input: State) -> CResult<State, ast::TopLevel> {
     let (s0, _) = skip_whitespace(token("type"))(input)?;
     let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Medium))(s0)?;
     let (s2, _) = skip_whitespace(token(":="))(s1)?;
@@ -446,7 +523,7 @@ fn type_definition(input: &str) -> CResult<&str, ast::TopLevel> {
     Ok((s4, ast::TopLevel::TypeDefinition { name, alias }))
 }
 
-fn function_definition(input: &str) -> CResult<&str, ast::TopLevel> {
+fn function_definition(input: State) -> CResult<State, ast::TopLevel> {
     let (s0, return_type) = skip_whitespace(parse_type)(input)?;
     let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
     let (s2, _) = skip_whitespace(token("("))(s1)?;
@@ -464,7 +541,7 @@ fn function_definition(input: &str) -> CResult<&str, ast::TopLevel> {
     ))
 }
 
-fn inline_asm(input: &str) -> CResult<&str, ast::TopLevel> {
+fn inline_asm(input: State) -> CResult<State, ast::TopLevel> {
     let (s0, _) = skip_whitespace(token("asm!"))(input)?;
     let (s1, name) = skip_whitespace(with_confidence(identifier, Confidence::Low))(s0)?;
     let (s2, _) = skip_whitespace(token("("))(s1)?;
@@ -472,7 +549,7 @@ fn inline_asm(input: &str) -> CResult<&str, ast::TopLevel> {
     let (s4, _) = skip_whitespace(token(")"))(s3)?;
     let (s5, body) = wrapped(
         skip_whitespace(token("{")),
-        with_confidence(repeat1(not_char("{}")), Confidence::Medium),
+        lift_to_state(with_confidence(repeat1(not_char("{}")), Confidence::Medium)),
         skip_whitespace(token("}")),
     )(s4)?;
     Ok((
@@ -485,7 +562,7 @@ fn inline_asm(input: &str) -> CResult<&str, ast::TopLevel> {
     ))
 }
 
-fn global_variable(input: &str) -> CResult<&str, ast::TopLevel> {
+fn global_variable(input: State) -> CResult<State, ast::TopLevel> {
     let (s0, _) = skip_whitespace(token("global"))(input)?;
     let (s1, var_type) = skip_whitespace(parse_type)(s0)?;
     let (s2, name) = skip_whitespace(with_confidence(identifier, Confidence::High))(s1)?;
@@ -495,11 +572,11 @@ fn global_variable(input: &str) -> CResult<&str, ast::TopLevel> {
 
 pub fn parse_ast(input: &str) -> PResult<&str, Vec<ast::TopLevel>> {
     let mut out = Vec::new();
-    let mut current_state = input;
+    let mut current_state = State::new(input);
     loop {
-        let (state_next, _) = discard(repeat0(whitespace))(current_state)?;
-        if state_next.is_empty() {
-            return Ok((state_next, out));
+        let (state_next, _) = current_state.run(discard(repeat0(whitespace)))?;
+        if state_next.input.is_empty() {
+            return Ok((state_next.input, out));
         } else {
             let (snn, res) = AnyCollectErr::new(vec![
                 inline_asm,
@@ -519,7 +596,10 @@ pub fn parse_ast(input: &str) -> PResult<&str, Vec<ast::TopLevel>> {
 mod test {
     use super::*;
     use crate::ast::*;
-    use crate::parse::run_parser;
+
+    fn run_parser<'a, T, E>(p: impl Parser<State<'a>, T, E>, s: &'a str) -> Result<T, E> {
+        crate::parse::run_parser(p, State::new(s))
+    }
 
     #[test]
     fn test_expression_literal_int() {

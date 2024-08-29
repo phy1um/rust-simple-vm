@@ -20,6 +20,7 @@ pub struct ConfidenceError<T: Clone> {
     confidence: Confidence,
 }
 
+#[allow(dead_code)]
 impl<T: Clone> ConfidenceError<T> {
     pub fn from(t: T, confidence: Confidence) -> Self {
         Self { t, confidence }
