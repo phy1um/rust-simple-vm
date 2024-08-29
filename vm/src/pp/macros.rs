@@ -40,11 +40,8 @@ pub fn section(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, S
         Err("format <name> <offset> <kind>".to_string())
     } else {
         let name = input.first().unwrap();
-        let offset: u32 = input
-            .get(1)
-            .unwrap()
-            .parse()
-            .map_err(|e| format!("parse offset: {e}"))?;
+        let (num, base) = input.get(1).map(|s| get_base(s)).unwrap();
+        let offset = u32::from_str_radix(num, base).map_err(|e| format!("parse offset: {e}"))?;
         let kind = SectionMode::from_str(input.get(2).unwrap())?;
         if kind == SectionMode::Heap {
             return Err("cannot create heap using this macro, use `.heap` instead".to_string());
@@ -59,16 +56,12 @@ pub fn add_heap(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, 
     if input.len() != 2 {
         Err("format <offset> <size>".to_string())
     } else {
-        let offset: u32 = input
-            .first()
-            .unwrap()
-            .parse()
+        let (offset_num, offset_base) = input.first().map(|s| get_base(s)).unwrap();
+        let offset = u32::from_str_radix(offset_num, offset_base)
             .map_err(|e| format!("parse offset: {e}"))?;
-        let size: u32 = input
-            .get(1)
-            .unwrap()
-            .parse()
-            .map_err(|e| format!("parse size: {e}"))?;
+        let (size_num, size_base) = input.get(1).map(|s| get_base(s)).unwrap();
+        let size =
+            u32::from_str_radix(size_num, size_base).map_err(|e| format!("parse size: {e}"))?;
         pp.create_heap(offset, size);
         Ok(Vec::new())
     }
@@ -135,4 +128,11 @@ pub fn defmacro(pp: &mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, 
     }
     pp.define_subst_macro(macro_name, lines);
     Ok(Vec::new())
+}
+
+fn get_base(s: &str) -> (&str, u32) {
+    match s.chars().next() {
+        Some('$') => (&s[1..s.len() - 1], 16),
+        _ => (s, 10),
+    }
 }
