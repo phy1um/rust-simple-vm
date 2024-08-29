@@ -142,20 +142,6 @@ pub fn expression_bracketed(input: &str) -> CResult<&str, ast::Expression> {
     )(input)
 }
 
-pub fn expression_array_index(input: &str) -> CResult<&str, ast::Expression> {
-    let (s0, lhs) = skip_whitespace(expression_array_index_lhs)(input)?;
-    let (s1, _) = token("[")(s0)?;
-    let (s2, index) = skip_whitespace(expression)(s1)?;
-    let (s3, _) = token("]")(s2)?;
-    Ok((
-        s3,
-        ast::Expression::ArrayDeref {
-            lhs: Box::new(lhs),
-            index: Box::new(index),
-        },
-    ))
-}
-
 pub fn expression_builtin_sizeof(input: &str) -> CResult<&str, ast::Expression> {
     let (s0, _) = skip_whitespace(token("sizeof"))(input)?;
     let (s1, tt) = skip_whitespace(wrapped(token("("), parse_type, token(")")))(s0)?;
@@ -184,16 +170,6 @@ pub fn binop(input: &str) -> CResult<&str, ast::BinOp> {
     .run(input)
 }
 
-pub fn expression_binop(input: &str) -> CResult<&str, ast::Expression> {
-    let (s0, expr0) = skip_whitespace(expression_lhs)(input)?;
-    let (s1, op) = skip_whitespace(binop)(s0)?;
-    let (s2, expr1) = skip_whitespace(expression)(s1).map_err(ConfidenceError::elevate)?;
-    Ok((
-        s2,
-        ast::Expression::BinOp(Box::new(expr0), Box::new(expr1), op),
-    ))
-}
-
 pub fn expression_struct_fields(input: &str) -> CResult<&str, ast::Expression> {
     let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
     let (s1, mut fields) = repeat1(dotted_field)(s0)?;
@@ -201,47 +177,47 @@ pub fn expression_struct_fields(input: &str) -> CResult<&str, ast::Expression> {
     Ok((s1, ast::Expression::Variable(fields)))
 }
 
-fn expression_lhs(input: &str) -> CResult<&str, ast::Expression> {
-    AnyCollectErr::new(vec![
-        expression_literal_int_base16,
-        expression_literal_int_base10,
-        expression_literal_char,
-        expression_literal_string,
-        expression_array_index,
-        expression_struct_fields,
-        expression_builtin_sizeof,
-        expression_call,
-        expression_address_of,
-        expression_variable,
-        expression_bracketed,
-        expression_deref,
-    ])
-    .run(input)
-    .map_err(|v| ConfidenceError::select(&v))
+pub fn expression_part_array_index(input: &str) -> CResult<&str, ast::Expression> {
+    let (s0, _) = skip_whitespace(token("["))(input)?;
+    let (s1, index) = skip_whitespace(expression)(s0)?;
+    let (s2, _) = token("]")(s1)?;
+    Ok((s2, index))
 }
 
-fn expression_array_index_lhs(input: &str) -> CResult<&str, ast::Expression> {
-    AnyCollectErr::new(vec![
-        expression_literal_int_base16,
-        expression_literal_int_base10,
-        expression_literal_char,
-        expression_literal_string,
-        expression_struct_fields,
-        expression_builtin_sizeof,
-        expression_call,
-        expression_address_of,
-        expression_variable,
-        expression_bracketed,
-        expression_deref,
-    ])
-    .run(input)
-    .map_err(|v| ConfidenceError::select(&v))
+pub fn expression_part_binop(input: &str) -> CResult<&str, (ast::BinOp, ast::Expression)> {
+    let (s0, op) = skip_whitespace(binop)(input)?;
+    let (s1, expr) = skip_whitespace(expression)(s0).map_err(ConfidenceError::elevate)?;
+    Ok((s1, (op, expr)))
 }
 
 fn expression(input: &str) -> CResult<&str, ast::Expression> {
-    AnyCollectErr::new(vec![expression_binop, expression_lhs])
-        .run(input)
-        .map_err(|v| ConfidenceError::select(&v))
+    let (mut rest, mut expr) = AnyCollectErr::new(vec![
+        expression_literal_int_base16,
+        expression_literal_int_base10,
+        expression_literal_char,
+        expression_literal_string,
+        expression_struct_fields,
+        expression_builtin_sizeof,
+        expression_call,
+        expression_address_of,
+        expression_variable,
+        expression_bracketed,
+        expression_deref,
+    ])
+    .run(input)
+    .map_err(|v| ConfidenceError::select(&v))?;
+    if let Ok((tail, e)) = expression_part_array_index(rest) {
+        expr = ast::Expression::ArrayDeref {
+            lhs: Box::new(expr),
+            index: Box::new(e),
+        };
+        rest = tail;
+    };
+    if let Ok((tail, (op, rhs))) = expression_part_binop(rest) {
+        let binop = ast::Expression::BinOp(Box::new(expr), Box::new(rhs), op);
+        return Ok((tail, binop));
+    };
+    Ok((rest, expr))
 }
 
 pub fn statement_variable_assign(input: &str) -> CResult<&str, ast::Statement> {
@@ -277,14 +253,25 @@ pub fn statement_variable_assign_deref(input: &str) -> CResult<&str, ast::Statem
 }
 
 pub fn statement_array_index(input: &str) -> CResult<&str, ast::Statement> {
-    let (s0, lhs) = skip_whitespace(expression_array_index_lhs)(input)?;
-    let (s1, _) = token("[")(s0)?;
-    let (s2, index) = skip_whitespace(expression)(s1).map_err(ConfidenceError::elevate)?;
-    let (s3, _) = skip_whitespace(token("]"))(s2).map_err(ConfidenceError::elevate)?;
-    let (s4, _) = skip_whitespace(token(":="))(s3).map_err(ConfidenceError::elevate)?;
-    let (s5, rhs) = skip_whitespace(expression)(s4).map_err(ConfidenceError::elevate)?;
-    let (s6, _) = skip_whitespace(token(";"))(s5).map_err(ConfidenceError::elevate)?;
-    Ok((s6, ast::Statement::AssignArray { lhs, index, rhs }))
+    let (s0, lhs) = skip_whitespace(expression)(input)?;
+    if let ast::Expression::ArrayDeref { lhs, index } = lhs {
+        let (s1, _) = skip_whitespace(token(":="))(s0).map_err(ConfidenceError::into_high)?;
+        let (s2, rhs) = skip_whitespace(expression)(s1).map_err(ConfidenceError::into_high)?;
+        let (s3, _) = skip_whitespace(token(";"))(s2).map_err(ConfidenceError::into_high)?;
+        Ok((
+            s3,
+            ast::Statement::AssignArray {
+                lhs: *lhs,
+                index: *index,
+                rhs,
+            },
+        ))
+    } else {
+        Err(ConfidenceError::from(
+            ParseError::new(input, ParseErrorKind::ExpectedArrayDeref),
+            Confidence::Low,
+        ))
+    }
 }
 
 pub fn statement_variable_declare(input: &str) -> CResult<&str, ast::Statement> {
@@ -708,21 +695,21 @@ mod test {
             let expected = "i <= 1";
             assert_eq!(
                 expected,
-                run_parser(expression_binop, expected).unwrap().to_string()
+                run_parser(expression, expected).unwrap().to_string()
             );
         }
         {
             let expected = "foo < 79";
             assert_eq!(
                 expected,
-                run_parser(expression_binop, expected).unwrap().to_string()
+                run_parser(expression, expected).unwrap().to_string()
             );
         }
         {
             let expected = "xyzz > 9";
             assert_eq!(
                 expected,
-                run_parser(expression_binop, expected).unwrap().to_string()
+                run_parser(expression, expected).unwrap().to_string()
             );
         }
     }
@@ -896,6 +883,24 @@ int y,
     fn test_string_literal() {
         {
             let expected = "\"foo bar baz\"";
+            assert_eq!(
+                expected,
+                run_parser(expression, expected).unwrap().to_string(),
+            );
+        }
+    }
+
+    #[test]
+    fn test_binops() {
+        {
+            let expected = "10 + 101 + a";
+            assert_eq!(
+                expected,
+                run_parser(expression, expected).unwrap().to_string(),
+            );
+        }
+        {
+            let expected = "12 + foo.bar - a[12] + foo() + foo(bar())";
             assert_eq!(
                 expected,
                 run_parser(expression, expected).unwrap().to_string(),

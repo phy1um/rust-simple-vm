@@ -37,6 +37,27 @@ impl<T: Clone> ConfidenceError<T> {
         Self::from(t, Confidence::High)
     }
 
+    pub fn into_low(self) -> Self {
+        Self {
+            t: self.t,
+            confidence: Confidence::Low,
+        }
+    }
+
+    pub fn into_medium(self) -> Self {
+        Self {
+            t: self.t,
+            confidence: Confidence::Medium,
+        }
+    }
+
+    pub fn into_high(self) -> Self {
+        Self {
+            t: self.t,
+            confidence: Confidence::High,
+        }
+    }
+
     pub fn take(self) -> T {
         self.t
     }
@@ -117,6 +138,7 @@ pub enum ParseErrorKind {
     ExpectedExpressionLHS,
     ExpectedStatement,
     ExpectedTopLevel,
+    ExpectedArrayDeref,
     EndOfInput,
     Errors(Vec<ParseError>),
     Numeric(std::num::ParseIntError),
@@ -137,6 +159,7 @@ impl fmt::Display for ParseErrorKind {
             Self::ExpectedExpressionLHS => write!(f, "expected expression (lhs)"),
             Self::ExpectedStatement => write!(f, "expected statement"),
             Self::ExpectedTopLevel => write!(f, "expected function definition etc."),
+            Self::ExpectedArrayDeref => write!(f, "expected array deref"),
             Self::EndOfInput => write!(f, "end of input"),
             Self::Numeric(e) => write!(f, "invalid number: {e:?}"),
             Self::Errors(v) => write!(
