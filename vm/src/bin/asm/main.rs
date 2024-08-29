@@ -5,9 +5,9 @@ use std::io::{BufReader, Read, Write};
 use std::path::Path;
 
 use simplevm::pp::macros;
-use simplevm::pp::{Chunk, PreProcessor};
+use simplevm::pp::PreProcessor;
 
-use simplevm::binfmt::{BinaryFile, Section};
+use simplevm::binfmt::BinaryFile;
 
 mod args;
 
@@ -33,47 +33,13 @@ fn main() -> Result<(), String> {
         .map_err(|_| "failed to read file".to_string())?;
     processor
         .handle(&content)
-        .map_err(|_| "failed to resolve".to_string())?;
-    let sections = processor
-        .get_unresolved_instructions()
-        .map_err(|e| format!("part resolve: {e}"))?;
-    processor
-        .define_labels(&sections)
-        .map_err(|e| format!("define labels: {e}"))?;
+        .map_err(|e| format!("failed to resolve: {e}"))?;
     if args.preprocess_only {
         todo!("wip rebuilding");
     } else {
-        let mut bin = BinaryFile {
-            entrypoint: 0,
-            version: 99,
-            ..BinaryFile::default()
-        };
-
-        for (_name, section) in sections {
-            let mut section_data: Vec<u8> = Vec::new();
-            for chunk in section.chunks {
-                match chunk {
-                    Chunk::Raw(v) => section_data.extend(v),
-                    Chunk::Lines(ls) => {
-                        for line in ls {
-                            let ins_res = line
-                                .resolve(&processor.labels)
-                                .map_err(|e| format!("resolve: {e:?}"))?;
-                            if let Some(ins) = ins_res {
-                                section_data.extend_from_slice(&ins.encode_u16().to_le_bytes());
-                            }
-                        }
-                    }
-                }
-            }
-            bin.sections.push(Section {
-                size: section_data.len() as u16,
-                mode: section.mode,
-                address: section.offset,
-                file_offset: bin.data.len() as u32,
-            });
-            bin.data.extend(section_data);
-        }
+        let bin: BinaryFile = processor
+            .try_into()
+            .map_err(|e| format!("build binary: {e}"))?;
         bin.to_bytes(&mut output);
     }
     let mut stdout = io::stdout().lock();

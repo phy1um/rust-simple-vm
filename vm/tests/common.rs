@@ -1,3 +1,4 @@
+use simplevm::binfmt::BinaryFile;
 use simplevm::*;
 
 #[macro_export]
@@ -52,11 +53,14 @@ macro_rules! run_with {
 
 pub fn make_test_vm(memory: usize) -> Result<Machine, String> {
     let mut vm = Machine::default();
-    vm.map(0x0, memory, Box::new(LinearMemory::new(memory)))?;
+    vm.define_handler(SIGHALT, signal_halt);
+    if memory > 0 {
+        vm.map(0x0, memory, Box::new(LinearMemory::new(memory)))?;
+    }
     Ok(vm)
 }
 
-pub const SIGHALT: u8 = 0x1;
+pub const SIGHALT: u8 = 0xf;
 
 pub fn signal_halt(vm: &mut VM, _: u16) -> Result<(), String> {
     vm.halt = true;
@@ -78,9 +82,35 @@ pub fn run_program_code(m: &mut Machine, program: &[Instruction]) -> Result<(), 
             .map_err(|x| x.to_string())?;
     }
     m.set_register(Register::SP, 1024 * 3);
-    m.define_handler(SIGHALT, signal_halt);
     while !m.vm.halt {
         m.step()?;
     }
     Ok(())
+}
+
+const MAX_TEST_CYCLES: u32 = 100_000;
+pub fn run_binary(m: &mut Machine, bin: &BinaryFile) -> Result<(), String> {
+    bin.load_to_vm(m)?;
+    let mut cycle_count = 0;
+    while !m.is_halt() {
+        m.step().map_err(|s| error_with_context(m, &s))?;
+        cycle_count += 1;
+        if cycle_count >= MAX_TEST_CYCLES {
+            return Err("max cycles exceeded".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn error_with_context(vm: &Machine, s: &str) -> String {
+    format!(
+        "!! VM ERROR !!: {s}\nA: {} | B: {} | C: {} | M: {} |\n PC: {} | BP: {} | SP: {}",
+        vm.get_register(Register::A),
+        vm.get_register(Register::B),
+        vm.get_register(Register::C),
+        vm.get_register(Register::M),
+        vm.get_register(Register::PC),
+        vm.get_register(Register::BP),
+        vm.get_register(Register::SP),
+    )
 }

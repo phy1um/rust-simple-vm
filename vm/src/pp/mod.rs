@@ -2,15 +2,18 @@ use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::binfmt::SectionMode;
-use crate::resolve::UnresolvedInstruction;
+use crate::binfmt::{BinaryFile, Section, SectionMode};
+use crate::resolve::{ResolveError, UnresolvedInstruction};
 use crate::{Instruction, Register};
 
 pub mod macros;
 
+#[derive(Debug)]
 pub enum Error {
     UnknownToken(String),
     MacroEval(String, String),
+    ResolveLine(String, ResolveError),
+    NoActiveSection,
     Other(String),
 }
 
@@ -19,6 +22,8 @@ impl fmt::Display for Error {
         match self {
             Error::UnknownToken(s) => write!(f, "unknown token: {}", s),
             Error::MacroEval(name, err) => write!(f, "eval macro {}: {}", name, err),
+            Error::ResolveLine(s, e) => write!(f, "resolve line \"{s}\": {e:?}"),
+            Error::NoActiveSection => write!(f, "no active section"),
             Error::Other(s) => write!(f, "{}", s),
         }
     }
@@ -153,7 +158,7 @@ impl PreProcessor {
         self.heaps.push((offset, size));
     }
 
-    pub fn write_section_raw(&mut self, data: &[u8]) {
+    fn write_section_raw(&mut self, data: &[u8]) {
         if let Some(section_name) = self.active_section.clone() {
             self.sections
                 .get_mut(&section_name)
@@ -163,10 +168,6 @@ impl PreProcessor {
         } else {
             todo!("handle not in section");
         }
-    }
-
-    pub fn resolve_pass2(&self, p: &ProcessedLine) -> Result<String, Error> {
-        self.reprocess_line(&p.line)
     }
 
     pub fn define_labels(
@@ -222,21 +223,6 @@ impl PreProcessor {
             );
         }
         Ok(out)
-    }
-
-    fn reprocess_line(&self, p: &[ProcessedLinePart]) -> Result<String, Error> {
-        let mapped: Result<Vec<String>, Error> = p
-            .iter()
-            .map(|part| match part {
-                ProcessedLinePart::Variable(s) => self
-                    .get_variable(s)
-                    .map(|x| x.to_string())
-                    .ok_or(Error::UnknownToken(s.to_string())),
-                ProcessedLinePart::Body(s) => Ok(s.to_string()),
-                ProcessedLinePart::Label(_) => todo!("handle labels"),
-            })
-            .collect();
-        mapped.map(|x| x.join(" "))
     }
 
     fn try_parse_unresolved_instruction(
@@ -348,24 +334,6 @@ impl PreProcessor {
         }
     }
 
-    /* TODO: maybe remove
-    fn push_instruction(&mut self, line: ProcessedLine) -> Result<(), Error> {
-        let key = self.active_section.clone().ok_or(Error::Other("not in section".to_string()))?;
-        let section = self.sections.get_mut(&key).ok_or(Error::Other(format!("no such section {key}")))?;
-        let len = section.chunks.len()-1;
-        if section.chunks.is_empty() {
-            section.chunks.push(Chunk::Lines(vec![line]));
-        } else {
-            if let Chunk::Lines(ref mut v) = section.chunks.get_mut(len).unwrap() {
-                v.push(line);
-            } else {
-                section.chunks.push(Chunk::Lines(vec![line]));
-            }
-        };
-        Ok(())
-    }
-    */
-
     fn resolve_line(
         &mut self,
         line: &str,
@@ -444,7 +412,9 @@ impl PreProcessor {
                 if let Some(section_name) = self.active_section.clone() {
                     let chunks = &mut self.sections.get_mut(&section_name).unwrap().chunks;
                     chunks.push(Chunk::Lines(resolved));
-                }
+                } else {
+                    return Err(Error::NoActiveSection);
+                };
             }
         }
         Ok(())
@@ -471,7 +441,54 @@ impl PreProcessor {
         self.macros.insert(name.to_string(), Macro::Func(value));
     }
 
-    pub fn define_subst_macro(&mut self, name: &str, value: Vec<String>) {
+    fn define_subst_macro(&mut self, name: &str, value: Vec<String>) {
         self.macros.insert(name.to_string(), Macro::Subst(value));
+    }
+}
+
+impl TryFrom<PreProcessor> for BinaryFile {
+    type Error = Error;
+
+    fn try_from(mut processor: PreProcessor) -> Result<Self, Self::Error> {
+        let sections = processor.get_unresolved_instructions()?;
+        processor.define_labels(&sections)?;
+        let mut bin = BinaryFile {
+            entrypoint: 0,
+            version: 99,
+            ..BinaryFile::default()
+        };
+
+        for (_name, section) in sections {
+            let mut section_data: Vec<u8> = Vec::new();
+            for chunk in section.chunks {
+                match chunk {
+                    Chunk::Raw(v) => section_data.extend(v),
+                    Chunk::Lines(ls) => {
+                        for line in ls {
+                            let ins_res = line
+                                .resolve(&processor.labels)
+                                .map_err(|e| Error::ResolveLine(line.to_string(), e))?;
+                            if let Some(ins) = ins_res {
+                                section_data.extend_from_slice(&ins.encode_u16().to_le_bytes());
+                            }
+                        }
+                    }
+                }
+            }
+            bin.sections.push(Section {
+                size: section_data.len() as u16,
+                mode: section.mode,
+                address: section.offset,
+                file_offset: bin.data.len() as u32,
+            });
+            bin.data.extend(section_data);
+        }
+
+        let header_size = bin.get_header_size() as u32;
+        for section in bin.sections.iter_mut() {
+            section.file_offset += header_size;
+        }
+
+        Ok(bin)
     }
 }
