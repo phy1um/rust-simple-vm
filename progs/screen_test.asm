@@ -1,3 +1,4 @@
+.section code 0 RO
 Imm A 400
 Imm B $123
 ShiftLeft B B 4

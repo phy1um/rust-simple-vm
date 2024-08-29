@@ -1,0 +1,23 @@
+
+global *char SCREEN;
+
+void main() {
+  SCREEN := 0xc000;
+  let y := 120;
+  let x := 7;
+  let ro := x + y;
+  putpx(ro, 1);
+}
+
+void putpx(int offset, int col) {
+  let *char addr := SCREEN + offset;
+  *(addr) := col;
+}
+
+int mul(int a, int b) {
+  let i := b;
+  while (i > 0) {
+    a := a + b;  
+  }
+  return a;
+}
