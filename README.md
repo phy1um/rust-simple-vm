@@ -1,6 +1,21 @@
 # Simple VM
 
-A simple 16-bit virtual machine, written to learn Rust basics.
+A simple 16-bit virtual machine, written to learn Rust basics. This repo also contains a compiler
+for a simple C-like language targeting this VM in `./lang`
+
+## Building and Running
+
+To build all binaries into the folder bin, run :
+```> cargo build --target-dir bin
+```
+
+This produces several binaries:
+* `vm` runs the virtual machine. It takes a binary file as an argument, or reads from stdin if the argument is `-`.
+* `asm` builds a binary file from a single assembly source file. It has variables, macros and some other nice features.
+* `lang` runs the compiler for a C-like language. It currently only works with one source file.
+* `bindump` describes the headers and sections of a binary file. Reads from `stdin` if its argument is `-`.
+* `dis` reads machine code and outputs the corresponding assembly. Reads from `stdin` if its argument is `-`.
+* `asm0` is the lowest level assembler. It compiles instructions directly into machine code, without a full binary file structure. It has no variables, macros, or other quality of life features from `asm`
 
 ## Technical Details
 
@@ -48,20 +63,20 @@ position, then Y, then X.
 
 ##### Opcodes
 * Add (0x1):
-  - `REG[Z] = REG[X] + REG[Y]`
+  - `REG[X] = REG[Y] + REG[Z]`
 * Sub (0x2):
-  - `REG[Z] = REG[X] - REG[Y]`
+  - `REG[X] = REG[Y] - REG[Z]`
 * AddImm (0x3):
   - `REG[X] += Lit7Bit(Y,Z)`
 * AddImmSigned (0x4): 
   - `REG[X] += Lit7Bit(Y,Z)`
   - Interpret Lit7Bit(Y,Z) as a signed 7bit 2s compliment number, then sign extend this to 16bits before performing addition
 * ShiftLeft (0x5):
-  - `REG[Y] = REG[X] << Nibble(Z)`
+  - `REG[X] = REG[Y] << Nibble(Z)`
 * ShiftRightLogical (0x6):
-  - `REG[Y] = REG[X] >> Nibble(Z)`
+  - `REG[X] = REG[Y] >> Nibble(Z)`
 * ShiftRightArithmetic (0x7): 
-  - `REG[Y] = REG[X] >> Nibble(Z)`
+  - `REG[X] = REG[Y] >> Nibble(Z)`
 * LoadByte (0x8): 
   - `REG[X] = MEM[REG[Y] + REG[Z]<<16]`
 * StoreByte (0x9): 
