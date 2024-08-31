@@ -6,11 +6,12 @@ for a simple C-like language targeting this VM in `./lang`
 ## Building and Running
 
 To build all binaries into the folder bin, run :
-```> cargo build --target-dir bin
+```
+> cargo build --target-dir bin
 ```
 
 This produces several binaries:
-* `vm` runs the virtual machine. It takes a binary file as an argument, or reads from stdin if the argument is `-`.
+* `vm` runs the virtual machine. It takes a binary file as an argument, or reads from `stdin` if the argument is `-`.
 * `asm` builds a binary file from a single assembly source file. It has variables, macros and some other nice features.
 * `lang` runs the compiler for a C-like language. It currently only works with one source file.
 * `bindump` describes the headers and sections of a binary file. Reads from `stdin` if its argument is `-`.
