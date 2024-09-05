@@ -31,7 +31,7 @@ impl fmt::Display for Error {
 
 type MacroFunc = fn(&mut PreProcessor, input: Vec<&str>) -> Result<Vec<String>, String>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Macro {
     Func(MacroFunc),
     Subst(Vec<String>),
@@ -53,7 +53,7 @@ impl fmt::Display for Variable {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Data<T> {
     pub offset: u32,
     pub mode: SectionMode,
@@ -70,13 +70,13 @@ impl<T> Data<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Chunk<T> {
     Raw(Vec<u8>),
     Lines(Vec<T>),
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PreProcessor {
     entrypoint: u16,
     sections: HashMap<String, Data<ProcessedLine>>,
@@ -88,14 +88,14 @@ pub struct PreProcessor {
 }
 
 // TODO(phy1um): use unresolvedinstrction abstraction from lang
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProcessedLine {
     source_line_number: usize,
     line: Vec<ProcessedLinePart>,
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ProcessedLinePart {
     Body(String),
     Variable(String),

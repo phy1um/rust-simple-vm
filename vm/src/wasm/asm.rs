@@ -1,3 +1,4 @@
+use crate::binfmt::{BinaryFile, SectionMode};
 use crate::*;
 use wasm_bindgen::prelude::*;
 
@@ -57,36 +58,18 @@ impl PreProcessor {
     }
 
     #[wasm_bindgen]
-    pub fn resolve(&mut self, input: &str) -> Result<(), String> {
-        let lines = self
+    pub fn compile(&mut self, input: &str) -> Result<Vec<u8>, String> {
+        let mut out = Vec::new();
+        self.pp
+            .handle(input)
+            .map_err(|e| format!("failed to handle: {e}"))?;
+        let bin: BinaryFile = self
             .pp
-            .resolve(input)
-            .map_err(|_| "failed to resolve".to_string())?;
-        let mut out: Vec<String> = Vec::new();
-        for l in lines {
-            out.push(
-                self.pp
-                    .resolve_pass2(&l)
-                    .map_err(|x| format!("error @ line {}: {x}", l.get_line_number()))?,
-            );
-        }
-        self.resolved_lines = Some(out);
-        let mut syms = Vec::new();
-        for (k, v) in self.pp.variables.iter() {
-            syms.push(ResolvedSymbol {
-                name: k.to_owned(),
-                kind: match v {
-                    pp::Variable::Label(_) => SymbolKind::Label,
-                    pp::Variable::User(_) => SymbolKind::Variable,
-                },
-                value: match v {
-                    pp::Variable::Label(s) => s.to_owned(),
-                    pp::Variable::User(s) => s.to_owned(),
-                },
-            });
-        }
-        self.resolved_symbols = Some(syms);
-        Ok(())
+            .clone()
+            .try_into()
+            .map_err(|e| format!("build binary: {e}"))?;
+        bin.to_bytes(&mut out);
+        Ok(out)
     }
 
     #[wasm_bindgen]
@@ -107,9 +90,33 @@ impl PreProcessor {
 
     #[wasm_bindgen]
     pub fn get_symbols(&self) -> Result<Vec<ResolvedSymbol>, String> {
-        self.resolved_symbols
-            .clone()
-            .ok_or("no resolved program".to_string())
+        Ok(self
+            .pp
+            .labels
+            .iter()
+            .map(|(name, value)| ResolvedSymbol {
+                name: name.to_string(),
+                value: format!("{value}"),
+                kind: SymbolKind::Label,
+            })
+            .collect::<Vec<_>>())
+    }
+
+    #[wasm_bindgen(js_name = createSection)]
+    pub fn create_section(&mut self, name: &str, offset: u32, kind: &str) -> Result<(), String> {
+        let mode = SectionMode::from_str(kind)?;
+        self.pp.create_section(name, offset, mode);
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = setActiveSection)]
+    pub fn set_active_section(&mut self, name: &str) {
+        self.pp.set_active_section(name);
+    }
+
+    #[wasm_bindgen(js_name = createHeap)]
+    pub fn create_heap(&mut self, offset: u32, size: u32) {
+        self.pp.create_heap(offset, size);
     }
 }
 
