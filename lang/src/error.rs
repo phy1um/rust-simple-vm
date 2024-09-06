@@ -1,3 +1,4 @@
+use crate::language::lex::LexError;
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -129,11 +130,9 @@ impl fmt::Display for ParseError {
 
 #[derive(Debug, Clone)]
 pub enum ParseErrorKind {
-    ExpectedChar { expected: char, got: char },
-    UnexpectedChar(String, char),
     ExpectedToken(String),
-    CharFailedPredicate(char, String),
     ExpectedType,
+    ExpectedIdentifier,
     ExpectedBinop,
     ExpectedExpression,
     ExpectedExpressionLHS,
@@ -141,6 +140,11 @@ pub enum ParseErrorKind {
     ExpectedTopLevel,
     ExpectedArrayDeref,
     EndOfInput,
+    ExpectedInt,
+    ExpectedChar,
+    ExpectedString,
+    LexError(LexError),
+    InputTail,
     Errors(Vec<ParseError>),
     Numeric(std::num::ParseIntError),
 }
@@ -148,12 +152,8 @@ pub enum ParseErrorKind {
 impl fmt::Display for ParseErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ExpectedChar { expected, got } => write!(f, "expected '{expected}', got '{got}'"),
-            Self::UnexpectedChar(s, c) => write!(f, "char '{c}' not in \"{s}\""),
+            Self::ExpectedChar => write!(f, "expected char"),
             Self::ExpectedToken(s) => write!(f, "expected token \"{s}\""),
-            Self::CharFailedPredicate(c, name) => {
-                write!(f, "char '{c}' failed predicate \"{name}\"")
-            }
             Self::ExpectedType => write!(f, "expected type (eg int, void)"),
             Self::ExpectedBinop => write!(f, "expected binary operator (eg +, *, >=)"),
             Self::ExpectedExpression => write!(f, "expected expression"),
@@ -161,7 +161,12 @@ impl fmt::Display for ParseErrorKind {
             Self::ExpectedStatement => write!(f, "expected statement"),
             Self::ExpectedTopLevel => write!(f, "expected function definition etc."),
             Self::ExpectedArrayDeref => write!(f, "expected array deref"),
+            Self::ExpectedIdentifier => write!(f, "expected identifier"),
+            Self::ExpectedInt => write!(f, "expected integer"),
+            Self::ExpectedString => write!(f, "expected string"),
             Self::EndOfInput => write!(f, "end of input"),
+            Self::LexError(e) => write!(f, "lex error: {e:?}"),
+            Self::InputTail => write!(f, "unexpected tail at end of input"),
             Self::Numeric(e) => write!(f, "invalid number: {e:?}"),
             Self::Errors(v) => write!(
                 f,

@@ -1,12 +1,10 @@
-use crate::error::ParseErrorKind;
 use crate::language::*;
 
 use std::str::FromStr;
 
 pub(crate) fn expression(input: State) -> CResult<State, ast::Expression> {
     let (mut rest, mut expr) = AnyCollectErr::new(vec![
-        expression_literal_int_base16,
-        expression_literal_int_base10,
+        expression_literal_int,
         expression_literal_char,
         expression_literal_string,
         expression_struct_fields,
@@ -36,10 +34,10 @@ fn precedence_climb_recursive(
     res: ast::Expression,
     input: State,
 ) -> CResult<State, ast::Expression> {
-    let (s0, op) = skip_whitespace(binop)(input)?;
+    let (s0, op) = binop(input)?;
     println!("found op: {op}, prec: {}", s0.expr_precedence);
     if op.get_precedence() >= s0.expr_precedence {
-        let (mut s1, rhs) = skip_whitespace(expression)(s0).map_err(ConfidenceError::elevate)?;
+        let (mut s1, rhs) = expression(s0).map_err(ConfidenceError::elevate)?;
         s1.expr_precedence = op.get_precedence() + if op.is_left_associative() { 1 } else { 0 };
         Ok((s1, ast::Expression::BinOp(Box::new(res), Box::new(rhs), op)))
     } else {
@@ -47,56 +45,50 @@ fn precedence_climb_recursive(
     }
 }
 
-fn expression_literal_int_base10(input: State) -> CResult<State, ast::Expression> {
-    input
-        .run(map(repeat1(numeric), |x| {
-            ast::Expression::LiteralInt(x.iter().collect::<String>().parse::<i32>().unwrap())
-        }))
-        .map_err(|v| ConfidenceError::from(v, Confidence::Low))
-}
-
-fn expression_literal_int_base16(input: State) -> CResult<State, ast::Expression> {
-    let (s0, _) = token("0x")(input)?;
-    s0.run(map_err(repeat1(alphanumeric), |x| {
-        let num_str = x.iter().collect::<String>();
-        match i32::from_str_radix(&num_str, 16) {
-            Ok(num) => Ok(ast::Expression::LiteralInt(num)),
-            Err(e) => Err(ParseError::new(input.input, ParseErrorKind::Numeric(e))),
+fn expression_literal_int(input: State) -> CResult<State, ast::Expression> {
+    if let Some(x) = input.first() {
+        if let LexedTokenKind::LiteralInt(i, _) = x.value {
+            return Ok((input.succ(), ast::Expression::LiteralInt(i)));
         }
-    }))
-    .map_err(|v| ConfidenceError::from(v, Confidence::Low))
+    };
+    Err(ConfidenceError::low(ParseError::new(
+        "",
+        ParseErrorKind::ExpectedInt,
+    )))
 }
 
 fn expression_literal_char(input: State) -> CResult<State, ast::Expression> {
-    map(
-        wrapped(
-            token("'"),
-            lift_to_state(with_confidence(not_char("'"), Confidence::Low)),
-            token("'"),
-        ),
-        ast::Expression::LiteralChar,
-    )(input)
+    if let Some(x) = input.first() {
+        if let LexedTokenKind::LiteralChar(c) = x.value {
+            return Ok((input.succ(), ast::Expression::LiteralChar(c)));
+        }
+    };
+    Err(ConfidenceError::low(ParseError::new(
+        "",
+        ParseErrorKind::ExpectedChar,
+    )))
 }
 
 fn expression_literal_string(input: State) -> CResult<State, ast::Expression> {
-    map(
-        wrapped(
-            token("\""),
-            lift_to_state(with_confidence(repeat0(not_char("\"")), Confidence::Medium)),
-            token("\""),
-        ),
-        |x| ast::Expression::LiteralString(x.into_iter().collect()),
-    )(input)
+    if let Some(x) = input.first() {
+        if let LexedTokenKind::LiteralString(s) = &x.value {
+            return Ok((input.succ(), ast::Expression::LiteralString(s.to_string())));
+        }
+    };
+    Err(ConfidenceError::low(ParseError::new(
+        "",
+        ParseErrorKind::ExpectedString,
+    )))
 }
 
 fn expression_variable(input: State) -> CResult<State, ast::Expression> {
-    let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
+    let (s0, id) = identifier(input)?;
     Ok((s0, ast::Expression::Variable(vec![id])))
 }
 
 fn expression_address_of(input: State) -> CResult<State, ast::Expression> {
-    let (s0, _) = skip_whitespace(token("&"))(input)?;
-    let (s1, name) = identifier(s0).map_err(|v| ConfidenceError::from(v, Confidence::Medium))?;
+    let (s0, _) = symbol("&")(input)?;
+    let (s1, name) = identifier(s0)?;
     let (s2, mut fields) = repeat0(dotted_field)(s1)?;
     fields.insert(0, name);
     Ok((s2, ast::Expression::AddressOf(fields)))
@@ -112,50 +104,46 @@ fn reset_prec<'a, T, E>(
 }
 
 fn expression_call(input: State) -> CResult<State, ast::Expression> {
-    let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
+    let (s0, id) = identifier(input)?;
     let (s1, args) = wrapped(
-        token("("),
-        allow_empty(delimited(
-            reset_prec(skip_whitespace(expression)),
-            skip_whitespace(token(",")),
-        )),
-        token(")"),
+        symbol("("),
+        allow_empty(delimited(reset_prec(expression), symbol(","))),
+        symbol(")"),
     )(s0)?;
     Ok((s1, ast::Expression::FunctionCall(id, args)))
 }
 
 fn expression_deref(input: State) -> CResult<State, ast::Expression> {
-    let (s0, _) = skip_whitespace(token("*"))(input)?;
+    let (s0, _) = symbol("*")(input)?;
     let (sn, expr) = expression(s0)?;
     Ok((sn, ast::Expression::Deref(Box::new(expr))))
 }
 
 fn expression_bracketed(input: State) -> CResult<State, ast::Expression> {
-    let (mut s, res) = map(
-        skip_whitespace(wrapped(token("("), expression, token(")"))),
-        |x| ast::Expression::Bracketed(Box::new(x)),
-    )(input)?;
+    let (mut s, res) = map(wrapped(symbol("("), expression, symbol(")")), |x| {
+        ast::Expression::Bracketed(Box::new(x))
+    })(input)?;
     s.expr_precedence = 0;
     Ok((s, res))
 }
 
 fn expression_builtin_sizeof(input: State) -> CResult<State, ast::Expression> {
-    let (s0, _) = skip_whitespace(token("sizeof"))(input)?;
-    let (s1, tt) = skip_whitespace(wrapped(token("("), parse_type, token(")")))(s0)?;
+    let (s0, _) = name("sizeof")(input)?;
+    let (s1, tt) = wrapped(symbol("("), parse_type, symbol(")"))(s0)?;
     Ok((s1, ast::Expression::BuiltinSizeof(tt)))
 }
 
 fn expression_struct_fields(input: State) -> CResult<State, ast::Expression> {
-    let (s0, id) = skip_whitespace(with_confidence(identifier, Confidence::Low))(input)?;
+    let (s0, id) = identifier(input)?;
     let (s1, mut fields) = repeat1(dotted_field)(s0)?;
     fields.insert(0, id);
     Ok((s1, ast::Expression::Variable(fields)))
 }
 
 fn expression_part_array_index(input: State) -> CResult<State, ast::Expression> {
-    let (s0, _) = skip_whitespace(token("["))(input)?;
-    let (s1, index) = skip_whitespace(expression)(s0)?;
-    let (s2, _) = token("]")(s1)?;
+    let (s0, _) = symbol("[")(input)?;
+    let (s1, index) = expression(s0)?;
+    let (s2, _) = symbol("]")(s1)?;
     Ok((s2, index))
 }
 
@@ -163,18 +151,18 @@ fn binop(input: State) -> CResult<State, ast::BinOp> {
     map(
         require(
             Any::new(vec![
-                token("+"),
-                token("-"),
-                token("*"),
-                token("%"),
-                token("=="),
-                token(">="),
-                token(">"),
-                token("<="),
-                token("<"),
-                token("!="),
+                symbol("+"),
+                symbol("-"),
+                symbol("*"),
+                symbol("%"),
+                symbol("=="),
+                symbol(">="),
+                symbol(">"),
+                symbol("<="),
+                symbol("<"),
+                symbol("!="),
             ]),
-            ConfidenceError::low(ParseError::new(input.input, ParseErrorKind::ExpectedBinop)),
+            ConfidenceError::low(ParseError::new("", ParseErrorKind::ExpectedBinop)),
         ),
         |x| ast::BinOp::from_str(x).unwrap(),
     )
@@ -186,27 +174,44 @@ mod test {
     use super::*;
     use crate::ast::*;
 
-    fn run_parser<'a, T, E>(p: impl Parser<State<'a>, T, E>, s: &'a str) -> Result<T, E> {
-        crate::parse::run_parser(p, State::new(s))
+    macro_rules! run_parser {
+        ($p:expr, $s:expr) => {
+            crate::parse::run_parser(
+                $p,
+                State::new(&{
+                    let (_tail, tokens) = tokens($s).unwrap();
+                    let lexed: Vec<LexedToken> = tokens
+                        .iter()
+                        .map(|x| {
+                            x.clone()
+                                .try_into()
+                                .map_err(|e| ParseError::new("", ParseErrorKind::LexError(e)))
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap();
+                    lexed
+                }),
+            )
+        };
     }
 
     #[test]
     fn test_expression_literal_int() {
         assert_eq!(
             Expression::LiteralInt(5),
-            run_parser(expression_literal_int_base10, "5").unwrap()
+            run_parser!(expression_literal_int, "5").unwrap()
         );
         assert_eq!(
             Expression::LiteralInt(99),
-            run_parser(expression_literal_int_base10, "99").unwrap()
+            run_parser!(expression_literal_int, "99").unwrap()
         );
         assert_eq!(
             Expression::LiteralInt(0x1234),
-            run_parser(expression_literal_int_base16, "0x1234").unwrap()
+            run_parser!(expression_literal_int, "0x1234").unwrap()
         );
         assert_eq!(
             Expression::LiteralInt(0xffc0),
-            run_parser(expression_literal_int_base16, "0xffc0").unwrap()
+            run_parser!(expression_literal_int, "0xffc0").unwrap()
         );
     }
 
@@ -216,7 +221,7 @@ mod test {
             let expected = "putch('a')";
             assert_eq!(
                 expected,
-                run_parser(expression_call, &expected.to_string())
+                run_parser!(expression_call, &expected.to_string())
                     .unwrap()
                     .to_string()
             );
@@ -225,7 +230,7 @@ mod test {
             let expected = "foo(1, 2, 3)";
             assert_eq!(
                 expected,
-                run_parser(expression_call, &expected.to_string())
+                run_parser!(expression_call, &expected.to_string())
                     .unwrap()
                     .to_string()
             );
@@ -237,7 +242,7 @@ mod test {
         let expected = "*foobar";
         assert_eq!(
             expected,
-            run_parser(expression_deref, expected).unwrap().to_string()
+            run_parser!(expression_deref, expected).unwrap().to_string()
         );
     }
 
@@ -247,21 +252,21 @@ mod test {
             let expected = "i <= 1";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string()
+                run_parser!(expression, expected).unwrap().to_string()
             );
         }
         {
             let expected = "foo < 79";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string()
+                run_parser!(expression, expected).unwrap().to_string()
             );
         }
         {
             let expected = "xyzz > 9";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string()
+                run_parser!(expression, expected).unwrap().to_string()
             );
         }
     }
@@ -272,14 +277,14 @@ mod test {
             let expected = "(5 * x) + (3 * y)";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string()
+                run_parser!(expression, expected).unwrap().to_string()
             );
         }
         {
             let expected = "(3 * foo(x + (y + (z * (3 + bar()))))) + 18";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string()
+                run_parser!(expression, expected).unwrap().to_string()
             );
         }
     }
@@ -290,7 +295,7 @@ mod test {
             let expected = "foo.bar.baz.xyz";
             assert_eq!(
                 expected,
-                run_parser(expression_struct_fields, expected)
+                run_parser!(expression_struct_fields, expected)
                     .unwrap()
                     .to_string()
             );
@@ -299,14 +304,14 @@ mod test {
             let expected = "foo.bar.baz.xyz";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string()
+                run_parser!(expression, expected).unwrap().to_string()
             );
         }
         {
             let expected = "bar.baz.xyz + foo.x.y";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string()
+                run_parser!(expression, expected).unwrap().to_string()
             );
         }
     }
@@ -317,35 +322,35 @@ mod test {
             let expected = "a[5]";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string(),
+                run_parser!(expression, expected).unwrap().to_string(),
             );
         }
         {
             let expected = "(foo.bar + 3)[6]";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string(),
+                run_parser!(expression, expected).unwrap().to_string(),
             );
         }
         {
             let expected = "a[5] := 7;";
             assert_eq!(
                 expected,
-                run_parser(statement, expected).unwrap().to_string(),
+                run_parser!(statement, expected).unwrap().to_string(),
             );
         }
         {
             let expected = "(foo.bar + 3)[6] := baz;";
             assert_eq!(
                 expected,
-                run_parser(statement, expected).unwrap().to_string(),
+                run_parser!(statement, expected).unwrap().to_string(),
             );
         }
         {
             let expected = "(a + 3)[(b + 6)[c + 9]] := (foo.bar[16] + 12)[18 + foo()];";
             assert_eq!(
                 expected,
-                run_parser(statement, expected).unwrap().to_string(),
+                run_parser!(statement, expected).unwrap().to_string(),
             );
         }
     }
@@ -356,7 +361,7 @@ mod test {
             let expected = "sizeof(int)";
             assert_eq!(
                 expected,
-                run_parser(expression_builtin_sizeof, expected)
+                run_parser!(expression_builtin_sizeof, expected)
                     .unwrap()
                     .to_string(),
             );
@@ -365,7 +370,7 @@ mod test {
             let expected = "sizeof(FooBar)";
             assert_eq!(
                 expected,
-                run_parser(expression_builtin_sizeof, expected)
+                run_parser!(expression_builtin_sizeof, expected)
                     .unwrap()
                     .to_string(),
             );
@@ -377,7 +382,7 @@ mod test {
             let expected = "\"foo bar baz\"";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string(),
+                run_parser!(expression, expected).unwrap().to_string(),
             );
         }
     }
@@ -396,14 +401,14 @@ mod test {
             let expected = "10 + 101 + a";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string(),
+                run_parser!(expression, expected).unwrap().to_string(),
             );
         }
         {
             let expected = "12 + foo.bar - a[12] + foo() + foo(bar())";
             assert_eq!(
                 expected,
-                run_parser(expression, expected).unwrap().to_string(),
+                run_parser!(expression, expected).unwrap().to_string(),
             );
         }
         {
@@ -437,7 +442,7 @@ mod test {
                 ),
                 BinOp::Add,
             );
-            let parsed = run_parser(expression, chain).unwrap();
+            let parsed = run_parser!(expression, chain).unwrap();
             assert_eq!(parsed, expected);
         }
     }

@@ -1,78 +1,76 @@
-use crate::error::{ParseError, ParseErrorKind};
+#[derive(Debug, Clone)]
+pub enum CharError {
+    ExpectedChar { expected: char, got: char },
+    UnexpectedChar { expected: String, got: char },
+    CharFailedPredicate { got: char, name: String },
+    ExpectedToken(String),
+    EndOfInput,
+}
 
-pub fn is_char(c: char) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
+pub fn is_char(c: char) -> impl Fn(&str) -> Result<(&str, char), CharError> {
     move |input| {
         if let Some(x) = input.chars().next() {
             if x == c {
                 Ok((&input[1..], c))
             } else {
-                Err(ParseError::new(
-                    input,
-                    ParseErrorKind::ExpectedChar {
-                        expected: c,
-                        got: x,
-                    },
-                ))
+                Err(CharError::ExpectedChar {
+                    expected: c,
+                    got: x,
+                })
             }
         } else {
-            Err(ParseError::new(input, ParseErrorKind::EndOfInput))
+            Err(CharError::EndOfInput)
         }
     }
 }
 
-pub fn not_char<'a, 'b>(
-    s: &'a str,
-) -> impl Fn(&'b str) -> Result<(&'b str, char), ParseError> + 'a {
+pub fn not_char<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, char), CharError> + 'a {
     move |input| {
         if let Some(c) = input.chars().next() {
             if !s.contains(c) {
                 Ok((&input[1..], c))
             } else {
-                Err(ParseError::new(
-                    input,
-                    ParseErrorKind::UnexpectedChar(s.to_string(), c),
-                ))
+                Err(CharError::UnexpectedChar {
+                    expected: s.to_string(),
+                    got: c,
+                })
             }
         } else {
-            Err(ParseError::new(input, ParseErrorKind::EndOfInput))
+            Err(CharError::EndOfInput)
         }
     }
 }
 
-pub fn token<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, &'a str), ParseError> {
+pub fn token<'a, 'b>(s: &'a str) -> impl Fn(&'b str) -> Result<(&'b str, &'a str), CharError> {
     move |input| {
         if input.strip_prefix(s).is_some() {
             Ok((&input[s.len()..], s))
         } else {
-            //let max = usize::min(s.len(), input.len());
-            Err(ParseError::new(
-                input,
-                ParseErrorKind::ExpectedToken(s.to_string()),
-            ))
+            Err(CharError::ExpectedToken(s.to_string()))
         }
     }
 }
 
-pub fn alpha(input: &str) -> Result<(&str, char), ParseError> {
+pub fn alpha(input: &str) -> Result<(&str, char), CharError> {
     char_predicate(char::is_alphabetic, "alphabetic".to_string())(input)
 }
 
-pub fn numeric(input: &str) -> Result<(&str, char), ParseError> {
+pub fn numeric(input: &str) -> Result<(&str, char), CharError> {
     char_predicate(char::is_numeric, "numeric".to_string())(input)
 }
 
-pub fn alphanumeric(input: &str) -> Result<(&str, char), ParseError> {
+pub fn alphanumeric(input: &str) -> Result<(&str, char), CharError> {
     char_predicate(char::is_alphanumeric, "alphanumeric".to_string())(input)
 }
 
-pub fn whitespace(input: &str) -> Result<(&str, char), ParseError> {
+pub fn whitespace(input: &str) -> Result<(&str, char), CharError> {
     char_predicate(char::is_whitespace, "whitespace".to_string())(input)
 }
 
 pub fn char_predicate_or(
-    a: impl Fn(&str) -> Result<(&str, char), ParseError>,
-    b: impl Fn(&str) -> Result<(&str, char), ParseError>,
-) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
+    a: impl Fn(&str) -> Result<(&str, char), CharError>,
+    b: impl Fn(&str) -> Result<(&str, char), CharError>,
+) -> impl Fn(&str) -> Result<(&str, char), CharError> {
     move |input| {
         if let Ok(x) = a(input) {
             Ok(x)
@@ -85,19 +83,19 @@ pub fn char_predicate_or(
 pub fn char_predicate(
     f: fn(char) -> bool,
     name: String,
-) -> impl Fn(&str) -> Result<(&str, char), ParseError> {
+) -> impl Fn(&str) -> Result<(&str, char), CharError> {
     move |input| {
         if let Some(c) = input.chars().next() {
             if f(c) {
                 Ok((&input[1..], c))
             } else {
-                Err(ParseError::new(
-                    input,
-                    ParseErrorKind::CharFailedPredicate(c, name.to_string()),
-                ))
+                Err(CharError::CharFailedPredicate {
+                    got: c,
+                    name: name.to_string(),
+                })
             }
         } else {
-            Err(ParseError::new(input, ParseErrorKind::EndOfInput))
+            Err(CharError::EndOfInput)
         }
     }
 }

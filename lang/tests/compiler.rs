@@ -1,6 +1,6 @@
 use simplevm::Register::*;
 mod common;
-use common::*;
+use common::run_program;
 
 #[test]
 fn inline_asm() {

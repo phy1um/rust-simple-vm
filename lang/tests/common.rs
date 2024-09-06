@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use lang::*;
 use simplevm::*;
 use std::cell::RefCell;
@@ -39,13 +37,13 @@ pub fn signal_halt(vm: &mut VM, _: u16) -> Result<(), String> {
     Ok(())
 }
 
-const MAX_TEST_CYCLES: u32 = 100_000;
+pub const MAX_TEST_CYCLES: u32 = 100_000;
 pub fn build_machine(program: &str) -> Result<Machine, String> {
     let mut vm = Machine::default();
     vm.set_register(Register::SP, 1024 * 3);
     vm.define_handler(SIGHALT, signal_halt);
 
-    let prog = run_parser(parse_ast, program).unwrap();
+    let prog = parse_ast(program).unwrap();
     let res = compile(prog, 0).unwrap();
     println!("{res}");
     let bin = res.to_binary()?;
@@ -67,6 +65,7 @@ pub fn execute_loaded_program(vm: &mut Machine) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn run_program(program: &str) -> Result<Machine, String> {
     let mut vm = build_machine(program)?;
     execute_loaded_program(&mut vm)?;
@@ -90,6 +89,7 @@ pub struct SharedBufferDevice {
     pub data: Rc<RefCell<Vec<u8>>>,
 }
 
+#[allow(dead_code)]
 impl SharedBufferDevice {
     pub fn new(data: Rc<RefCell<Vec<u8>>>) -> Self {
         Self { data }

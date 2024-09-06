@@ -1,6 +1,5 @@
 use lang::compile::compile;
 use lang::language::*;
-use lang::parse::run_parser;
 
 use lang::args::{process_cli, OutputFormat};
 
@@ -31,7 +30,7 @@ fn main() -> Result<(), String> {
     reader.read_to_end(&mut code).unwrap();
     let code_str = std::str::from_utf8(&code).map_err(|_| "not utf8")?;
 
-    match run_parser(parse_ast, code_str) {
+    match parse_ast(code_str) {
         Ok(program) => {
             let res =
                 compile(program, LOADED_PROGRAM_OFFSET).map_err(|x| format!("compiling: {x:?}"))?;
