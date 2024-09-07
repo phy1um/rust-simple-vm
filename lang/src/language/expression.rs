@@ -3,9 +3,6 @@ use crate::language::*;
 use std::str::FromStr;
 
 pub(crate) fn expression(input: State) -> CResult<State, ast::Expression> {
-    if let Some(h) = input.first() {
-        println!("expression @ : {h:?}");
-    };
     let (mut rest, mut expr) = AnyCollectErr::new(vec![
         expression_literal_int,
         expression_literal_char,
@@ -38,7 +35,6 @@ fn precedence_climb_recursive(
     input: State,
 ) -> CResult<State, ast::Expression> {
     let (s0, op) = binop(input)?;
-    println!("found op: {op}, prec: {}", s0.expr_precedence);
     if op.get_precedence() >= s0.expr_precedence {
         let (mut s1, rhs) = expression(s0).map_err(ConfidenceError::elevate)?;
         s1.expr_precedence = op.get_precedence() + if op.is_left_associative() { 1 } else { 0 };
