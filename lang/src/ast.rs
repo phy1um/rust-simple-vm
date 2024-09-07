@@ -334,7 +334,7 @@ impl fmt::Display for TopLevel {
                     .map(|(id, arg_type)| format!("{arg_type} {id}"))
                     .collect::<Vec<String>>()
                     .join(", ");
-                writeln!(f, "asm! {name}({}) {{{body}}}", arglist)
+                writeln!(f, "asm! {name}({}) {{\n{body}\n}}", arglist)
             }
             Self::GlobalVariable { name, var_type } => writeln!(f, "global {var_type} {name};"),
             Self::TypeDefinition { name, alias } => writeln!(f, "type {name} := {alias};"),

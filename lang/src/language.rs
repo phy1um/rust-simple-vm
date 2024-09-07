@@ -184,28 +184,67 @@ fn function_definition(input: State) -> CResult<State, ast::TopLevel> {
     ))
 }
 
-/* TODO: add special lexer/parser for this?
+fn un_tokenize(tokens: &[LexedToken]) -> Vec<String> {
+    let mut out = Vec::new();
+    let (mut current_line, mut line_offset) = if let Some(token) = tokens.first() {
+        (token.line_number, 1)
+    } else {
+        (0, 0)
+    };
+    let mut line_parts: Vec<String> = Vec::new();
+    for token in tokens {
+        if token.line_number != current_line {
+            out.push(line_parts.join(""));
+            line_parts = Vec::new();
+            current_line = token.line_number;
+            let token_str = token.to_string();
+            line_offset = token.position_in_line + token_str.len();
+            line_parts.push(token.to_string());
+        } else {
+            let space_offset = token.position_in_line - line_offset;
+            line_parts.push((0..space_offset).map(|_| " ").collect::<String>());
+            let token_str = token.to_string();
+            line_offset = token.position_in_line + token_str.len();
+            line_parts.push(token_str);
+        }
+    }
+    if !line_parts.is_empty() {
+        out.push(line_parts.join(""));
+    };
+    out
+}
+
 fn inline_asm(input: State) -> CResult<State, ast::TopLevel> {
-    let (s0, _) = symbol("asm!")(input)?;
-    let (s1, name) = with_confidence(identifier, Confidence::Low)(s0)?;
+    let (s0, _) = name("asm")(input)?;
+    let (s01, _) = symbol("!")(s0)?;
+    let (s1, name) = identifier(s01)?;
     let (s2, _) = symbol("(")(s1)?;
     let (s3, args) = allow_empty(delimited(named_arg, symbol(",")))(s2)?;
     let (s4, _) = symbol(")")(s3)?;
-    let (s5, body) = wrapped(
-        symbol("{"),
-        lift_to_state(with_confidence(repeat1(not_char("{}")), Confidence::Medium)),
-        symbol("}"),
-    )(s4)?;
-    Ok((
-        s5,
-        ast::TopLevel::InlineAsm {
-            name,
-            body: body.iter().collect::<String>(),
-            args,
-        },
-    ))
+    let (s5, _) = symbol("{")(s4)?;
+    let mut body = Vec::new();
+    let mut sn = s5;
+    loop {
+        if let Some(token) = sn.first() {
+            if let LexedTokenKind::Symbol(s) = &token.value {
+                if s == "}" {
+                    return Ok((
+                        sn.succ(),
+                        ast::TopLevel::InlineAsm {
+                            name,
+                            body: un_tokenize(&body).join("\n"),
+                            args,
+                        },
+                    ));
+                }
+            };
+            body.push(token.clone());
+            sn = sn.succ();
+        } else {
+            return Err(ConfidenceError::high(ParseError::end_of_input()));
+        }
+    }
 }
-*/
 
 fn global_variable(input: State) -> CResult<State, ast::TopLevel> {
     let (s0, _) = name("global")(input)?;
@@ -217,11 +256,6 @@ fn global_variable(input: State) -> CResult<State, ast::TopLevel> {
 
 pub fn parse_ast(input: &str) -> Result<Vec<ast::TopLevel>, ParseError> {
     let tokens = tokens(input);
-    /*
-    if tail.len() > 0 {
-        return Err(ParseError::new(tail, ParseErrorKind::InputTail))
-    };
-    */
     let lexed: Vec<LexedToken> = tokens
         .iter()
         .map(|x| {
@@ -238,7 +272,7 @@ pub fn parse_ast(input: &str) -> Result<Vec<ast::TopLevel>, ParseError> {
             return Ok(out);
         } else {
             let (snn, res) = AnyCollectErr::new(vec![
-                // inline_asm,
+                inline_asm,
                 global_variable,
                 function_definition,
                 type_definition,
@@ -270,6 +304,7 @@ mod test {
                         })
                         .collect::<Result<Vec<_>, _>>()
                         .unwrap();
+                    println!("{lexed:?}");
                     lexed
                 }),
             )
@@ -287,7 +322,6 @@ mod test {
         );
     }
 
-    /*
     #[test]
     fn test_inline_asm() {
         {
@@ -298,7 +332,6 @@ mod test {
             );
         }
     }
-    */
 
     #[test]
     fn test_global() {
