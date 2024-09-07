@@ -1,6 +1,4 @@
-use std::convert::Infallible;
-
-use crate::character::{char_predicate, is_char, not_char, whitespace};
+use crate::character::{char_predicate, is_char, not_char, whitespace, StrState};
 use crate::combinator::*;
 use crate::error::{ParseError, ParseErrorKind};
 use crate::parse::Parser;
@@ -13,41 +11,73 @@ pub(crate) struct Token {
 }
 
 impl Token {
-    fn new(s: &str) -> Self {
+    fn new(s: &str, line_number: usize, position_in_line: usize) -> Self {
         Token {
             content: s.to_string(),
-            line_number: 0,
-            position_in_line: 0,
+            line_number,
+            position_in_line,
         }
     }
 }
 
-type TResult<'a, T, E> = Result<(&'a str, T), E>;
+type TResult<'a, T, E> = Result<(StrState<'a>, T), E>;
 
-fn lit_token<'a>(t: &'static str) -> impl Fn(&'a str) -> TResult<'a, Token, ParseError> {
+fn lit_token<'a>(t: &'static str) -> impl Fn(StrState<'a>) -> TResult<'a, Token, ParseError> {
     move |input| {
-        map(crate::character::token(t), |s| Token::new(s))(input)
-            .map_err(|_| ParseError::new(input, ParseErrorKind::ExpectedToken(t.to_string())))
+        map(crate::character::token(t), |s| {
+            Token::new(s, input.line_number, input.position_in_line)
+        })(input)
+        .map_err(|_| {
+            ParseError::from_str_state(&input, ParseErrorKind::ExpectedToken(t.to_string()))
+        })
     }
 }
 
-fn literal_string<'a>(input: &'a str) -> TResult<'a, Token, ParseError> {
+fn literal_string<'a>(input: StrState<'a>) -> TResult<'a, Token, ParseError> {
     let (sn, res) = wrapped(is_char('"'), repeat0(not_char("\"")), is_char('"'))(input)
-        .map_err(|_| ParseError::new("", ParseErrorKind::ExpectedString))?;
+        .map_err(|_| ParseError::from_str_state(&input, ParseErrorKind::ExpectedString))?;
     let quoted = format!("\"{}\"", res.iter().collect::<String>());
-    Ok((sn, Token::new(&quoted)))
+    Ok((
+        sn,
+        Token::new(&quoted, input.line_number, input.position_in_line),
+    ))
+}
+
+fn literal_char<'a>(input: StrState<'a>) -> TResult<'a, Token, ParseError> {
+    let (sn, res) = wrapped(is_char('\''), not_char("'"), is_char('\''))(input)
+        .map_err(|_| ParseError::from_str_state(&input, ParseErrorKind::ExpectedChar))?;
+    Ok((
+        sn,
+        Token::new(
+            &format!("'{res}'"),
+            input.line_number,
+            input.position_in_line,
+        ),
+    ))
 }
 
 // TODO: this function is disgusting because of opaque types
-fn next_token(input: &str) -> Result<(&str, Token), ParseError> {
+fn next_token<'a>(input: StrState<'a>) -> Result<(StrState<'a>, Token), ParseError> {
     if input.is_empty() {
-        Err(ParseError::new("", ParseErrorKind::EndOfInput))
-    } else if let Ok((sn, res)) = map(repeat1(not_char("{}[]()+-*%<>=:\" \n\t")), |cs| {
-        Token::new(&cs.iter().collect::<String>())
-    })(input)
+        Err(ParseError::from_str_state(
+            &input,
+            ParseErrorKind::EndOfInput,
+        ))
+    } else if let Ok((sn, res)) = map(
+        repeat1(not_char("{}[]()+-*%<>=:;^&|.,!@#&*'\" \n\t")),
+        |cs| {
+            Token::new(
+                &cs.iter().collect::<String>(),
+                input.line_number,
+                input.position_in_line,
+            )
+        },
+    )(input)
     {
         Ok((sn, res))
     } else if let Ok((sn, res)) = literal_string(input) {
+        Ok((sn, res))
+    } else if let Ok((sn, res)) = literal_char(input) {
         Ok((sn, res))
     } else if let Ok((sn, Some(res))) = Any::new(vec![
         lit_token(":="),
@@ -60,27 +90,30 @@ fn next_token(input: &str) -> Result<(&str, Token), ParseError> {
         Ok((sn, res))
     } else {
         map(
-            char_predicate(|c| "{}[]()+-*%<>=:".contains(c), "invalid".to_string()),
-            |cs| Token::new(&cs.to_string()),
+            char_predicate(
+                |c| "{}[]()+-*%<>=:;^&|.,!@#&*".contains(c),
+                "invalid".to_string(),
+            ),
+            |cs| Token::new(&cs.to_string(), input.line_number, input.position_in_line),
         )(input)
-        .map_err(|_| ParseError::new("", ParseErrorKind::EndOfInput))
+        .map_err(|_| ParseError::from_str_state(&input, ParseErrorKind::EndOfInput))
     }
 }
 
-pub(crate) fn tokens(input: &str) -> Result<(&str, Vec<Token>), Infallible> {
-    match repeat0(skip_whitespace(next_token))(input) {
+pub(crate) fn tokens(input: &str) -> Vec<Token> {
+    match repeat0(skip_whitespace(next_token))(StrState::new(&input)) {
         Err(_) => panic!("bad"),
-        Ok((sn, res)) => Ok((sn, res)),
+        Ok((_sn, res)) => res,
     }
 }
 
-fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(&'a str) -> Result<(&'a str, T), ParseError>
+fn skip_whitespace<'a, T, F>(f: F) -> impl Fn(StrState<'a>) -> Result<(StrState<'a>, T), ParseError>
 where
-    F: Parser<&'a str, T, ParseError>,
+    F: Parser<StrState<'a>, T, ParseError>,
 {
     move |input| {
         let (s0, _) = discard(repeat0(whitespace))(input)
-            .map_err(|_| ParseError::new("", ParseErrorKind::ExpectedInt))?;
+            .map_err(|_| ParseError::from_str_state(&input, ParseErrorKind::ExpectedInt))?;
         f.run(s0)
     }
 }
@@ -89,32 +122,32 @@ where
 mod test {
     use super::*;
 
-    fn t(s: &str) -> Token {
+    fn t(s: &str, line_number: usize, position_in_line: usize) -> Token {
         Token {
             content: s.to_string(),
-            line_number: 0,
-            position_in_line: 0,
+            line_number,
+            position_in_line,
         }
     }
 
     #[test]
     fn tokenize() {
-        let (_, res) = tokens("foo bar := baz[52] *8+7-5").unwrap();
+        let res = tokens("foo bar := baz[52] *8+7-5");
         assert_eq!(
             vec![
-                t("foo"),
-                t("bar"),
-                t(":="),
-                t("baz"),
-                t("["),
-                t("52"),
-                t("]"),
-                t("*"),
-                t("8"),
-                t("+"),
-                t("7"),
-                t("-"),
-                t("5")
+                t("foo", 0, 0),
+                t("bar", 0, 4),
+                t(":=", 0, 8),
+                t("baz", 0, 11),
+                t("[", 0, 14),
+                t("52", 0, 15),
+                t("]", 0, 17),
+                t("*", 0, 19),
+                t("8", 0, 20),
+                t("+", 0, 21),
+                t("7", 0, 22),
+                t("-", 0, 23),
+                t("5", 0, 24)
             ],
             res
         );
@@ -122,7 +155,10 @@ mod test {
 
     #[test]
     fn tokenize_with_string_literal() {
-        let (_, res) = tokens("foo := \"hello world\"").unwrap();
-        assert_eq!(vec![t("foo"), t(":="), t("\"hello world\"")], res);
+        let res = tokens("foo := \"hello world\"");
+        assert_eq!(
+            vec![t("foo", 0, 0), t(":=", 0, 4), t("\"hello world\"", 0, 7)],
+            res
+        );
     }
 }

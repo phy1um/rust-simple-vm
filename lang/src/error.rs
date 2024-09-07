@@ -1,9 +1,13 @@
-use crate::language::lex::LexError;
+use crate::character::StrState;
+use crate::language::lex::{LexError, LexedToken};
+use crate::language::tokenize::Token;
+use crate::language::State;
 use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
-    context: String,
+    line_number: usize,
+    position_in_line: usize,
     tag: Option<String>,
     kind: ParseErrorKind,
 }
@@ -96,11 +100,52 @@ impl<T: Clone> ConfidenceError<T> {
 }
 
 impl ParseError {
-    pub fn new(ctx: &str, kind: ParseErrorKind) -> Self {
+    pub fn from_str_state<'a>(s: &StrState<'a>, kind: ParseErrorKind) -> Self {
         Self {
-            context: ctx.to_owned(),
-            kind,
+            line_number: s.line_number,
+            position_in_line: s.position_in_line,
             tag: None,
+            kind,
+        }
+    }
+
+    pub(crate) fn from_state<'a>(s: &State<'a>, kind: ParseErrorKind) -> Self {
+        if let Some(head) = s.first() {
+            Self {
+                line_number: head.line_number,
+                position_in_line: head.position_in_line,
+                tag: None,
+                kind,
+            }
+        } else {
+            Self::end_of_input()
+        }
+    }
+
+    pub fn from_token(t: &LexedToken, kind: ParseErrorKind) -> Self {
+        Self {
+            line_number: t.line_number,
+            position_in_line: t.position_in_line,
+            tag: None,
+            kind,
+        }
+    }
+
+    pub(crate) fn from_token_prelex(t: &Token, kind: ParseErrorKind) -> Self {
+        Self {
+            line_number: t.line_number,
+            position_in_line: t.position_in_line,
+            tag: None,
+            kind,
+        }
+    }
+
+    pub fn end_of_input() -> Self {
+        Self {
+            line_number: 0,
+            position_in_line: 0,
+            tag: Some("EOF".to_string()),
+            kind: ParseErrorKind::EndOfInput,
         }
     }
 
@@ -109,11 +154,21 @@ impl ParseError {
         self
     }
 
-    pub fn from_errs(ctx: &str, errs: Vec<ParseError>) -> Self {
-        Self {
-            context: ctx.to_owned(),
-            kind: ParseErrorKind::Errors(errs),
-            tag: None,
+    pub fn from_errs(errs: Vec<ParseError>) -> Self {
+        if let Some(err) = errs.first() {
+            Self {
+                line_number: err.line_number,
+                position_in_line: err.position_in_line,
+                kind: ParseErrorKind::Errors(errs),
+                tag: None,
+            }
+        } else {
+            Self {
+                line_number: 0,
+                position_in_line: 0,
+                kind: ParseErrorKind::Errors(errs),
+                tag: None,
+            }
         }
     }
 }
@@ -121,9 +176,17 @@ impl ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(tag) = &self.tag {
-            write!(f, "{}:!!{}!!, @ {}", self.kind, tag, self.context)
+            write!(
+                f,
+                "@{}:{} {}:!!{}!!",
+                self.line_number, self.position_in_line, self.kind, tag
+            )
         } else {
-            write!(f, "{}, @ {}", self.kind, self.context)
+            write!(
+                f,
+                "@{}:{} {}",
+                self.line_number, self.position_in_line, self.kind
+            )
         }
     }
 }

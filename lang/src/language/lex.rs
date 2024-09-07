@@ -11,7 +11,7 @@ pub enum LexError {
     InvalidHexNumber(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Base {
     Base16,
     Base10,
@@ -26,7 +26,7 @@ impl Base {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LexedTokenKind {
     // a string literal, as represented by "quotation marks" in the source.
     LiteralString(String),
@@ -52,7 +52,7 @@ impl fmt::Display for LexedTokenKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LexedToken {
     pub value: LexedTokenKind,
     pub line_number: usize,
@@ -79,7 +79,13 @@ impl TryFrom<Token> for LexedToken {
     type Error = LexError;
 
     fn try_from(value: Token) -> Result<Self, Self::Error> {
-        for lexer in [lex_string, lex_int_base16, lex_int_base10, lex_identifier] {
+        for lexer in [
+            lex_string,
+            lex_char,
+            lex_int_base16,
+            lex_int_base10,
+            lex_identifier,
+        ] {
             match lexer(value.clone()) {
                 Err(LexError::NoMatch) => (),
                 Err(LexError::Incomplete) => (),
@@ -96,9 +102,9 @@ impl TryFrom<Token> for LexedToken {
 
 fn lex_string(input: Token) -> Result<LexedToken, LexError> {
     if let Ok((rest, body)) =
-        wrapped(is_char('"'), repeat0(not_char("\"")), is_char('"'))(&input.content)
+        wrapped(is_char('"'), repeat0(not_char("\"")), is_char('"'))(StrState::new(&input.content))
     {
-        if rest.len() > 0 {
+        if !rest.is_empty() {
             Err(LexError::Incomplete)
         } else {
             Ok(LexedToken::new_from(
@@ -120,9 +126,9 @@ fn lex_int_base10(input: Token) -> Result<LexedToken, LexError> {
             ),
             input.clone(),
         )
-    })(&input.content)
+    })(StrState::new(&input.content))
     .map_err(|_| LexError::NoMatch)?;
-    if rest.len() > 0 {
+    if !rest.is_empty() {
         Err(LexError::Incomplete)
     } else {
         Ok(res)
@@ -140,40 +146,65 @@ fn lex_int_base16(input: Token) -> Result<LexedToken, LexError> {
             )),
             Err(_e) => Err(LexError::InvalidHexNumber(s0.to_string())),
         }
-    })(s0)
+    })(StrState::new(&s0))
     .map_err(|_| LexError::NoMatch)?;
-    if rest.len() > 0 {
+    if !rest.is_empty() {
         Err(LexError::Incomplete)
     } else {
         res
     }
 }
 
-/* TODO:
-fn lex_char(input: state) -> cresult<state, ast::expression> {
-    map(
-        wrapped(
-            token("'"),
-            lift_to_state(with_confidence(not_char("'"), Confidence::Low)),
-            token("'"),
-        ),
-        ast::Expression::LiteralChar,
-    )(input)
+fn lex_char(input: Token) -> Result<LexedToken, LexError> {
+    map(wrapped(token("'"), not_char("'"), token("'")), |c| {
+        LexedToken::new_from(LexedTokenKind::LiteralChar(c), input.clone())
+    })(StrState::new(&input.content))
+    .map_err(|_| LexError::NoMatch)
+    .map(|(_s, t)| t)
 }
-*/
 
 fn lex_identifier(input: Token) -> Result<LexedToken, LexError> {
-    let (s0, fst) =
-        char_predicate_or(alpha, is_char('_'))(&input.content).map_err(|_| LexError::NoMatch)?;
-    let (_, rest) = repeat0(char_predicate_or(alphanumeric, is_char('_')))(s0)
+    let (s0, fst) = char_predicate_or(alpha, is_char('_'))(StrState::new(&input.content))
+        .map_err(|_| LexError::NoMatch)?;
+    let (state_tail, rest) = repeat0(char_predicate_or(alphanumeric, is_char('_')))(s0)
         .map_err(|_| LexError::NoMatch)?;
     let id_str = fst.to_string() + &rest.iter().collect::<String>();
-    if rest.len() > 0 {
+    if !state_tail.is_empty() {
         Err(LexError::Incomplete)
     } else {
         Ok(LexedToken::new_from(
             LexedTokenKind::Identifier(id_str),
             input.clone(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::error::{ParseError, ParseErrorKind};
+    use crate::language::tokenize::tokens;
+
+    #[test]
+    fn lex_identifier() {
+        let input = "foo bar baz";
+        let tokens = tokens(input);
+        let lexed: Vec<LexedToken> = tokens
+            .iter()
+            .map(|x| {
+                x.clone()
+                    .try_into()
+                    .map_err(|e| ParseError::from_token_prelex(&x, ParseErrorKind::LexError(e)))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            LexedToken {
+                line_number: 0,
+                position_in_line: 0,
+                value: LexedTokenKind::Identifier("foo".to_string()),
+            },
+            lexed.first().unwrap().clone()
+        );
     }
 }

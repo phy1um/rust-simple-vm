@@ -8,7 +8,7 @@ use std::fmt;
 mod expression;
 pub mod lex;
 mod statement;
-mod tokenize;
+pub mod tokenize;
 
 use lex::{LexedToken, LexedTokenKind};
 use statement::*;
@@ -48,7 +48,7 @@ impl<'a> State<'a> {
     }
 }
 
-pub(crate) fn symbol<'a>(t: &'a str) -> impl Fn(State) -> CResult<State, &'a str> {
+pub(crate) fn symbol<'a>(t: &'a str) -> impl Fn(State<'a>) -> CResult<State<'a>, &'a str> {
     move |state| {
         if let Some(head) = state.first() {
             if let LexedTokenKind::Symbol(s) = &head.value {
@@ -56,11 +56,13 @@ pub(crate) fn symbol<'a>(t: &'a str) -> impl Fn(State) -> CResult<State, &'a str
                     return Ok((state.succ(), t));
                 };
             };
-        };
-        Err(ConfidenceError::low(ParseError::new(
-            "",
-            ParseErrorKind::ExpectedToken(t.to_string()),
-        )))
+            Err(ConfidenceError::low(ParseError::from_token(
+                head,
+                ParseErrorKind::ExpectedToken(t.to_string()),
+            )))
+        } else {
+            Err(ConfidenceError::low(ParseError::end_of_input()))
+        }
     }
 }
 
@@ -71,12 +73,14 @@ pub(crate) fn name<'a>(t: &'a str) -> impl Fn(State) -> CResult<State, &'a str> 
                 if s == t {
                     return Ok((state.succ(), t));
                 }
-            }
-        };
-        Err(ConfidenceError::low(ParseError::new(
-            "",
-            ParseErrorKind::ExpectedToken(t.to_string()),
-        )))
+            };
+            Err(ConfidenceError::low(ParseError::from_token(
+                head,
+                ParseErrorKind::ExpectedToken(t.to_string()),
+            )))
+        } else {
+            Err(ConfidenceError::low(ParseError::end_of_input()))
+        }
     }
 }
 
@@ -85,16 +89,13 @@ pub(crate) fn identifier(state: State) -> CResult<State, ast::Identifier> {
         if let LexedTokenKind::Identifier(s) = &head.value {
             Ok((state.succ(), ast::Identifier(s.to_string())))
         } else {
-            Err(ConfidenceError::low(ParseError::new(
-                "",
+            Err(ConfidenceError::low(ParseError::from_token(
+                head,
                 ParseErrorKind::ExpectedIdentifier,
             )))
         }
     } else {
-        Err(ConfidenceError::low(ParseError::new(
-            "",
-            ParseErrorKind::ExpectedIdentifier,
-        )))
+        Err(ConfidenceError::low(ParseError::end_of_input()))
     }
 }
 
@@ -215,7 +216,7 @@ fn global_variable(input: State) -> CResult<State, ast::TopLevel> {
 }
 
 pub fn parse_ast(input: &str) -> Result<Vec<ast::TopLevel>, ParseError> {
-    let (_tail, tokens) = tokens(input).unwrap();
+    let tokens = tokens(input);
     /*
     if tail.len() > 0 {
         return Err(ParseError::new(tail, ParseErrorKind::InputTail))
@@ -226,7 +227,7 @@ pub fn parse_ast(input: &str) -> Result<Vec<ast::TopLevel>, ParseError> {
         .map(|x| {
             x.clone()
                 .try_into()
-                .map_err(|e| ParseError::new("", ParseErrorKind::LexError(e)))
+                .map_err(|e| ParseError::from_token_prelex(&x, ParseErrorKind::LexError(e)))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -259,13 +260,13 @@ mod test {
             crate::parse::run_parser(
                 $p,
                 State::new(&{
-                    let (_tail, tokens) = tokens($s).unwrap();
+                    let tokens = tokens($s);
                     let lexed: Vec<LexedToken> = tokens
                         .iter()
                         .map(|x| {
-                            x.clone()
-                                .try_into()
-                                .map_err(|e| ParseError::new("", ParseErrorKind::LexError(e)))
+                            x.clone().try_into().map_err(|e| {
+                                ParseError::from_token_prelex(&x, ParseErrorKind::LexError(e))
+                            })
                         })
                         .collect::<Result<Vec<_>, _>>()
                         .unwrap();

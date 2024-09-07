@@ -3,6 +3,9 @@ use crate::language::*;
 use std::str::FromStr;
 
 pub(crate) fn expression(input: State) -> CResult<State, ast::Expression> {
+    if let Some(h) = input.first() {
+        println!("expression @ : {h:?}");
+    };
     let (mut rest, mut expr) = AnyCollectErr::new(vec![
         expression_literal_int,
         expression_literal_char,
@@ -49,24 +52,28 @@ fn expression_literal_int(input: State) -> CResult<State, ast::Expression> {
     if let Some(x) = input.first() {
         if let LexedTokenKind::LiteralInt(i, _) = x.value {
             return Ok((input.succ(), ast::Expression::LiteralInt(i)));
-        }
-    };
-    Err(ConfidenceError::low(ParseError::new(
-        "",
-        ParseErrorKind::ExpectedInt,
-    )))
+        };
+        Err(ConfidenceError::low(ParseError::from_token(
+            x,
+            ParseErrorKind::ExpectedInt,
+        )))
+    } else {
+        Err(ConfidenceError::low(ParseError::end_of_input()))
+    }
 }
 
 fn expression_literal_char(input: State) -> CResult<State, ast::Expression> {
     if let Some(x) = input.first() {
         if let LexedTokenKind::LiteralChar(c) = x.value {
             return Ok((input.succ(), ast::Expression::LiteralChar(c)));
-        }
-    };
-    Err(ConfidenceError::low(ParseError::new(
-        "",
-        ParseErrorKind::ExpectedChar,
-    )))
+        };
+        Err(ConfidenceError::low(ParseError::from_token(
+            x,
+            ParseErrorKind::ExpectedChar,
+        )))
+    } else {
+        Err(ConfidenceError::low(ParseError::end_of_input()))
+    }
 }
 
 fn expression_literal_string(input: State) -> CResult<State, ast::Expression> {
@@ -74,16 +81,20 @@ fn expression_literal_string(input: State) -> CResult<State, ast::Expression> {
         if let LexedTokenKind::LiteralString(s) = &x.value {
             return Ok((input.succ(), ast::Expression::LiteralString(s.to_string())));
         }
-    };
-    Err(ConfidenceError::low(ParseError::new(
-        "",
-        ParseErrorKind::ExpectedString,
-    )))
+        Err(ConfidenceError::low(ParseError::from_token(
+            x,
+            ParseErrorKind::ExpectedString,
+        )))
+    } else {
+        Err(ConfidenceError::low(ParseError::end_of_input()))
+    }
 }
 
 fn expression_variable(input: State) -> CResult<State, ast::Expression> {
     let (s0, id) = identifier(input)?;
-    Ok((s0, ast::Expression::Variable(vec![id])))
+    let (s1, mut fields) = repeat0(dotted_field)(s0)?;
+    fields.insert(0, id);
+    Ok((s1, ast::Expression::Variable(fields)))
 }
 
 fn expression_address_of(input: State) -> CResult<State, ast::Expression> {
@@ -123,6 +134,7 @@ fn expression_bracketed(input: State) -> CResult<State, ast::Expression> {
     let (mut s, res) = map(wrapped(symbol("("), expression, symbol(")")), |x| {
         ast::Expression::Bracketed(Box::new(x))
     })(input)?;
+    // TODO: consider this
     s.expr_precedence = 0;
     Ok((s, res))
 }
@@ -162,7 +174,7 @@ fn binop(input: State) -> CResult<State, ast::BinOp> {
                 symbol("<"),
                 symbol("!="),
             ]),
-            ConfidenceError::low(ParseError::new("", ParseErrorKind::ExpectedBinop)),
+            ConfidenceError::low(ParseError::end_of_input()),
         ),
         |x| ast::BinOp::from_str(x).unwrap(),
     )
@@ -179,16 +191,17 @@ mod test {
             crate::parse::run_parser(
                 $p,
                 State::new(&{
-                    let (_tail, tokens) = tokens($s).unwrap();
+                    let tokens = tokens($s);
                     let lexed: Vec<LexedToken> = tokens
                         .iter()
                         .map(|x| {
-                            x.clone()
-                                .try_into()
-                                .map_err(|e| ParseError::new("", ParseErrorKind::LexError(e)))
+                            x.clone().try_into().map_err(|e| {
+                                ParseError::from_token_prelex(&x, ParseErrorKind::LexError(e))
+                            })
                         })
                         .collect::<Result<Vec<_>, _>>()
                         .unwrap();
+                    println!("{lexed:?}");
                     lexed
                 }),
             )
@@ -320,6 +333,7 @@ mod test {
     fn test_array_index() {
         {
             let expected = "a[5]";
+            println!("{expected}");
             assert_eq!(
                 expected,
                 run_parser!(expression, expected).unwrap().to_string(),
@@ -327,6 +341,7 @@ mod test {
         }
         {
             let expected = "(foo.bar + 3)[6]";
+            println!("{expected}");
             assert_eq!(
                 expected,
                 run_parser!(expression, expected).unwrap().to_string(),
@@ -334,6 +349,7 @@ mod test {
         }
         {
             let expected = "a[5] := 7;";
+            println!("{expected}");
             assert_eq!(
                 expected,
                 run_parser!(statement, expected).unwrap().to_string(),
@@ -341,6 +357,7 @@ mod test {
         }
         {
             let expected = "(foo.bar + 3)[6] := baz;";
+            println!("{expected}");
             assert_eq!(
                 expected,
                 run_parser!(statement, expected).unwrap().to_string(),
@@ -348,6 +365,7 @@ mod test {
         }
         {
             let expected = "(a + 3)[(b + 6)[c + 9]] := (foo.bar[16] + 12)[18 + foo()];";
+            println!("{expected}");
             assert_eq!(
                 expected,
                 run_parser!(statement, expected).unwrap().to_string(),

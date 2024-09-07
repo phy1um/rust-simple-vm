@@ -246,46 +246,48 @@ mod test {
     #[test]
     fn test_wrapped() {
         {
-            let (s, n) = wrapped(token("{"), alpha, token("}"))("{a}").unwrap();
+            let (s, n) = wrapped(token("{"), alpha, token("}"))(StrState::new("{a}")).unwrap();
             assert_eq!('a', n);
-            assert_eq!("", s);
+            assert_eq!("", s.input);
         }
         {
             let (s, n) = wrapped(
                 token("<<"),
                 map(repeat1(alpha), |x| x.iter().collect::<String>()),
                 token("}}"),
-            )("<<foobar}}")
+            )(StrState::new("<<foobar}}"))
             .unwrap();
             assert_eq!("foobar", n);
-            assert_eq!("", s);
+            assert_eq!("", s.input);
         }
         {
             let (s, n) = wrapped(
                 token("\""),
                 map(repeat1(not_char("\"")), |x| x.iter().collect::<String>()),
                 token("\""),
-            )(
+            )(StrState::new(
                 "\"
 Hello world this is some text. \"",
-            )
+            ))
             .unwrap();
             assert_eq!("\nHello world this is some text. ", n);
-            assert_eq!("", s);
+            assert_eq!("", s.input);
         }
     }
 
     #[test]
     fn test_any() {
-        let (s, n) = Any::new(vec![alpha, numeric]).run("1").unwrap();
-        assert_eq!("", s);
+        let (s, n) = Any::new(vec![alpha, numeric])
+            .run(StrState::new("1"))
+            .unwrap();
+        assert_eq!("", s.input);
         assert_eq!('1', n.unwrap());
     }
 
     #[test]
     fn test_delimited() {
-        let (s, n) = delimited(alpha, token(","))("a,b,c,d").unwrap();
-        assert_eq!("", s);
+        let (s, n) = delimited(alpha, token(","))(StrState::new("a,b,c,d")).unwrap();
+        assert_eq!("", s.input);
         assert_eq!(vec!['a', 'b', 'c', 'd'], n);
     }
 }

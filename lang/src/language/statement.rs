@@ -49,14 +49,14 @@ pub(crate) fn statement_array_index(input: State) -> CResult<State, ast::Stateme
         ))
     } else {
         Err(ConfidenceError::from(
-            ParseError::new("", ParseErrorKind::ExpectedArrayDeref),
+            ParseError::from_state(&input, ParseErrorKind::ExpectedArrayDeref),
             Confidence::Low,
         ))
     }
 }
 
 pub(crate) fn statement_variable_declare(input: State) -> CResult<State, ast::Statement> {
-    let (s0, _) = symbol("let")(input)?;
+    let (s0, _) = name("let")(input)?;
     let (s1, variable_type) = parse_type(s0)?;
     let (s2, id) = identifier(s1)?;
     let (s3, _) = symbol(":=")(s2)?;
@@ -69,7 +69,7 @@ pub(crate) fn statement_variable_declare(input: State) -> CResult<State, ast::St
 }
 
 pub(crate) fn statement_variable_declare_novalue(input: State) -> CResult<State, ast::Statement> {
-    let (s0, _) = symbol("let")(input)?;
+    let (s0, _) = name("let")(input)?;
     let (s1, variable_type) = parse_type(s0)?;
     let (s2, id) = identifier(s1)?;
     let (s3, _) = symbol(";")(s2).map_err(ConfidenceError::elevate)?;
@@ -77,7 +77,7 @@ pub(crate) fn statement_variable_declare_novalue(input: State) -> CResult<State,
 }
 
 pub(crate) fn statement_variable_declare_infer(input: State) -> CResult<State, ast::Statement> {
-    let (s0, _) = symbol("let")(input)?;
+    let (s0, _) = name("let")(input)?;
     let (s1, id) = identifier(s0)?;
     let (s2, _) = symbol(":=")(s1)?;
     let (s3, expr) = expression(s2).map_err(ConfidenceError::elevate)?;
@@ -86,20 +86,20 @@ pub(crate) fn statement_variable_declare_infer(input: State) -> CResult<State, a
 }
 
 pub(crate) fn statement_return(input: State) -> CResult<State, ast::Statement> {
-    let (s0, _) = symbol("return")(input)?;
+    let (s0, _) = name("return")(input)?;
     let (s1, expr) = expression(s0)?;
     let (s2, _) = symbol(";")(s1).map_err(ConfidenceError::elevate)?;
     Ok((s2, ast::Statement::Return(expr)))
 }
 
 pub(crate) fn statement_if(input: State) -> CResult<State, ast::Statement> {
-    let (s0, _) = symbol("if")(input)?;
+    let (s0, _) = name("if")(input)?;
     let (s1, cond) =
         wrapped(symbol("("), expression, symbol(")"))(s0).map_err(ConfidenceError::elevate)?;
     let (mut s2, body) = wrapped(symbol("{"), repeat1(statement), symbol("}"))(s1)
         .map_err(ConfidenceError::elevate)?;
     s2.expr_precedence = 0;
-    let (sn, else_body) = match symbol("else")(s2) {
+    let (sn, else_body) = match name("else")(s2) {
         Ok((s3, _)) => {
             let (s4, eb) = wrapped(symbol("{"), repeat1(statement), symbol("}"))(s3)
                 .map_err(ConfidenceError::elevate)?;
@@ -118,7 +118,7 @@ pub(crate) fn statement_if(input: State) -> CResult<State, ast::Statement> {
 }
 
 pub(crate) fn statement_while(input: State) -> CResult<State, ast::Statement> {
-    let (s0, _) = symbol("while")(input)?;
+    let (s0, _) = name("while")(input)?;
     let (s1, cond) =
         wrapped(symbol("("), expression, symbol(")"))(s0).map_err(ConfidenceError::elevate)?;
     let (sn, body) = wrapped(symbol("{"), repeat1(statement), symbol("}"))(s1)
@@ -127,13 +127,13 @@ pub(crate) fn statement_while(input: State) -> CResult<State, ast::Statement> {
 }
 
 pub(crate) fn statement_continue(input: State) -> CResult<State, ast::Statement> {
-    let (s0, res) = map(symbol("continue"), |_| ast::Statement::Continue)(input)?;
+    let (s0, res) = map(name("continue"), |_| ast::Statement::Continue)(input)?;
     let (s1, _) = symbol(";")(s0).map_err(ConfidenceError::elevate)?;
     Ok((s1, res))
 }
 
 pub(crate) fn statement_break(input: State) -> CResult<State, ast::Statement> {
-    let (s0, res) = map(symbol("break"), |_| ast::Statement::Break)(input)?;
+    let (s0, res) = map(name("break"), |_| ast::Statement::Break)(input)?;
     let (s1, _) = symbol(";")(s0).map_err(ConfidenceError::elevate)?;
     Ok((s1, res))
 }
@@ -175,16 +175,17 @@ mod test {
             crate::parse::run_parser(
                 $p,
                 State::new(&{
-                    let (_tail, tokens) = tokens($s).unwrap();
+                    let tokens = tokens($s);
                     let lexed: Vec<LexedToken> = tokens
                         .iter()
                         .map(|x| {
-                            x.clone()
-                                .try_into()
-                                .map_err(|e| ParseError::new("", ParseErrorKind::LexError(e)))
+                            x.clone().try_into().map_err(|e| {
+                                ParseError::from_token_prelex(&x, ParseErrorKind::LexError(e))
+                            })
                         })
                         .collect::<Result<Vec<_>, _>>()
                         .unwrap();
+                    println!("{lexed:?}");
                     lexed
                 }),
             )

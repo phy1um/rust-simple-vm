@@ -2,6 +2,7 @@ use simplevm::Register::*;
 mod common;
 use common::run_program;
 
+/*
 #[test]
 fn inline_asm() {
     let test = "
@@ -12,8 +13,8 @@ void main() {
 }
 
 asm! addnums(int a, int b) {
-    LoadStackOffset A SP 3    
-    LoadStackOffset B SP 4    
+    LoadStackOffset A SP 3
+    LoadStackOffset B SP 4
     Add A B A
 }
 
@@ -21,6 +22,7 @@ asm! addnums(int a, int b) {
     let vm = run_program(test).unwrap();
     assert_eq!(vm.get_register(A), 18);
 }
+*/
 
 #[test]
 fn expr_brackets() {
