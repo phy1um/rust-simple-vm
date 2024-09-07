@@ -227,7 +227,7 @@ pub fn parse_ast(input: &str) -> Result<Vec<ast::TopLevel>, ParseError> {
         .map(|x| {
             x.clone()
                 .try_into()
-                .map_err(|e| ParseError::from_token_prelex(&x, ParseErrorKind::LexError(e)))
+                .map_err(|e| ParseError::from_token_prelex(x, ParseErrorKind::LexError(e)))
         })
         .collect::<Result<Vec<_>, _>>()?;
 

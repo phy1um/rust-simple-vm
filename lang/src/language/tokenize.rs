@@ -33,7 +33,7 @@ fn lit_token<'a>(t: &'static str) -> impl Fn(StrState<'a>) -> TResult<'a, Token,
     }
 }
 
-fn literal_string<'a>(input: StrState<'a>) -> TResult<'a, Token, ParseError> {
+fn literal_string(input: StrState<'_>) -> TResult<'_, Token, ParseError> {
     let (sn, res) = wrapped(is_char('"'), repeat0(not_char("\"")), is_char('"'))(input)
         .map_err(|_| ParseError::from_str_state(&input, ParseErrorKind::ExpectedString))?;
     let quoted = format!("\"{}\"", res.iter().collect::<String>());
@@ -43,7 +43,7 @@ fn literal_string<'a>(input: StrState<'a>) -> TResult<'a, Token, ParseError> {
     ))
 }
 
-fn literal_char<'a>(input: StrState<'a>) -> TResult<'a, Token, ParseError> {
+fn literal_char(input: StrState<'_>) -> TResult<'_, Token, ParseError> {
     let (sn, res) = wrapped(is_char('\''), not_char("'"), is_char('\''))(input)
         .map_err(|_| ParseError::from_str_state(&input, ParseErrorKind::ExpectedChar))?;
     Ok((
@@ -57,7 +57,7 @@ fn literal_char<'a>(input: StrState<'a>) -> TResult<'a, Token, ParseError> {
 }
 
 // TODO: this function is disgusting because of opaque types
-fn next_token<'a>(input: StrState<'a>) -> Result<(StrState<'a>, Token), ParseError> {
+fn next_token(input: StrState<'_>) -> Result<(StrState<'_>, Token), ParseError> {
     if input.is_empty() {
         Err(ParseError::from_str_state(
             &input,
@@ -101,7 +101,7 @@ fn next_token<'a>(input: StrState<'a>) -> Result<(StrState<'a>, Token), ParseErr
 }
 
 pub(crate) fn tokens(input: &str) -> Vec<Token> {
-    match repeat0(skip_whitespace(next_token))(StrState::new(&input)) {
+    match repeat0(skip_whitespace(next_token))(StrState::new(input)) {
         Err(_) => panic!("bad"),
         Ok((_sn, res)) => res,
     }

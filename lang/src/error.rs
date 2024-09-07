@@ -100,7 +100,7 @@ impl<T: Clone> ConfidenceError<T> {
 }
 
 impl ParseError {
-    pub fn from_str_state<'a>(s: &StrState<'a>, kind: ParseErrorKind) -> Self {
+    pub fn from_str_state(s: &StrState<'_>, kind: ParseErrorKind) -> Self {
         Self {
             line_number: s.line_number,
             position_in_line: s.position_in_line,
@@ -109,7 +109,7 @@ impl ParseError {
         }
     }
 
-    pub(crate) fn from_state<'a>(s: &State<'a>, kind: ParseErrorKind) -> Self {
+    pub(crate) fn from_state(s: &State<'_>, kind: ParseErrorKind) -> Self {
         if let Some(head) = s.first() {
             Self {
                 line_number: head.line_number,

@@ -102,19 +102,19 @@ pub fn token<'a, 'b>(
     }
 }
 
-pub fn alpha<'a>(input: StrState<'a>) -> CharResult<'a> {
+pub fn alpha(input: StrState<'_>) -> CharResult<'_> {
     char_predicate(char::is_alphabetic, "alphabetic".to_string())(input)
 }
 
-pub fn numeric<'a>(input: StrState<'a>) -> CharResult<'a> {
+pub fn numeric(input: StrState<'_>) -> CharResult<'_> {
     char_predicate(char::is_numeric, "numeric".to_string())(input)
 }
 
-pub fn alphanumeric<'a>(input: StrState<'a>) -> CharResult<'a> {
+pub fn alphanumeric(input: StrState<'_>) -> CharResult<'_> {
     char_predicate(char::is_alphanumeric, "alphanumeric".to_string())(input)
 }
 
-pub fn whitespace<'a>(input: StrState<'a>) -> CharResult<'a> {
+pub fn whitespace(input: StrState<'_>) -> CharResult<'_> {
     if let Some(c) = input.next() {
         if c == '\n' {
             Ok((input.line_feed(), c))

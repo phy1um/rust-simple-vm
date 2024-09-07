@@ -146,7 +146,7 @@ fn lex_int_base16(input: Token) -> Result<LexedToken, LexError> {
             )),
             Err(_e) => Err(LexError::InvalidHexNumber(s0.to_string())),
         }
-    })(StrState::new(&s0))
+    })(StrState::new(s0))
     .map_err(|_| LexError::NoMatch)?;
     if !rest.is_empty() {
         Err(LexError::Incomplete)
