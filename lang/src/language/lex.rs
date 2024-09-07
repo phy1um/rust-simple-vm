@@ -200,8 +200,8 @@ mod test {
             .unwrap();
         assert_eq!(
             LexedToken {
-                line_number: 0,
-                position_in_line: 0,
+                line_number: 1,
+                position_in_line: 1,
                 value: LexedTokenKind::Identifier("foo".to_string()),
             },
             lexed.first().unwrap().clone()
