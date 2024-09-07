@@ -18,8 +18,8 @@ impl<'a> StrState<'a> {
     pub fn new(s: &'a str) -> Self {
         Self {
             input: s,
-            line_number: 0,
-            position_in_line: 0,
+            line_number: 1,
+            position_in_line: 1,
         }
     }
 
@@ -43,12 +43,11 @@ impl<'a> StrState<'a> {
         self.advance(1)
     }
 
-    #[allow(dead_code)]
     fn line_feed(self) -> Self {
         Self {
             input: &self.input[1..],
             line_number: self.line_number + 1,
-            position_in_line: 0,
+            position_in_line: 1,
         }
     }
 }
@@ -116,7 +115,20 @@ pub fn alphanumeric<'a>(input: StrState<'a>) -> CharResult<'a> {
 }
 
 pub fn whitespace<'a>(input: StrState<'a>) -> CharResult<'a> {
-    char_predicate(char::is_whitespace, "whitespace".to_string())(input)
+    if let Some(c) = input.next() {
+        if c == '\n' {
+            Ok((input.line_feed(), c))
+        } else if c.is_whitespace() {
+            Ok((input.succ(), c))
+        } else {
+            Err(CharError::CharFailedPredicate {
+                got: c,
+                name: "whitespace".to_string(),
+            })
+        }
+    } else {
+        Err(CharError::EndOfInput)
+    }
 }
 
 pub fn char_predicate_or<'a>(
