@@ -3,6 +3,9 @@ use crate::combinator::*;
 use crate::error::{ParseError, ParseErrorKind};
 use crate::parse::Parser;
 
+const DELIMITERS: &str = "{}[]()+-*%<>=:;^&|.,!@#&*'\"";
+const DELIMITERS_AND_SPACES: &str = "{}[]()+-*%<>=:;^&|.,!@#&*'\" \n\t";
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Token {
     pub content: String,
@@ -56,29 +59,16 @@ fn literal_char(input: StrState<'_>) -> TResult<'_, Token, ParseError> {
     ))
 }
 
-// TODO: this function is disgusting because of opaque types
 fn next_token(input: StrState<'_>) -> Result<(StrState<'_>, Token), ParseError> {
     if input.is_empty() {
-        Err(ParseError::from_str_state(
-            &input,
-            ParseErrorKind::EndOfInput,
-        ))
-    } else if let Ok((sn, res)) = map(
-        repeat1(not_char("{}[]()+-*%<>=:;^&|.,!@#&*'\" \n\t")),
-        |cs| {
-            Token::new(
-                &cs.iter().collect::<String>(),
-                input.line_number,
-                input.position_in_line,
-            )
-        },
-    )(input)
+        Err(ParseError::end_of_input())
+    // try to get a series of characters split on delimiters, or string, or char literal
+    } else if let Ok((sn, Some(res))) =
+        Any::new(vec![token_delimited, literal_string, literal_char]).run(input)
     {
         Ok((sn, res))
-    } else if let Ok((sn, res)) = literal_string(input) {
-        Ok((sn, res))
-    } else if let Ok((sn, res)) = literal_char(input) {
-        Ok((sn, res))
+    // try to get multi-delimiter sequences eg ">=" into one token. these are in an else-if because of
+    // opaque types :(
     } else if let Ok((sn, Some(res))) = Any::new(vec![
         lit_token(":="),
         lit_token("=="),
@@ -88,16 +78,26 @@ fn next_token(input: StrState<'_>) -> Result<(StrState<'_>, Token), ParseError> 
     .run(input)
     {
         Ok((sn, res))
+    // otherwise put a single delimited character in its own token. this should cover all possible
+    // characters!!!
     } else {
         map(
-            char_predicate(
-                |c| "{}[]()+-*%<>=:;^&|.,!@#&*".contains(c),
-                "invalid".to_string(),
-            ),
+            char_predicate(|c| DELIMITERS.contains(c), "invalid".to_string()),
             |cs| Token::new(&cs.to_string(), input.line_number, input.position_in_line),
         )(input)
         .map_err(|_| ParseError::from_str_state(&input, ParseErrorKind::EndOfInput))
     }
+}
+
+fn token_delimited(input: StrState<'_>) -> Result<(StrState<'_>, Token), ParseError> {
+    map(repeat1(not_char(DELIMITERS_AND_SPACES)), |cs| {
+        Token::new(
+            &cs.iter().collect::<String>(),
+            input.line_number,
+            input.position_in_line,
+        )
+    })(input)
+    .map_err(|_| ParseError::from_str_state(&input, ParseErrorKind::ExpectedIdentifier))
 }
 
 pub(crate) fn tokens(input: &str) -> Vec<Token> {
