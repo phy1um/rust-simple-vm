@@ -1,4 +1,5 @@
 use crate::compile::resolve::{Symbol, Type};
+use crate::compile::codegen::RegisterStateError;
 
 #[derive(Debug)]
 pub enum CompilerError {
@@ -27,4 +28,5 @@ pub enum CompilerError {
         got: usize,
     },
     InstructionResolve(String),
+    RegisterState(RegisterStateError),
 }
