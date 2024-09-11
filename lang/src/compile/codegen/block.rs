@@ -11,7 +11,7 @@ use simplevm::{
 
 use crate::ast;
 use crate::compile::block::{Block, BlockScope, BlockVariable, LoopLabels};
-use crate::compile::codegen::expression::{State, ExpressionDestination};
+use crate::compile::codegen::expression::{ExpressionDestination, State};
 use crate::compile::context::Context;
 use crate::compile::error::CompilerError;
 use crate::compile::resolve::{type_of, Symbol, Type};
@@ -164,7 +164,8 @@ pub(super) fn compile_block(
                 if let Some(bv) = scope.get(ctx, &id.0) {
                     match bv {
                         BlockVariable::Local(offset, ty) => {
-                            let mut compiled_expr = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                            let mut compiled_expr =
+                                compile_expression(ctx, &mut scope, &expr, state.clone())?;
                             out.append(&mut compiled_expr.instructions);
                             assign_from_stack_to_local(&mut out, &ty, offset as u8);
                         }
@@ -176,7 +177,8 @@ pub(super) fn compile_block(
                                     to: tt,
                                 });
                             }
-                            let mut compiled_expr = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                            let mut compiled_expr =
+                                compile_expression(ctx, &mut scope, &expr, state.clone())?;
                             out.append(&mut compiled_expr.instructions);
                             assign_from_stack_to_arg(&mut out, index as u8);
                         }
@@ -190,7 +192,8 @@ pub(super) fn compile_block(
                                 });
                             }
 
-                            let mut compiled_expr = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                            let mut compiled_expr =
+                                compile_expression(ctx, &mut scope, &expr, state.clone())?;
                             out.append(&mut compiled_expr.instructions);
                             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                                 Register::C,
@@ -214,7 +217,12 @@ pub(super) fn compile_block(
                     lhs: ast::Expression::BinOp(Box::new(lhs), Box::new(index), ast::BinOp::Add),
                     rhs,
                 };
-                out.extend(compile_block(ctx, scope.child(), vec![new_statement], state.clone())?);
+                out.extend(compile_block(
+                    ctx,
+                    scope.child(),
+                    vec![new_statement],
+                    state.clone(),
+                )?);
             }
             ast::Statement::AssignDeref { lhs, rhs } => {
                 // TODO: check we can assign
@@ -281,7 +289,10 @@ pub(super) fn compile_block(
                 if let ExpressionDestination::Register(r) = res.destination {
                     if r != Register::A {
                         out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                                    Register::A, r, Register::Zero)));
+                            Register::A,
+                            r,
+                            Register::Zero,
+                        )));
                     }
                 } else {
                     out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
