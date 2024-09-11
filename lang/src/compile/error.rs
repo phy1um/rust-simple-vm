@@ -1,5 +1,5 @@
-use crate::compile::resolve::{Symbol, Type};
 use crate::compile::codegen::RegisterStateError;
+use crate::compile::resolve::{Symbol, Type};
 
 #[derive(Debug)]
 pub enum CompilerError {

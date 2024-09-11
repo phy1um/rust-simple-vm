@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::compile::codegen::util::*;
+use std::collections::HashMap;
 
 use simplevm::{
     resolve::UnresolvedInstruction, Instruction, Literal12Bit, Literal7Bit, Nibble, Register,
@@ -27,11 +27,11 @@ impl State {
     pub fn new() -> Self {
         Self {
             registers: HashMap::from([
-                           (Register::A, RegisterState::default()),
-                           (Register::B, RegisterState::default()),
-                           // we must have at least 1 temporary register
-                           (Register::C, RegisterState::Temporary),
-                        ])
+                (Register::A, RegisterState::default()),
+                (Register::B, RegisterState::default()),
+                // we must have at least 1 temporary register
+                (Register::C, RegisterState::Temporary),
+            ]),
         }
     }
 
@@ -42,18 +42,18 @@ impl State {
     fn get_free(&self) -> Option<Register> {
         for (reg, state) in &self.registers {
             if *state == RegisterState::Free {
-                return Some(*reg)
+                return Some(*reg);
             }
-        };
+        }
         None
     }
 
     fn get_temp(&self) -> Option<Register> {
         for (reg, state) in &self.registers {
             if *state == RegisterState::Temporary {
-                return Some(*reg)
+                return Some(*reg);
             }
-        };
+        }
         None
     }
 
@@ -88,7 +88,7 @@ impl State {
                     return Some(*reg);
                 }
             };
-        };
+        }
         None
     }
 }
@@ -116,7 +116,11 @@ pub struct ExprRes {
 }
 
 impl ExprRes {
-    fn from_instructions(instructions: Vec<UnresolvedInstruction>, state: State, destination: ExpressionDestination) -> Self {
+    fn from_instructions(
+        instructions: Vec<UnresolvedInstruction>,
+        state: State,
+        destination: ExpressionDestination,
+    ) -> Self {
         Self {
             instructions,
             state,
@@ -138,7 +142,7 @@ fn compile_expression_literal_int(
     i: i32,
     reg: Register,
     target: ExpressionDestination,
-) -> Result<ExprRes,CompilerError> {
+) -> Result<ExprRes, CompilerError> {
     let mut out = Vec::new();
     if i <= 0xfff {
         out.push(UnresolvedInstruction::Instruction(Instruction::Imm(
@@ -201,20 +205,26 @@ pub fn compile_expression(
                 (ExpressionDestination::Stack, state.get_temp().unwrap())
             };
             let mut res = compile_expression_literal_int(state, *i, reg, target)?;
-            res.state.set_literal(reg, *i).map_err(|e| CompilerError::RegisterState(e))?;
+            res.state
+                .set_literal(reg, *i)
+                .map_err(|e| CompilerError::RegisterState(e))?;
             Ok(res)
         }
-        ast::Expression::LiteralChar(c) => Ok(ExprRes::from_instructions(vec![
-            UnresolvedInstruction::Instruction(Instruction::Imm(
-                Register::C,
-                Literal12Bit::new_checked(*c as u16).unwrap(),
-            )),
-            UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
-                Register::SP,
-                StackOp::Push,
-            )),
-        ], state, ExpressionDestination::Stack)),
+        ast::Expression::LiteralChar(c) => Ok(ExprRes::from_instructions(
+            vec![
+                UnresolvedInstruction::Instruction(Instruction::Imm(
+                    Register::C,
+                    Literal12Bit::new_checked(*c as u16).unwrap(),
+                )),
+                UnresolvedInstruction::Instruction(Instruction::Stack(
+                    Register::C,
+                    Register::SP,
+                    StackOp::Push,
+                )),
+            ],
+            state,
+            ExpressionDestination::Stack,
+        )),
         ast::Expression::LiteralString(s) => {
             let mut const_data = Vec::<u8>::new();
             // TODO: danger utf8 + str len assuming ascii
@@ -239,17 +249,20 @@ pub fn compile_expression(
         ast::Expression::BuiltinSizeof(t) => {
             let tt = Type::from_ast(ctx, t)?;
             let size = tt.size_bytes();
-            Ok(ExprRes::from_instructions_stack(vec![
-                UnresolvedInstruction::Instruction(Instruction::Imm(
-                    Register::C,
-                    Literal12Bit::new_checked(size as u16).unwrap(),
-                )),
-                UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::C,
-                    Register::SP,
-                    StackOp::Push,
-                )),
-            ], state))
+            Ok(ExprRes::from_instructions_stack(
+                vec![
+                    UnresolvedInstruction::Instruction(Instruction::Imm(
+                        Register::C,
+                        Literal12Bit::new_checked(size as u16).unwrap(),
+                    )),
+                    UnresolvedInstruction::Instruction(Instruction::Stack(
+                        Register::C,
+                        Register::SP,
+                        StackOp::Push,
+                    )),
+                ],
+                state,
+            ))
         }
         ast::Expression::Deref(e) => {
             let inner_type = type_of(ctx, scope, e);
@@ -372,9 +385,27 @@ pub fn compile_expression(
             let lhs_type = type_of(ctx, scope, e0);
             let rhs_type = type_of(ctx, scope, e1);
             match op {
-                ast::BinOp::Add => binop_arith(true, out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state.clone()),
-                ast::BinOp::Subtract => binop_arith(false, out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state.clone()),
-                ast::BinOp::Multiply => binop_mul(out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state.clone()),
+                ast::BinOp::Add => binop_arith(
+                    true,
+                    out,
+                    &res_rhs,
+                    &res_lhs,
+                    &lhs_type,
+                    &rhs_type,
+                    state.clone(),
+                ),
+                ast::BinOp::Subtract => binop_arith(
+                    false,
+                    out,
+                    &res_rhs,
+                    &res_lhs,
+                    &lhs_type,
+                    &rhs_type,
+                    state.clone(),
+                ),
+                ast::BinOp::Multiply => {
+                    binop_mul(out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state.clone())
+                }
                 ast::BinOp::LessThanEqual => {
                     // binop_compare(Register::B, Register::C, TestOp::Lte)
                     todo!("needs 2 temp registers");
@@ -455,8 +486,17 @@ pub fn compile_expression(
     }
 }
 
-fn binop_arith(is_add: bool, mut out: Vec<UnresolvedInstruction>, rhs: &ExprRes, lhs: &ExprRes, lhs_type: &Type, _rhs_type: &Type, mut state: State) -> Result<ExprRes, CompilerError> {
-    let ops_on_stack = rhs.destination == ExpressionDestination::Stack && lhs.destination == ExpressionDestination::Stack;
+fn binop_arith(
+    is_add: bool,
+    mut out: Vec<UnresolvedInstruction>,
+    rhs: &ExprRes,
+    lhs: &ExprRes,
+    lhs_type: &Type,
+    _rhs_type: &Type,
+    mut state: State,
+) -> Result<ExprRes, CompilerError> {
+    let ops_on_stack = rhs.destination == ExpressionDestination::Stack
+        && lhs.destination == ExpressionDestination::Stack;
     if ops_on_stack {
         if let Type::Pointer(t) = lhs_type {
             let size = t.size_bytes();
@@ -506,7 +546,9 @@ fn binop_arith(is_add: bool, mut out: Vec<UnresolvedInstruction>, rhs: &ExprRes,
         } else {
             let r = state.get_temp().unwrap();
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                r, Register::SP, StackOp::Pop,
+                r,
+                Register::SP,
+                StackOp::Pop,
             )));
             r
         };
@@ -515,7 +557,9 @@ fn binop_arith(is_add: bool, mut out: Vec<UnresolvedInstruction>, rhs: &ExprRes,
         } else {
             let r = state.get_temp().unwrap();
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                r, Register::SP, StackOp::Pop,
+                r,
+                Register::SP,
+                StackOp::Pop,
             )));
             r
         };
@@ -533,20 +577,33 @@ fn binop_arith(is_add: bool, mut out: Vec<UnresolvedInstruction>, rhs: &ExprRes,
         };
         if is_add {
             out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                        r0, r0, r1)));
+                r0, r0, r1,
+            )));
         } else {
             out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
-                        r0, r0, r1)));
+                r0, r0, r1,
+            )));
         }
         state.set_intermediate(r0);
-        Ok(ExprRes::from_instructions(out, state, ExpressionDestination::Register(r0)))
+        Ok(ExprRes::from_instructions(
+            out,
+            state,
+            ExpressionDestination::Register(r0),
+        ))
     }
 }
 
-
-fn binop_mul(mut out: Vec<UnresolvedInstruction>, rhs: &ExprRes, lhs: &ExprRes, lhs_type: &Type, rhs_typ: &Type, mut state: State) -> Result<ExprRes, CompilerError> {
+fn binop_mul(
+    mut out: Vec<UnresolvedInstruction>,
+    rhs: &ExprRes,
+    lhs: &ExprRes,
+    lhs_type: &Type,
+    rhs_typ: &Type,
+    mut state: State,
+) -> Result<ExprRes, CompilerError> {
     let mut out = Vec::new();
-    let ops_on_stack = rhs.destination == ExpressionDestination::Stack && lhs.destination == ExpressionDestination::Stack;
+    let ops_on_stack = rhs.destination == ExpressionDestination::Stack
+        && lhs.destination == ExpressionDestination::Stack;
     if ops_on_stack {
         todo!("need 2 temp registers");
     } else {
@@ -555,7 +612,9 @@ fn binop_mul(mut out: Vec<UnresolvedInstruction>, rhs: &ExprRes, lhs: &ExprRes, 
         } else {
             let r = state.get_temp().unwrap();
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                r, Register::SP, StackOp::Pop,
+                r,
+                Register::SP,
+                StackOp::Pop,
             )));
             r
         };
@@ -564,16 +623,21 @@ fn binop_mul(mut out: Vec<UnresolvedInstruction>, rhs: &ExprRes, lhs: &ExprRes, 
         } else {
             let r = state.get_temp().unwrap();
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                r, Register::SP, StackOp::Pop,
+                r,
+                Register::SP,
+                StackOp::Pop,
             )));
             r
         };
         let rt = state.get_temp().unwrap();
         out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
-                    r0, r0, r1)));
+            r0, r0, r1,
+        )));
         state.set_intermediate(r0);
-        Ok(ExprRes::from_instructions(out, state, ExpressionDestination::Register(r0)))
+        Ok(ExprRes::from_instructions(
+            out,
+            state,
+            ExpressionDestination::Register(r0),
+        ))
     }
 }
-
-
