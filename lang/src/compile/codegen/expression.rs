@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use simplevm::{
     resolve::UnresolvedInstruction, Instruction, Literal12Bit, Literal7Bit, Nibble, Register,
-    StackOp, TestOp,
+    StackOp,
 };
 
 use crate::ast;
@@ -24,7 +24,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             registers: HashMap::from([
                 (Register::A, RegisterState::default()),
@@ -35,11 +35,16 @@ impl State {
         }
     }
 
-    fn invalidate(&mut self, r: Register) {
-        self.registers.insert(r, RegisterState::Free);
+    pub(crate) fn invalidate(&mut self, r: Register) {
+        match self.registers.get(&r) {
+            Some(RegisterState::Temporary) => {}
+            _ => {
+                self.registers.insert(r, RegisterState::Free);
+            }
+        }
     }
 
-    fn get_free(&self) -> Option<Register> {
+    pub(crate) fn get_free(&self) -> Option<Register> {
         for (reg, state) in &self.registers {
             if *state == RegisterState::Free {
                 return Some(*reg);
@@ -48,7 +53,7 @@ impl State {
         None
     }
 
-    fn get_temp(&self) -> Option<Register> {
+    pub(crate) fn get_temp(&self) -> Option<Register> {
         for (reg, state) in &self.registers {
             if *state == RegisterState::Temporary {
                 return Some(*reg);
@@ -57,7 +62,17 @@ impl State {
         None
     }
 
-    fn set_literal(&mut self, r: Register, i: i32) -> Result<(), RegisterStateError> {
+    pub(crate) fn get_temp_pair(&self) -> Option<(Register, Register)> {
+        let first = self.get_temp()?;
+        for (reg, state) in &self.registers {
+            if *state == RegisterState::Temporary && *reg != first {
+                return Some((first, *reg));
+            }
+        }
+        None
+    }
+
+    pub(crate) fn set_literal(&mut self, r: Register, i: i32) -> Result<(), RegisterStateError> {
         if let Some(state) = self.registers.get(&r) {
             match state {
                 RegisterState::Free => {
@@ -77,11 +92,40 @@ impl State {
         }
     }
 
-    fn set_intermediate(&mut self, r: Register) {
+    pub(crate) fn set_intermediate(&mut self, r: Register) {
         self.registers.insert(r, RegisterState::Intermediate);
     }
 
-    fn get_variable_register(&self, s: &str) -> Option<Register> {
+    pub(crate) fn set_variable_register(
+        &mut self,
+        name: &str,
+        r: Register,
+    ) -> Result<(), RegisterStateError> {
+        match self.registers.get(&r) {
+            Some(RegisterState::Free) => {
+                self.registers
+                    .insert(r, RegisterState::Variable(name.to_string()));
+                Ok(())
+            }
+            Some(RegisterState::Literal(_)) => {
+                self.registers
+                    .insert(r, RegisterState::Variable(name.to_string()));
+                Ok(())
+            }
+            Some(RegisterState::Temporary) => Ok(()),
+            Some(RegisterState::Variable(other)) => {
+                if name != other {
+                    self.registers
+                        .insert(r, RegisterState::Variable(name.to_string()));
+                };
+                Ok(())
+            }
+            Some(RegisterState::Intermediate) => Err(RegisterStateError::AttemptedDowngrade(r)),
+            _ => Err(RegisterStateError::InvalidRegister(r)),
+        }
+    }
+
+    pub(crate) fn get_variable_register(&self, s: &str) -> Option<Register> {
         for (reg, state) in &self.registers {
             if let RegisterState::Variable(var) = state {
                 if var == s {
@@ -90,6 +134,42 @@ impl State {
             };
         }
         None
+    }
+
+    pub(crate) fn reserve_temporaries(&mut self, n: u32) {
+        let temp_count: u32 = self
+            .registers
+            .values()
+            .map(|v| match v {
+                RegisterState::Temporary => 1,
+                _ => 0,
+            })
+            .sum();
+        if temp_count > n {
+            for _ in 0..(temp_count - n) {
+                let r = self.get_temp().unwrap();
+                self.set_temp(r, false);
+            }
+        } else if temp_count < n {
+            for _ in 0..(n - temp_count) {
+                if let Some(r) = self.get_free() {
+                    self.set_temp(r, true);
+                } else {
+                    todo!("out of free");
+                }
+            }
+        }
+    }
+
+    fn set_temp(&mut self, r: Register, state: bool) {
+        self.registers.insert(
+            r,
+            if state {
+                RegisterState::Temporary
+            } else {
+                RegisterState::Free
+            },
+        );
     }
 }
 
@@ -101,6 +181,7 @@ enum RegisterState {
     Variable(String),
     Intermediate,
     Temporary,
+    // TODO: FrameOffset(u8) ?
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -207,7 +288,7 @@ pub fn compile_expression(
             let mut res = compile_expression_literal_int(state, *i, reg, target)?;
             res.state
                 .set_literal(reg, *i)
-                .map_err(|e| CompilerError::RegisterState(e))?;
+                .map_err(CompilerError::RegisterState)?;
             Ok(res)
         }
         ast::Expression::LiteralChar(c) => Ok(ExprRes::from_instructions(
@@ -594,11 +675,11 @@ fn binop_arith(
 }
 
 fn binop_mul(
-    mut out: Vec<UnresolvedInstruction>,
+    mut _out: Vec<UnresolvedInstruction>,
     rhs: &ExprRes,
     lhs: &ExprRes,
-    lhs_type: &Type,
-    rhs_typ: &Type,
+    _lhs_type: &Type,
+    _rhs_type: &Type,
     mut state: State,
 ) -> Result<ExprRes, CompilerError> {
     let mut out = Vec::new();
@@ -629,7 +710,7 @@ fn binop_mul(
             )));
             r
         };
-        let rt = state.get_temp().unwrap();
+        let _rt = state.get_temp().unwrap();
         out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
             r0, r0, r1,
         )));
