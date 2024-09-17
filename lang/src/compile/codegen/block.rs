@@ -130,23 +130,28 @@ pub(super) fn compile_block(
 
                 let local_offset = scope.define_local(&id.0, &var_type);
                 // put expression on top of stack
-                let mut compiled_expr = compile_expression(ctx, &mut scope, &expr, state.clone())?;
-                out.append(&mut compiled_expr.instructions);
-                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::C,
-                    Register::SP,
-                    StackOp::Pop,
-                )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                    Register::B,
-                    Register::BP,
-                    Register::Zero,
-                )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::AddImm(
-                    Register::B,
-                    Literal7Bit::new_checked(local_offset as u8).unwrap(),
-                )));
-                write_value(&mut out, &var_type, Register::C, Register::B);
+                let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                out.extend(res.instructions);
+                if let ExpressionDestination::Register(r) = res.destination {
+                    assign_from_register_to_local(
+                        &mut out,
+                        r,
+                        &var_type,
+                        local_offset as u8,
+                        &mut state,
+                    );
+                    update_variable_register(&id.0, r, &mut state);
+                } else {
+                    state.reserve_temporaries(2);
+                    let r = assign_from_stack_to_local(
+                        &mut out,
+                        &var_type,
+                        local_offset as u8,
+                        &mut state,
+                    );
+                    state.reserve_temporaries(1);
+                    update_variable_register(&id.0, r, &mut state);
+                }
             }
             ast::Statement::Declare(id, t, None) => {
                 if scope.get(ctx, &id.0).is_some() {
