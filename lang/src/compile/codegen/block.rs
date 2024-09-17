@@ -24,6 +24,7 @@ pub(super) fn compile_block(
     state: State,
 ) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
     let mut out = Vec::new();
+    let mut state = state;
     for s in statements {
         match s {
             ast::Statement::Break => {
@@ -164,10 +165,28 @@ pub(super) fn compile_block(
                 if let Some(bv) = scope.get(ctx, &id.0) {
                     match bv {
                         BlockVariable::Local(offset, ty) => {
-                            let mut compiled_expr =
-                                compile_expression(ctx, &mut scope, &expr, state.clone())?;
-                            out.append(&mut compiled_expr.instructions);
-                            assign_from_stack_to_local(&mut out, &ty, offset as u8);
+                            let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                            out.extend(res.instructions);
+                            if let ExpressionDestination::Register(r) = res.destination {
+                                assign_from_register_to_local(
+                                    &mut out,
+                                    r,
+                                    &ty,
+                                    offset as u8,
+                                    &mut state,
+                                );
+                                update_variable_register(&id.0, r, &mut state);
+                            } else {
+                                state.reserve_temporaries(2);
+                                let r = assign_from_stack_to_local(
+                                    &mut out,
+                                    &ty,
+                                    offset as u8,
+                                    &mut state,
+                                );
+                                state.reserve_temporaries(1);
+                                update_variable_register(&id.0, r, &mut state);
+                            }
                         }
                         BlockVariable::Arg(index, tt) => {
                             let expr_type = type_of(ctx, &scope, expr.as_ref());
@@ -177,10 +196,17 @@ pub(super) fn compile_block(
                                     to: tt,
                                 });
                             }
-                            let mut compiled_expr =
-                                compile_expression(ctx, &mut scope, &expr, state.clone())?;
-                            out.append(&mut compiled_expr.instructions);
-                            assign_from_stack_to_arg(&mut out, index as u8);
+                            let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                            out.extend(res.instructions);
+                            if let ExpressionDestination::Register(r) = res.destination {
+                                assign_from_register_to_arg(&mut out, index as u8, r, &mut state);
+                                update_variable_register(&id.0, r, &mut state);
+                            } else {
+                                state.reserve_temporaries(2);
+                                let r = assign_from_stack_to_arg(&mut out, index as u8, &mut state);
+                                state.reserve_temporaries(1);
+                                update_variable_register(&id.0, r, &mut state);
+                            }
                         }
                         BlockVariable::Global(addr, tt) => {
                             // type check
@@ -192,19 +218,24 @@ pub(super) fn compile_block(
                                 });
                             }
 
-                            let mut compiled_expr =
-                                compile_expression(ctx, &mut scope, &expr, state.clone())?;
-                            out.append(&mut compiled_expr.instructions);
-                            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                                Register::C,
-                                Register::SP,
-                                StackOp::Pop,
-                            )));
-                            if addr > 0xfff {
-                                todo!("address too big: {addr}");
+                            let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                            out.extend(res.instructions);
+                            if let ExpressionDestination::Register(r) = res.destination {
+                                let addr_reg = state.get_temp().unwrap();
+                                out.extend(load_address_to(addr, addr_reg, Register::M));
+                                write_value(&mut out, &tt, r, addr_reg);
+                            } else {
+                                state.reserve_temporaries(2);
+                                let (value_reg, addr_reg) = state.get_temp_pair().unwrap();
+                                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                                    value_reg,
+                                    Register::SP,
+                                    StackOp::Pop,
+                                )));
+
+                                out.extend(load_address_to(addr, addr_reg, Register::M));
+                                write_value(&mut out, &tt, value_reg, addr_reg);
                             }
-                            out.extend(load_address_to(addr, Register::B, Register::M));
-                            write_value(&mut out, &tt, Register::C, Register::B);
                         }
                         _ => todo!("unimplemented {bv:?}"),
                     }
@@ -303,14 +334,16 @@ pub(super) fn compile_block(
                 }
             }
             ast::Statement::Expression(expr) => {
-                let mut compiled_expr = compile_expression(ctx, &mut scope, &expr, state.clone())?;
-                out.append(&mut compiled_expr.instructions);
-                // forget what we just did
-                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::Zero,
-                    Register::SP,
-                    StackOp::Pop,
-                )));
+                let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                out.extend(res.instructions);
+                if ExpressionDestination::Stack == res.destination {
+                    // forget what we just did
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        Register::Zero,
+                        Register::SP,
+                        StackOp::Pop,
+                    )));
+                }
             }
         }
     }
@@ -381,4 +414,13 @@ pub(super) fn compile_body(
         ));
         Ok(block)
     }
+}
+
+fn update_variable_register(name: &str, new_reg: Register, state: &mut State) {
+    if let Some(current_reg) = state.get_variable_register(name) {
+        if new_reg != current_reg {
+            state.invalidate(current_reg);
+        }
+    }
+    state.set_variable_register(name, new_reg).unwrap();
 }
