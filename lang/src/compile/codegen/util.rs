@@ -5,7 +5,7 @@ use simplevm::{
 
 use crate::ast;
 use crate::compile::block::BlockVariable;
-use crate::compile::codegen::expression::State;
+use crate::compile::codegen::expression::{ExprRes, ExpressionDestination, State};
 use crate::compile::error::CompilerError;
 use crate::compile::resolve::Type;
 
@@ -40,35 +40,131 @@ pub fn load_address_to(
     out
 }
 
-pub fn binop_compare(out: &mut Vec<UnresolvedInstruction>, a: Register, b: Register, op: TestOp) {
-    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-        a,
-        Register::SP,
-        StackOp::Pop,
-    )));
-    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-        b,
-        Register::SP,
-        StackOp::Pop,
-    )));
-    out.push(UnresolvedInstruction::Instruction(Instruction::Test(
-        a, b, op,
-    )));
-    out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-        Register::C,
-        Register::Zero,
-        Register::Zero,
-    )));
-    out.push(UnresolvedInstruction::Instruction(Instruction::AddIf(
-        Register::C,
-        Register::Zero,
-        Nibble::new_checked(1).unwrap(),
-    )));
-    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-        Register::C,
-        Register::SP,
-        StackOp::Push,
-    )));
+pub fn binop_compare(
+    mut out: Vec<UnresolvedInstruction>,
+    a: &ExprRes,
+    b: &ExprRes,
+    op: TestOp,
+    mut state: State,
+) -> Result<ExprRes, CompilerError> {
+    let ops_on_stack = a.destination == ExpressionDestination::Stack
+        && b.destination == ExpressionDestination::Stack;
+    if ops_on_stack {
+        state.reserve_temporaries(2);
+        let (t0, t1) = state.get_temp_pair().unwrap();
+        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+            t0,
+            Register::SP,
+            StackOp::Pop,
+        )));
+        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+            t1,
+            Register::SP,
+            StackOp::Pop,
+        )));
+        out.push(UnresolvedInstruction::Instruction(Instruction::Test(
+            t0, t1, op,
+        )));
+        state.reserve_temporaries(1);
+        if let Some(rt) = state.get_free() {
+            out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+                rt,
+                Register::Zero,
+                Register::Zero,
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::AddIf(
+                rt,
+                Register::Zero,
+                Nibble::new_checked(1).unwrap(),
+            )));
+            state.set_intermediate(rt);
+            Ok(ExprRes::from_instructions(
+                out,
+                state,
+                ExpressionDestination::Register(rt),
+            ))
+        } else {
+            out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+                t0,
+                Register::Zero,
+                Register::Zero,
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::AddIf(
+                t0,
+                Register::Zero,
+                Nibble::new_checked(1).unwrap(),
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                t0,
+                Register::SP,
+                StackOp::Push,
+            )));
+            Ok(ExprRes::from_instructions_stack(out, state))
+        }
+    } else {
+        let r0 = if let ExpressionDestination::Register(r) = a.destination {
+            r
+        } else {
+            let rt = state.get_temp().unwrap();
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                rt,
+                Register::SP,
+                StackOp::Pop,
+            )));
+            rt
+        };
+        let r1 = if let ExpressionDestination::Register(r) = b.destination {
+            r
+        } else {
+            let rt = state.get_temp().unwrap();
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                rt,
+                Register::SP,
+                StackOp::Pop,
+            )));
+            rt
+        };
+        // RHS ==> r0
+        out.push(UnresolvedInstruction::Instruction(Instruction::Test(
+            r1, r0, op,
+        )));
+        if let Some(rt) = state.get_free() {
+            out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+                rt,
+                Register::Zero,
+                Register::Zero,
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::AddIf(
+                rt,
+                Register::Zero,
+                Nibble::new_checked(1).unwrap(),
+            )));
+            state.set_intermediate(rt);
+            Ok(ExprRes::from_instructions(
+                out,
+                state,
+                ExpressionDestination::Register(rt),
+            ))
+        } else {
+            let rt = state.get_temp().unwrap();
+            out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+                rt,
+                Register::Zero,
+                Register::Zero,
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::AddIf(
+                rt,
+                Register::Zero,
+                Nibble::new_checked(1).unwrap(),
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                rt,
+                Register::SP,
+                StackOp::Push,
+            )));
+            Ok(ExprRes::from_instructions_stack(out, state))
+        }
+    }
 }
 
 pub fn assign_from_stack_to_local(
