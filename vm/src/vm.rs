@@ -247,7 +247,8 @@ PC @ {}, Flags: {:016b}",
             }
             // immediates
             Instruction::AddImm(r, i) => {
-                self.set_register(r, self.get_register(r) + (i.value as u16));
+                let (res, _overflow) = self.get_register(r).overflowing_add(i.value as u16);
+                self.set_register(r, res);
                 Ok(())
             }
             Instruction::AddImmSigned(r, i) => {
@@ -255,10 +256,8 @@ PC @ {}, Flags: {:016b}",
                 let imm_signed = i.as_signed();
                 unsafe {
                     let register_signed: i16 = std::mem::transmute(raw_register_value);
-                    self.set_register(
-                        r,
-                        std::mem::transmute(register_signed + (imm_signed as i16)),
-                    );
+                    let (res, _overflow) = register_signed.overflowing_add(imm_signed as i16);
+                    self.set_register(r, std::mem::transmute(res));
                 }
                 Ok(())
             }
