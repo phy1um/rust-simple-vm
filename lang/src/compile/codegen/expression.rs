@@ -1,5 +1,7 @@
 use crate::compile::codegen::util::*;
+use log::{debug, trace};
 use std::collections::HashMap;
+use std::fmt;
 
 use simplevm::{
     resolve::UnresolvedInstruction, Instruction, Literal12Bit, Literal7Bit, Nibble, Register,
@@ -35,7 +37,7 @@ impl State {
         }
     }
 
-    fn invalidate_all(&mut self) {
+    pub(crate) fn invalidate_all(&mut self) {
         for reg in self.registers.clone().keys() {
             self.invalidate(*reg)
         }
@@ -120,6 +122,7 @@ impl State {
             }
             Some(RegisterState::Temporary) => Ok(()),
             Some(RegisterState::Variable(other)) => {
+                trace!("set register state {r}: variable {other} => {name}");
                 if name != other {
                     self.registers
                         .insert(r, RegisterState::Variable(name.to_string()));
@@ -184,6 +187,20 @@ impl State {
     }
 }
 
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.registers
+                .iter()
+                .map(|(reg, kind)| format!("{reg}: {kind}"))
+                .collect::<Vec<_>>()
+                .join(" || ")
+        )
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq)]
 enum RegisterState {
     #[default]
@@ -193,6 +210,18 @@ enum RegisterState {
     Intermediate,
     Temporary,
     // TODO: FrameOffset(u8) ?
+}
+
+impl fmt::Display for RegisterState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Free => write!(f, "free"),
+            Self::Literal(i) => write!(f, "lit({i})"),
+            Self::Variable(s) => write!(f, "var({s})"),
+            Self::Intermediate => write!(f, "intermediate"),
+            Self::Temporary => write!(f, "temp"),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -289,8 +318,10 @@ pub fn compile_expression(
     ctx: &mut Context,
     scope: &mut BlockScope,
     expr: &ast::Expression,
-    state: State,
+    mut state: State,
 ) -> Result<ExprRes, CompilerError> {
+    trace!("compile expression: {expr}");
+    trace!("expr state: {state}");
     match expr {
         ast::Expression::Bracketed(e) => compile_expression(ctx, scope, e, state),
         ast::Expression::LiteralInt(i) => {
@@ -362,7 +393,7 @@ pub fn compile_expression(
         ast::Expression::Deref(e) => {
             let inner_type = type_of(ctx, scope, e);
             if !inner_type.is_pointer() {
-                println!("{:?}", scope);
+                trace!("deref pointer: {:?}", scope);
                 return Err(CompilerError::DerefInvalidType(inner_type));
             }
             let mut out = Vec::new();
@@ -531,34 +562,67 @@ pub fn compile_expression(
                 BlockVariable::Const(_) => &Type::Int,
             };
 
+            // TODO: constants :D
+
+            let name = fields
+                .iter()
+                .map(|x| x.0.clone())
+                .collect::<Vec<_>>()
+                .join(".");
+            if let Some(reg) = state.get_variable_register(&name) {
+                debug!("reusing var {name} in {reg}");
+                return Ok(ExprRes::from_instructions(
+                    out,
+                    state,
+                    ExpressionDestination::Register(reg),
+                ));
+            };
+
             // get addr of field
-            let t0 = state.get_temp().unwrap();
-            get_stack_field_offset(&mut out, fields, var_type, &head_var, t0)?;
+            let (reg, is_temp) = if let Some(r) = state.get_free() {
+                (r, false)
+            } else {
+                (state.get_temp().unwrap(), true)
+            };
+            get_stack_field_offset(&mut out, fields, var_type, &head_var, reg)?;
 
             // deref
             if expr_type.size_bytes() == 1 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadByte(
-                    t0,
-                    t0,
+                    reg,
+                    reg,
                     Register::Zero,
                 )));
             } else if expr_type.size_bytes() == 2 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
-                    t0,
-                    t0,
+                    reg,
+                    reg,
                     Register::Zero,
                 )));
             } else {
                 return Err(CompilerError::ValueTooLargeForStack(expr_type.clone()));
             }
 
-            // push
-            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                t0,
-                Register::SP,
-                StackOp::Push,
-            )));
-            Ok(ExprRes::from_instructions_stack(out, state))
+            if is_temp {
+                debug!("var load {name}: stack (push {reg})");
+                // push
+                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                    reg,
+                    Register::SP,
+                    StackOp::Push,
+                )));
+                Ok(ExprRes::from_instructions_stack(out, state))
+            } else {
+                debug!("var load {name}: in {reg}");
+                state
+                    .set_variable_register(&name, reg)
+                    .map_err(|e| CompilerError::RegisterState(e))?;
+                Ok(ExprRes::from_instructions(
+                    out,
+                    state,
+                    ExpressionDestination::Register(reg),
+                ))
+            }
         }
         ast::Expression::ArrayDeref { lhs, index } => {
             let lhs_type = type_of(ctx, scope, lhs);
@@ -636,22 +700,9 @@ fn binop_arith(
     } else {
         state.reserve_temporaries(2);
         let (t0, rt) = state.get_temp_pair().unwrap();
-        let mut reg_out = Register::Zero;
-        let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
-            reg_out = r;
-            r
-        } else {
-            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                t0,
-                Register::SP,
-                StackOp::Pop,
-            )));
-            t0
-        };
+        let mut reg_out_opt: Option<Register> = None;
         let r1 = if let ExpressionDestination::Register(r) = lhs.destination {
-            if reg_out != Register::Zero {
-                reg_out = r;
-            }
+            reg_out_opt = Some(r);
             r
         } else {
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -661,6 +712,20 @@ fn binop_arith(
             )));
             t0
         };
+        let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
+            reg_out_opt = Some(r);
+            r
+        } else {
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                t0,
+                Register::SP,
+                StackOp::Pop,
+            )));
+            t0
+        };
+
+        let reg_out = reg_out_opt.unwrap();
+
         if let Type::Pointer(t) = lhs_type {
             let size = t.size_bytes();
             out.push(UnresolvedInstruction::Instruction(Instruction::Imm(
@@ -668,20 +733,30 @@ fn binop_arith(
                 Literal12Bit::new_checked(size as u16).unwrap(),
             )));
             out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
-                reg_out, r0, rt,
+                rt, r0, rt,
             )));
-            state.invalidate(reg_out);
-        };
-        if is_add {
-            out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                reg_out, r0, r1,
-            )));
+            if is_add {
+                out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+                    reg_out, r1, rt,
+                )));
+            } else {
+                out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
+                    reg_out, r1, rt,
+                )));
+            }
         } else {
-            out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
-                reg_out, r0, r1,
-            )));
-        }
+            if is_add {
+                out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+                    reg_out, r0, r1,
+                )));
+            } else {
+                out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
+                    reg_out, r0, r1,
+                )));
+            }
+        };
         state.set_intermediate(reg_out);
+        debug!("arith op: using {reg_out} as intermediate");
         Ok(ExprRes::from_instructions(
             out,
             state,
