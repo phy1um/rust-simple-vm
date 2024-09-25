@@ -13,7 +13,7 @@ pub enum Flag {
 }
 
 #[cfg(not(target_family = "wasm"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum Register {
     Zero,
