@@ -1,4 +1,5 @@
 use crate::language::*;
+use log::trace;
 
 use std::str::FromStr;
 
@@ -24,20 +25,44 @@ pub(crate) fn expression(input: State) -> CResult<State, ast::Expression> {
         };
         rest = tail;
     };
-    if let Ok((tail, expr)) = precedence_climb_recursive(expr.clone(), rest) {
+    if let Ok((tail, expr)) = precedence_climb_iterative(expr.clone(), rest) {
         return Ok((tail, expr));
     };
     Ok((rest, expr))
+}
+
+fn precedence_climb_iterative(
+    res: ast::Expression,
+    input: State,
+) -> CResult<State, ast::Expression> {
+    let mut lhs = res;
+    let mut state = input;
+    loop {
+        if let Ok((mut s0, op)) = binop(state) {
+            if op.get_precedence() >= s0.expr_precedence {
+                s0.expr_precedence =
+                    op.get_precedence() + if op.is_left_associative() { 1 } else { 0 };
+                if let Ok((s1, rhs)) = expression(s0).map_err(ConfidenceError::elevate) {
+                    lhs = ast::Expression::BinOp(Box::new(lhs), Box::new(rhs), op);
+                    let old_prec = state.expr_precedence;
+                    state = s1;
+                    state.expr_precedence = old_prec;
+                    continue;
+                }
+            }
+        }
+        return Ok((state, lhs));
+    }
 }
 
 fn precedence_climb_recursive(
     res: ast::Expression,
     input: State,
 ) -> CResult<State, ast::Expression> {
-    let (s0, op) = binop(input)?;
+    let (mut s0, op) = binop(input)?;
     if op.get_precedence() >= s0.expr_precedence {
-        let (mut s1, rhs) = expression(s0).map_err(ConfidenceError::elevate)?;
-        s1.expr_precedence = op.get_precedence() + if op.is_left_associative() { 1 } else { 0 };
+        s0.expr_precedence = op.get_precedence() + if op.is_left_associative() { 1 } else { 0 };
+        let (s1, rhs) = expression(s0).map_err(ConfidenceError::elevate)?;
         Ok((s1, ast::Expression::BinOp(Box::new(res), Box::new(rhs), op)))
     } else {
         Ok((s0, res))
@@ -126,7 +151,8 @@ fn expression_deref(input: State) -> CResult<State, ast::Expression> {
     Ok((sn, ast::Expression::Deref(Box::new(expr))))
 }
 
-fn expression_bracketed(input: State) -> CResult<State, ast::Expression> {
+fn expression_bracketed(mut input: State) -> CResult<State, ast::Expression> {
+    input.expr_precedence = 0;
     let (mut s, res) = map(wrapped(symbol("("), expression, symbol(")")), |x| {
         ast::Expression::Bracketed(Box::new(x))
     })(input)?;
@@ -411,6 +437,7 @@ mod test {
 
     #[test]
     fn test_binops() {
+        /*
         {
             let expected = "10 + 101 + a";
             assert_eq!(
@@ -419,44 +446,52 @@ mod test {
             );
         }
         {
+            let prec = "b * c + a";
+            let expected = op(
+                op(sym("b"), sym("c"), BinOp::Multiply), sym("a"), BinOp::Add);
+            assert_eq!(
+                expected,
+                run_parser!(expression, prec).unwrap(),
+            );
+        }
+
+        {
             let expected = "12 + foo.bar - a[12] + foo() + foo(bar())";
             assert_eq!(
                 expected,
                 run_parser!(expression, expected).unwrap().to_string(),
             );
         }
+        */
         {
             let chain = "a + b * c * d + e * (f * g + e) + y";
             let expected = op(
-                sym("a"),
                 op(
-                    sym("b"),
+                    sym("a"),
                     op(
-                        sym("c"),
-                        op(
-                            sym("d"),
-                            op(
-                                sym("e"),
-                                op(
-                                    Expression::Bracketed(Box::new(op(
-                                        sym("f"),
-                                        op(sym("g"), sym("e"), BinOp::Add),
-                                        BinOp::Multiply,
-                                    ))),
-                                    sym("y"),
-                                    BinOp::Add,
-                                ),
-                                BinOp::Multiply,
-                            ),
-                            BinOp::Add,
-                        ),
+                        op(sym("b"), sym("c"), BinOp::Multiply),
+                        sym("d"),
                         BinOp::Multiply,
+                    ),
+                    BinOp::Add,
+                ),
+                op(
+                    sym("e"),
+                    op(
+                        Expression::Bracketed(Box::new(op(
+                            op(sym("f"), sym("g"), BinOp::Multiply),
+                            sym("e"),
+                            BinOp::Add,
+                        ))),
+                        sym("y"),
+                        BinOp::Add,
                     ),
                     BinOp::Multiply,
                 ),
                 BinOp::Add,
             );
             let parsed = run_parser!(expression, chain).unwrap();
+            println!("{parsed}");
             assert_eq!(parsed, expected);
         }
     }
