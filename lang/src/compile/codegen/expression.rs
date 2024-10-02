@@ -550,15 +550,15 @@ pub fn compile_expression(
             Ok(ExprRes::from_instructions_stack(out, state))
         }
         ast::Expression::BinOp(e0, e1, op) => {
-            let res_rhs = compile_expression(ctx, scope, e1, state.clone())?;
-            let res_lhs = compile_expression(ctx, scope, e0, res_rhs.state.clone())?;
+            let res_lhs = compile_expression(ctx, scope, e0, state.clone())?;
+            let res_rhs = compile_expression(ctx, scope, e1, res_lhs.state.clone())?;
             let mut out = Vec::new();
-            out.extend(res_rhs.instructions.clone());
             out.extend(res_lhs.instructions.clone());
+            out.extend(res_rhs.instructions.clone());
             // stack = [rv0, rv1]
             let lhs_type = type_of(ctx, scope, e0);
             let rhs_type = type_of(ctx, scope, e1);
-            let state = res_lhs.state.clone();
+            let state = res_rhs.state.clone();
             match op {
                 ast::BinOp::Add => {
                     binop_arith(true, out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state)
@@ -736,12 +736,12 @@ fn binop_arith(
         Ok(ExprRes::from_instructions_stack(out, state))
     } else {
         let (r0, r1, rt, reg_out) = if ops_in_reg {
-            let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
+            let r0 = if let ExpressionDestination::Register(r) = lhs.destination {
                 r
             } else {
                 panic!("unreachable");
             };
-            let r1 = if let ExpressionDestination::Register(r) = lhs.destination {
+            let r1 = if let ExpressionDestination::Register(r) = rhs.destination {
                 r
             } else {
                 panic!("unreachable");
@@ -751,7 +751,7 @@ fn binop_arith(
             state.reserve_temporaries(2);
             let (t0, rt) = state.get_temp_pair().unwrap();
             let mut reg_out_opt: Option<Register> = None;
-            let r1 = if let ExpressionDestination::Register(r) = lhs.destination {
+            let r1 = if let ExpressionDestination::Register(r) = rhs.destination {
                 reg_out_opt = Some(r);
                 r
             } else {
@@ -762,7 +762,7 @@ fn binop_arith(
                 )));
                 t0
             };
-            let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
+            let r0 = if let ExpressionDestination::Register(r) = lhs.destination {
                 reg_out_opt = Some(r);
                 r
             } else {
@@ -867,7 +867,7 @@ fn binop_mul(
             ))
         }
     } else {
-        let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
+        let r0 = if let ExpressionDestination::Register(r) = lhs.destination {
             r
         } else {
             let r = state.get_temp().unwrap();
@@ -878,7 +878,7 @@ fn binop_mul(
             )));
             r
         };
-        let r1 = if let ExpressionDestination::Register(r) = lhs.destination {
+        let r1 = if let ExpressionDestination::Register(r) = rhs.destination {
             r
         } else {
             let r = state.get_temp().unwrap();
