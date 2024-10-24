@@ -786,15 +786,15 @@ fn binop_arith(
                 Literal12Bit::new_checked(size as u16).unwrap(),
             )));
             out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
-                rt, r0, rt,
+                rt, r1, rt,
             )));
             if is_add {
                 out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                    reg_out, r1, rt,
+                    reg_out, r0, rt,
                 )));
             } else {
                 out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
-                    reg_out, r1, rt,
+                    reg_out, r0, rt,
                 )));
             }
         } else if is_add {
@@ -803,7 +803,6 @@ fn binop_arith(
             )));
         } else {
             out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
-                // r1 = LHS, r0 = RHS
                 reg_out, r1, r0,
             )));
         };
@@ -867,7 +866,7 @@ fn binop_mul(
             ))
         }
     } else {
-        let r0 = if let ExpressionDestination::Register(r) = lhs.destination {
+        let r1 = if let ExpressionDestination::Register(r) = rhs.destination {
             r
         } else {
             let r = state.get_temp().unwrap();
@@ -878,7 +877,7 @@ fn binop_mul(
             )));
             r
         };
-        let r1 = if let ExpressionDestination::Register(r) = rhs.destination {
+        let r0 = if let ExpressionDestination::Register(r) = lhs.destination {
             r
         } else {
             let r = state.get_temp().unwrap();
