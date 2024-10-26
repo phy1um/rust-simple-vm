@@ -152,12 +152,13 @@ fn expression_deref(input: State) -> CResult<State, ast::Expression> {
 }
 
 fn expression_bracketed(mut input: State) -> CResult<State, ast::Expression> {
+    let store_prec = input.expr_precedence;
     input.expr_precedence = 0;
     let (mut s, res) = map(wrapped(symbol("("), expression, symbol(")")), |x| {
         ast::Expression::Bracketed(Box::new(x))
     })(input)?;
     // TODO: consider this
-    s.expr_precedence = 0;
+    s.expr_precedence = store_prec;
     Ok((s, res))
 }
 
@@ -437,7 +438,6 @@ mod test {
 
     #[test]
     fn test_binops() {
-        /*
         {
             let expected = "10 + 101 + a";
             assert_eq!(
@@ -448,11 +448,11 @@ mod test {
         {
             let prec = "b * c + a";
             let expected = op(
-                op(sym("b"), sym("c"), BinOp::Multiply), sym("a"), BinOp::Add);
-            assert_eq!(
-                expected,
-                run_parser!(expression, prec).unwrap(),
+                op(sym("b"), sym("c"), BinOp::Multiply),
+                sym("a"),
+                BinOp::Add,
             );
+            assert_eq!(expected, run_parser!(expression, prec).unwrap(),);
         }
 
         {
@@ -462,7 +462,7 @@ mod test {
                 run_parser!(expression, expected).unwrap().to_string(),
             );
         }
-        */
+        /*
         {
             let chain = "a + b * c * d + e * (f * g + e) + y";
             let expected = op(
@@ -486,6 +486,30 @@ mod test {
                         sym("y"),
                         BinOp::Add,
                     ),
+                    BinOp::Multiply,
+                ),
+                BinOp::Add,
+            );
+            let parsed = run_parser!(expression, chain).unwrap();
+            println!("{parsed}");
+            assert_eq!(parsed, expected);
+        }
+        */
+        {
+            let chain = "a*x + b*(c+y) + d*a*b";
+            let expected = op(
+                op(
+                    op(sym("a"), sym("x"), BinOp::Multiply),
+                    op(
+                        sym("b"),
+                        Expression::Bracketed(Box::new(op(sym("c"), sym("y"), BinOp::Add))),
+                        BinOp::Multiply,
+                    ),
+                    BinOp::Add,
+                ),
+                op(
+                    op(sym("d"), sym("a"), BinOp::Multiply),
+                    sym("b"),
                     BinOp::Multiply,
                 ),
                 BinOp::Add,
