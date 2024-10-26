@@ -1,5 +1,5 @@
 use crate::compile::codegen::util::*;
-use log::{debug, trace};
+use log::{debug, error, trace};
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -78,6 +78,7 @@ impl State {
                 return Some((first, *reg));
             }
         }
+        trace!("no temp vars: {self}");
         None
     }
 
@@ -103,6 +104,9 @@ impl State {
 
     pub(crate) fn set_intermediate(&mut self, r: Register) {
         // TODO: check for temp?
+        if Some(RegisterState::Temporary) == self.registers.get(&r).cloned() {
+            panic!("cannot set temporary to intermediate!");
+        }
         self.registers.insert(r, RegisterState::Intermediate);
     }
 
@@ -552,6 +556,11 @@ pub fn compile_expression(
         ast::Expression::BinOp(e0, e1, op) => {
             let res_lhs = compile_expression(ctx, scope, e0, state.clone())?;
             let res_rhs = compile_expression(ctx, scope, e1, res_lhs.state.clone())?;
+            trace!(
+                "binop: lhs {e0} => {:?} | rhs {e1} => {:?}",
+                res_lhs.destination,
+                res_rhs.destination
+            );
             let mut out = Vec::new();
             out.extend(res_lhs.instructions.clone());
             out.extend(res_rhs.instructions.clone());
@@ -803,7 +812,7 @@ fn binop_arith(
             )));
         } else {
             out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
-                reg_out, r1, r0,
+                reg_out, r0, r1,
             )));
         };
         state.set_intermediate(reg_out);
@@ -866,7 +875,10 @@ fn binop_mul(
             ))
         }
     } else {
-        let r1 = if let ExpressionDestination::Register(r) = rhs.destination {
+        let mut reg_opt_out = None;
+        let mut reg_opt_other = None;
+        if let ExpressionDestination::Register(r) = rhs.destination {
+            reg_opt_out = Some(r);
             r
         } else {
             let r = state.get_temp().unwrap();
@@ -875,9 +887,14 @@ fn binop_mul(
                 Register::SP,
                 StackOp::Pop,
             )));
+            reg_opt_other = Some(r);
             r
         };
-        let r0 = if let ExpressionDestination::Register(r) = lhs.destination {
+        if let ExpressionDestination::Register(r) = lhs.destination {
+            if reg_opt_out.is_some() {
+                reg_opt_other = reg_opt_out;
+            }
+            reg_opt_out = Some(r);
             r
         } else {
             let r = state.get_temp().unwrap();
@@ -886,16 +903,19 @@ fn binop_mul(
                 Register::SP,
                 StackOp::Pop,
             )));
+            reg_opt_other = Some(r);
             r
         };
+        let reg_out = reg_opt_out.unwrap();
+        let other = reg_opt_other.unwrap();
         out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
-            r0, r0, r1,
+            reg_out, reg_out, other,
         )));
-        state.set_intermediate(r0);
+        state.set_intermediate(reg_out);
         Ok(ExprRes::from_instructions(
             out,
             state,
-            ExpressionDestination::Register(r0),
+            ExpressionDestination::Register(reg_out),
         ))
     }
 }
