@@ -22,6 +22,7 @@ where
 pub struct VM {
     registers: [u16; 8],
     flags: u16,
+    program_counter: u32,
     pub halt: bool,
     pub memory: MemoryMapper,
 }
@@ -68,6 +69,14 @@ impl Machine {
 
     pub fn set_register(&mut self, r: Register, v: u16) {
         self.vm.set_register(r, v)
+    }
+
+    pub fn set_program_counter(&mut self, addr: u32) {
+        self.vm.set_program_counter(addr);
+    }
+
+    pub fn get_program_counter(&self) -> u32 {
+        self.vm.get_program_counter()
     }
 
     pub fn set_flag(&mut self, flag: Flag, state: bool) {
@@ -129,9 +138,15 @@ Flags: {:016b}",
             return;
         };
         self.registers[r as usize] = v;
-        if r == Register::PC {
-            self.set_flag(Flag::DidJump, true);
-        }
+    }
+
+    pub fn set_program_counter(&mut self, addr: u32) {
+        self.set_flag(Flag::DidJump, true);
+        self.program_counter = addr;
+    }
+
+    pub fn get_program_counter(&self) -> u32 {
+        self.program_counter
     }
 
     pub fn pop(&mut self, stack_pointer_register: Register) -> Result<u16, String> {
@@ -168,8 +183,8 @@ Flags: {:016b}",
         &mut self,
         signal_handlers: &HashMap<u8, Box<dyn SignalHandler>>,
     ) -> Result<(), String> {
-        let pc = self.get_register(Register::PC);
-        let instruction = self.memory.read2(pc as u32).map_err(|x| x.to_string())?;
+        let pc = self.get_program_counter();
+        let instruction = self.memory.read2(pc).map_err(|x| x.to_string())?;
         self.set_flag(Flag::DidJump, false);
         let op = Instruction::try_from(instruction)?;
         // println!("running {}", op);
@@ -408,7 +423,7 @@ Flags: {:016b}",
             }
         }?;
         if !self.test_flag(Flag::DidJump) {
-            self.set_register(Register::PC, pc + 2);
+            self.program_counter += 2;
             self.set_flag(Flag::DidJump, false);
         };
         Ok(())

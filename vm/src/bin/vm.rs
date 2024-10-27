@@ -53,7 +53,7 @@ pub fn main() -> Result<(), String> {
     vm.map(0xe000, 1, Box::new(IODevice))?;
     let bin = BinaryFile::from_bytes(&program)?;
     bin.load_to_vm(&mut vm)?;
-    vm.set_register(Register::PC, bin.entrypoint);
+    vm.set_program_counter(bin.entrypoint.into());
     vm.set_register(Register::SP, 0x1000);
     vm.define_handler(0xf0, signal_halt);
     while !vm.is_halt() {
