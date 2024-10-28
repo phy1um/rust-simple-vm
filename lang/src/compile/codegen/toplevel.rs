@@ -207,11 +207,17 @@ pub fn compile(
 
     let mut program_offset = ctx.get_code_section_start();
     // function offset allocation pass
-    for (name, block) in ctx.functions.clone() {
+    for (name, block) in ctx.functions.iter_mut() {
         let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
+        while program_offset % 16 != 0 {
+            program_offset += 1;
+        }
         offsets.insert(name.to_string(), program_offset);
-        block.register_labels(&mut ctx, program_offset);
+        block.offset = program_offset;
         program_offset += block_size;
+    }
+    for (_, block) in ctx.functions.clone() {
+        block.register_labels(&mut ctx, program_offset);
     }
     for (name, offset) in offsets {
         ctx.define(&Symbol::new(&name), offset);

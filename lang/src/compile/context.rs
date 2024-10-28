@@ -152,17 +152,19 @@ impl Context {
         Ok(out)
     }
 
-    pub fn get_instructions(&self) -> Result<Vec<Instruction>, CompilerError> {
+    pub fn get_instructions(&self) -> Result<Vec<(u32, Vec<Instruction>)>, CompilerError> {
         let mut out = Vec::new();
         for (_, func) in &self.functions {
+            let mut function_instructions = Vec::new();
             for ins in &func.instructions {
                 if let Some(c) = ins
                     .resolve(&self.symbols)
                     .map_err(|e| CompilerError::InstructionResolve(format!("{e:?}")))?
                 {
-                    out.push(c);
+                    function_instructions.push(c);
                 }
             }
+            out.push((func.offset, function_instructions));
         }
         Ok(out)
     }
@@ -201,13 +203,33 @@ impl Context {
 
     pub fn to_binary(&self) -> Result<BinaryFile, String> {
         let (static_offset, static_data) = self.get_static().unwrap();
-        let instructions = self
+        let functions_and_offsets = self
             .get_instructions()
             .map_err(|x| format!("resolving: {x:?}"))?;
-        let mut code_bytes: Vec<u8> = Vec::new();
-        for i in instructions.iter() {
-            let raw_instruction: u16 = i.encode_u16();
-            code_bytes.extend_from_slice(&raw_instruction.to_le_bytes());
+        let mut max_offset_func_size = 0;
+        let mut max_offset: Option<u32> = None;
+        for (offset, instructions) in &functions_and_offsets {
+            if let Some(o) = max_offset {
+                if *offset > o {
+                    max_offset = Some(*offset);
+                    max_offset_func_size = instructions.len() * 2;
+                    // TODO: replace with logging
+                    // println!("new max {max_offset:?}");
+                }
+            } else {
+                max_offset = Some(*offset);
+                max_offset_func_size = instructions.len() * 2;
+            }
+        }
+        let code_size = max_offset.unwrap() as usize + max_offset_func_size;
+        // println!("pre-allocating code space for {code_size} bytes");
+        let mut code_bytes: Vec<u8> = vec![0; code_size];
+        for (offset, instructions) in functions_and_offsets {
+            for (index, ins) in instructions.iter().enumerate() {
+                let raw_instruction = ins.encode_u16().to_le_bytes();
+                code_bytes[offset as usize + index] = raw_instruction[0];
+                code_bytes[offset as usize + index + 1] = raw_instruction[1];
+            }
         }
         let mut bin = BinaryFile::default();
         let entrypoint = self

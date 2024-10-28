@@ -49,7 +49,7 @@ pub fn build_machine(program: &str) -> Result<Machine, String> {
     let bin = res.to_binary()?;
     println!("{bin}");
     bin.load_to_vm(&mut vm)?;
-    vm.set_register(Register::PC, bin.entrypoint);
+    vm.set_program_counter(bin.entrypoint.into());
     Ok(vm)
 }
 
