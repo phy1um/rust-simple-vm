@@ -398,8 +398,12 @@ pub fn code_to_instruction_text(code_bytes: &[u8], offset: usize) -> Result<Vec<
     unsafe {
         let (_, ins, _) = code_bytes.align_to::<u16>();
         for (index, raw_instruction) in ins.iter().enumerate() {
-            let instruction_parsed = Instruction::try_from(*raw_instruction)
-                .map_err(|e| format!("instruction {raw_instruction}: {e}"))?;
+            let instruction_parsed = Instruction::try_from(*raw_instruction).map_err(|e| {
+                format!(
+                    "instruction {raw_instruction} (@ {}): {e}",
+                    (index * 2) + offset
+                )
+            })?;
             out.push(format!("{:05}: {instruction_parsed}", (index * 2) + offset));
         }
     }
