@@ -225,10 +225,13 @@ impl Context {
         // println!("pre-allocating code space for {code_size} bytes");
         let mut code_bytes: Vec<u8> = vec![0; code_size];
         for (offset, instructions) in functions_and_offsets {
+            // println!("writing function @ {offset}");
+            let local_offset = (offset - self.get_code_section_start()) as usize;
             for (index, ins) in instructions.iter().enumerate() {
+                // println!(" - {index} ({}) = {ins}", local_offset + index*2);
                 let raw_instruction = ins.encode_u16().to_le_bytes();
-                code_bytes[offset as usize + index] = raw_instruction[0];
-                code_bytes[offset as usize + index + 1] = raw_instruction[1];
+                code_bytes[local_offset + (index * 2)] = raw_instruction[0];
+                code_bytes[local_offset + (index * 2) + 1] = raw_instruction[1];
             }
         }
         let mut bin = BinaryFile::default();
@@ -260,6 +263,7 @@ impl Context {
         let header_size = bin.get_header_size();
         bin.sections.get_mut(0).unwrap().file_offset = header_size as u32;
         let static_data_start = header_size + code_bytes.len();
+        // println!("bin data extend: code_bytes @ {}", bin.data.len());
         bin.data.extend(code_bytes);
         if !static_data.is_empty() {
             bin.sections.get_mut(2).unwrap().file_offset = static_data_start as u32;
