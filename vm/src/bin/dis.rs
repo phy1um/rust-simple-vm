@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{stdin, BufReader, Read};
 use std::path::Path;
 
-use simplevm::Instruction;
+use simplevm::{binfmt::BinaryFile, Instruction};
 
 fn main() -> Result<(), String> {
     // ./asm file.asm
@@ -25,12 +25,17 @@ fn main() -> Result<(), String> {
     reader
         .read_to_end(&mut program)
         .map_err(|x| format!("read: {}", x))?;
+    let bin = BinaryFile::from_bytes(&program)?;
+    let code_section = bin.sections.get(0).unwrap();
+    let file_start = code_section.file_offset as usize - bin.get_header_size();
+    let file_end = file_start + (code_section.size as usize);
+    let code_slice = &bin.data[file_start..file_end];
     unsafe {
-        let (_, instructions, _) = program.align_to::<u16>();
+        let (_, instructions, _) = code_slice.align_to::<u16>();
         for (i, ins) in instructions.iter().enumerate() {
             let value =
                 Instruction::try_from(*ins).map_err(|x| format!("@ {}({:04X}): {}", i, ins, x))?;
-            println!("{value}")
+            println!("{:04}: {value}", (i as u32) + code_section.address)
         }
     }
 
