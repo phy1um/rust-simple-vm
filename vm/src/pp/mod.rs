@@ -466,7 +466,10 @@ impl TryFrom<PreProcessor> for BinaryFile {
                     Chunk::Lines(ls) => {
                         for line in ls {
                             let ins_res = line
-                                .resolve(&processor.labels)
+                                .resolve(
+                                    section.offset + (section_data.len() as u32),
+                                    &processor.labels,
+                                )
                                 .map_err(|e| Error::ResolveLine(line.to_string(), e))?;
                             if let Some(ins) = ins_res {
                                 section_data.extend_from_slice(&ins.encode_u16().to_le_bytes());

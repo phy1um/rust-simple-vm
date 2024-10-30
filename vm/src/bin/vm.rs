@@ -57,7 +57,7 @@ pub fn main() -> Result<(), String> {
     vm.set_register(Register::SP, 0x1000);
     vm.define_handler(0xf0, signal_halt);
     while !vm.is_halt() {
-        // println!("{}", vm.state());
+        println!("{}", vm.state());
         vm.step()?;
     }
     println!();

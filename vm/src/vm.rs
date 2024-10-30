@@ -113,7 +113,7 @@ impl VM {
         format!(
             "A: {} | B: {} | C: {} | M: {}
 SP: {} | PC: {} | BP: {}
-Flags: {:016b}",
+PC @ {}, Flags: {:016b}",
             self.get_register(Register::A),
             self.get_register(Register::B),
             self.get_register(Register::C),
@@ -121,6 +121,7 @@ Flags: {:016b}",
             self.get_register(Register::SP),
             self.get_register(Register::PC),
             self.get_register(Register::BP),
+            self.get_program_counter(),
             self.flags,
         )
     }
@@ -390,6 +391,10 @@ Flags: {:016b}",
                         let b = self.pop(sp)?;
                         self.push(sp, a.wrapping_sub(b))?;
                     }
+                    StackOp::PushPC => {
+                        // TODO: what if bigger than u16?
+                        self.push(sp, self.program_counter as u16)?;
+                    }
                 };
                 Ok(())
             }
@@ -398,6 +403,46 @@ Flags: {:016b}",
                 let addr = base - ((word_offset.value as u16) * 2);
                 let stack_value = self.memory.read2(addr as u32).map_err(|x| x.to_string())?;
                 self.set_register(tgt, stack_value);
+                Ok(())
+            }
+            Instruction::Jump(addr) => {
+                self.program_counter = (addr.value as u32) << 4;
+                self.set_flag(Flag::DidJump, true);
+                Ok(())
+            }
+            Instruction::JumpRegister(reg_page, reg_tgt) => {
+                let page = self.get_register(reg_page);
+                let addr = self.get_register(reg_tgt);
+                let full_addr = ((page as u32) << 16) + (addr as u32);
+                self.program_counter = full_addr;
+                self.set_flag(Flag::DidJump, true);
+                Ok(())
+            }
+            Instruction::BranchIf(offset) => {
+                if self.test_flag(Flag::Compare) {
+                    self.program_counter = self
+                        .program_counter
+                        .wrapping_add_signed(offset.as_signed() as i32);
+                    self.set_flag(Flag::DidJump, true);
+                    self.set_flag(Flag::Compare, false);
+                };
+                Ok(())
+            }
+            Instruction::Branch(offset) => {
+                self.program_counter = self
+                    .program_counter
+                    .wrapping_add_signed(offset.as_signed() as i32);
+                self.set_flag(Flag::DidJump, true);
+                Ok(())
+            }
+            Instruction::BranchRegisterIf(reg_offset, lit_offset) => {
+                if self.test_flag(Flag::Compare) {
+                    let offset =
+                        (self.get_register(reg_offset) as i32) + (lit_offset.as_signed() as i32);
+                    self.program_counter = self.program_counter.wrapping_add_signed(offset);
+                    self.set_flag(Flag::DidJump, true);
+                    self.set_flag(Flag::Compare, false);
+                };
                 Ok(())
             }
             Instruction::System(Register::Zero, reg_arg, signal) => {

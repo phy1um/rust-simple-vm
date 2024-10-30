@@ -211,6 +211,7 @@ pub enum StackOp {
     Rotate,
     Add,
     Sub,
+    PushPC,
 }
 
 impl TryFrom<u16> for StackOp {
@@ -225,6 +226,7 @@ impl TryFrom<u16> for StackOp {
             x if x == StackOp::Rotate as u16 => Ok(StackOp::Rotate),
             x if x == StackOp::Add as u16 => Ok(StackOp::Add),
             x if x == StackOp::Sub as u16 => Ok(StackOp::Sub),
+            x if x == StackOp::PushPC as u16 => Ok(StackOp::PushPC),
             _ => Err(format!("unknown stack op value {}", value)),
         }
     }

@@ -1,10 +1,11 @@
-use crate::{Instruction, Literal12Bit, Literal7Bit, Register};
+use crate::{Instruction, Literal10Bit, Literal12Bit, Literal7Bit, Register};
 use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum ResolveError {
     LiteralOutOfBounds { value: u32, min: u32, max: u32 },
+    UnalignedJump(String, u32),
     UnknownSymbol(String),
 }
 
@@ -14,6 +15,8 @@ pub enum UnresolvedInstruction {
     Imm(Register, String),
     AddImm(Register, String),
     AddImmSigned(Register, String),
+    Jump(String),
+    Branch(String),
     Label(String),
 }
 
@@ -24,6 +27,8 @@ impl fmt::Display for UnresolvedInstruction {
             Self::Imm(r, s) => write!(f, "Imm {r} !{s}"),
             Self::AddImm(r, s) => write!(f, "AddImm {r} !{s}"),
             Self::AddImmSigned(r, s) => write!(f, "AddImmSigned {r} !{s}"),
+            Self::Jump(s) => write!(f, "Jump !{s}"),
+            Self::Branch(s) => write!(f, "Branch !{s}"),
             Self::Label(s) => write!(f, ":{s}"),
         }
     }
@@ -32,6 +37,7 @@ impl fmt::Display for UnresolvedInstruction {
 impl UnresolvedInstruction {
     pub fn resolve(
         &self,
+        compiled_offset: u32,
         symbols: &HashMap<String, u32>,
     ) -> Result<Option<Instruction>, ResolveError> {
         match self {
@@ -71,6 +77,37 @@ impl UnresolvedInstruction {
                             max: 0x7f,
                         })
                         .map(|x| Some(Instruction::AddImmSigned(*reg, x)))
+                }),
+            Self::Jump(sym) => symbols
+                .get(sym)
+                .ok_or(ResolveError::UnknownSymbol(sym.to_string()))
+                .and_then(|v| {
+                    if *v % 16 != 0 {
+                        Err(ResolveError::UnalignedJump(sym.clone(), *v))
+                    } else {
+                        let shifted = *v >> 4;
+                        Literal10Bit::new_checked(shifted as u16)
+                            .map_err(|_| ResolveError::LiteralOutOfBounds {
+                                value: shifted,
+                                min: 0,
+                                max: 0x3ff,
+                            })
+                            .map(|x| Some(Instruction::Jump(x)))
+                    }
+                }),
+            Self::Branch(sym) => symbols
+                .get(sym)
+                .ok_or(ResolveError::UnknownSymbol(sym.to_string()))
+                .and_then(|v| {
+                    let offset = (*v as i32) - (compiled_offset as i32) + 4;
+                    // println!("calc offset {sym}: {} - {} = {}", *v, compiled_offset, offset);
+                    Literal10Bit::from_signed(offset as i16)
+                        .map_err(|_| ResolveError::LiteralOutOfBounds {
+                            value: *v,
+                            min: 0,
+                            max: 0x3ff,
+                        })
+                        .map(|x| Some(Instruction::Branch(x)))
                 }),
             Self::Label(_) => Ok(None),
         }

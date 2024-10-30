@@ -262,7 +262,7 @@ impl JSMachine {
                 .m
                 .vm
                 .memory
-                .read2(self.m.get_register(Register::PC) as u32)
+                .read2(self.m.get_program_counter() as u32)
                 .unwrap();
             let _ = f.call1(&this, &JsValue::from(ins));
         };
@@ -309,7 +309,7 @@ impl JSMachine {
         let bin_file = BinaryFile::from_bytes(bin)?;
         log(format!("loaded bin: {bin_file:?}"));
         bin_file.load_to_vm(&mut self.m)?;
-        self.m.set_register(Register::PC, bin_file.entrypoint);
+        self.m.set_program_counter(bin_file.entrypoint as u32);
         Ok(())
     }
 
@@ -325,6 +325,16 @@ impl JSMachine {
     #[wasm_bindgen(js_name = isHalt)]
     pub fn is_halt(&self) -> bool {
         self.m.is_halt()
+    }
+
+    #[wasm_bindgen(js_name = getProgramCounter)]
+    pub fn get_program_counter(&self) -> u32 {
+        self.m.get_program_counter()
+    }
+
+    #[wasm_bindgen(js_name = setProgramCounter)]
+    pub fn set_program_counter(&mut self, addr: u32) {
+        self.m.set_program_counter(addr);
     }
 }
 

@@ -95,14 +95,16 @@ pub enum Instruction {
     Stack(Register, Register, StackOp),
     #[opcode(0x15)]
     LoadStackOffset(Register, Register, Nibble),
-    /*
     #[opcode(0x16)]
     Jump(Literal10Bit),
     #[opcode(0x17)]
-    BranchIf(Literal10Bit),
+    JumpRegister(Register, Register),
     #[opcode(0x18)]
-    BranchRegIf(Register, Literal7Bit),
-    */
+    BranchIf(Literal10Bit),
+    #[opcode(0x19)]
+    Branch(Literal10Bit),
+    #[opcode(0x1a)]
+    BranchRegisterIf(Register, Literal7Bit),
     // Syscalls
     #[opcode(0x1f)]
     System(Register, Register, Nibble),
