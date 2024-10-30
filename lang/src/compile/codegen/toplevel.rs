@@ -208,10 +208,13 @@ pub fn compile(
     let mut program_offset = ctx.get_code_section_start();
     // function offset allocation pass
     for (name, block) in ctx.functions.iter_mut() {
-        let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
-        while program_offset % 16 != 0 {
-            program_offset += 1;
+        // TODO: this is a hack
+        if name != "_init" {
+            while program_offset % 16 != 0 {
+                program_offset += 1;
+            }
         }
+        let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
         offsets.insert(name.to_string(), program_offset);
         block.offset = program_offset;
         program_offset += block_size;
