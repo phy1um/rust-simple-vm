@@ -1,5 +1,5 @@
 use crate::compile::codegen::util::*;
-use log::{debug, error, trace};
+use log::{debug, trace};
 use std::collections::BTreeMap;
 use std::fmt;
 
