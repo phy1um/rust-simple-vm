@@ -107,6 +107,7 @@ impl VM {
         self.registers = [0; 8];
         self.flags = 0;
         self.halt = false;
+        self.program_counter = 0;
     }
 
     pub fn state(&self) -> String {
