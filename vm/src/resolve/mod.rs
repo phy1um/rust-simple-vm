@@ -99,8 +99,7 @@ impl UnresolvedInstruction {
                 .get(sym)
                 .ok_or(ResolveError::UnknownSymbol(sym.to_string()))
                 .and_then(|v| {
-                    let offset = (*v as i32) - (compiled_offset as i32) + 4;
-                    // println!("calc offset {sym}: {} - {} = {}", *v, compiled_offset, offset);
+                    let offset = (*v as i32) - (compiled_offset as i32);
                     Literal10Bit::from_signed(offset as i16)
                         .map_err(|_| ResolveError::LiteralOutOfBounds {
                             value: *v,
