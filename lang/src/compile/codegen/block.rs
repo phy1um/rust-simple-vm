@@ -1,5 +1,6 @@
 use crate::compile::codegen::expression::compile_expression;
 use crate::compile::codegen::util::*;
+use log::{debug, trace};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -17,15 +18,23 @@ use crate::compile::error::CompilerError;
 use crate::compile::resolve::{type_of, Symbol, Type};
 use crate::compile::util::*;
 
-pub(super) fn compile_block(
+struct CompiledBlock {
+    instructions: Vec<UnresolvedInstruction>,
+    state: State,
+}
+
+// TODO: make this return a state!!!!
+fn compile_block(
     ctx: &mut Context,
     mut scope: BlockScope,
     statements: Vec<ast::Statement>,
     state: State,
-) -> Result<Vec<UnresolvedInstruction>, CompilerError> {
+) -> Result<CompiledBlock, CompilerError> {
     let mut out = Vec::new();
     let mut state = state;
     for s in statements {
+        trace!("state => {state}");
+        trace!("compile statement: {s}");
         match s {
             ast::Statement::Break => {
                 if let Some(LoopLabels { ref bottom, .. }) = scope.loop_labels {
@@ -46,9 +55,12 @@ pub(super) fn compile_block(
                 let label_test = Symbol::new(&(block_identifier.to_string() + "_while_lbl_test"));
                 let label_out = Symbol::new(&(block_identifier + "_while_lbl_out"));
                 out.push(UnresolvedInstruction::Label(label_test.to_string()));
-                let res = compile_expression(ctx, &mut scope, &cond, state.clone())?;
-                out.extend(res.instructions);
-                if let ExpressionDestination::Register(r) = res.destination {
+                state.invalidate_all();
+                let while_res = compile_expression(ctx, &mut scope, &cond, state.clone())?;
+                out.extend(while_res.instructions);
+                // forget any state change
+                // state = res.state;
+                if let ExpressionDestination::Register(r) = while_res.destination {
                     out.push(UnresolvedInstruction::Instruction(Instruction::Test(
                         r,
                         Register::Zero,
@@ -72,9 +84,13 @@ pub(super) fn compile_block(
                 )));
                 out.push(UnresolvedInstruction::Branch(label_out.to_string()));
                 let child_scope = scope.child_in_loop(label_test.clone(), label_out.clone());
-                out.append(&mut compile_block(ctx, child_scope, body, state.clone())?);
+                let res = compile_block(ctx, child_scope, body, state.clone())?;
+                out.extend(res.instructions);
+                // do not remember state changes
+                // state = res.state;
                 out.push(UnresolvedInstruction::Branch(label_test.to_string()));
                 out.push(UnresolvedInstruction::Label(label_out.to_string()));
+                state = while_res.state;
             }
             ast::Statement::If {
                 cond,
@@ -86,6 +102,7 @@ pub(super) fn compile_block(
                 let label_out = Symbol::new(&(block_identifier + "_if_lbl_out"));
                 let res = compile_expression(ctx, &mut scope, &cond, state.clone())?;
                 out.extend(res.instructions);
+                state = res.state;
                 // test if condition is FALSY
                 if let ExpressionDestination::Register(r) = res.destination {
                     out.push(UnresolvedInstruction::Instruction(Instruction::Test(
@@ -94,7 +111,7 @@ pub(super) fn compile_block(
                         TestOp::BothZero,
                     )));
                 } else {
-                    let temp_reg = res.state.get_temp().unwrap();
+                    let temp_reg = state.get_temp().unwrap();
                     out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
                         temp_reg,
                         Register::SP,
@@ -113,13 +130,17 @@ pub(super) fn compile_block(
                 // condition == FALSE
                 if let Some(b) = else_body {
                     let child_scope = scope.child();
-                    out.append(&mut compile_block(ctx, child_scope, b, state.clone())?);
+                    let res = compile_block(ctx, child_scope, b, state.clone())?;
+                    out.extend(res.instructions);
+                    state = res.state;
                 };
                 out.push(UnresolvedInstruction::Branch(label_out.to_string()));
                 // condition == TRUE
                 out.push(UnresolvedInstruction::Label(label_true.to_string()));
                 let child_scope = scope.child();
-                out.append(&mut compile_block(ctx, child_scope, body, state.clone())?);
+                let res = compile_block(ctx, child_scope, body, state.clone())?;
+                out.extend(res.instructions);
+                state = res.state;
                 out.push(UnresolvedInstruction::Branch(label_out.to_string()));
                 out.push(UnresolvedInstruction::Label(label_out.to_string()));
             }
@@ -150,6 +171,7 @@ pub(super) fn compile_block(
                 // put expression on top of stack
                 let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
                 out.extend(res.instructions);
+                state = res.state;
                 if let ExpressionDestination::Register(r) = res.destination {
                     assign_from_register_to_local(
                         &mut out,
@@ -189,6 +211,7 @@ pub(super) fn compile_block(
                     match bv {
                         BlockVariable::Local(offset, ty) => {
                             let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                            state = res.state;
                             out.extend(res.instructions);
                             if let ExpressionDestination::Register(r) = res.destination {
                                 assign_from_register_to_local(
@@ -220,6 +243,7 @@ pub(super) fn compile_block(
                                 });
                             }
                             let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
+                            state = res.state;
                             out.extend(res.instructions);
                             if let ExpressionDestination::Register(r) = res.destination {
                                 assign_from_register_to_arg(&mut out, index as u8, r, &mut state);
@@ -243,6 +267,7 @@ pub(super) fn compile_block(
 
                             let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
                             out.extend(res.instructions);
+                            state = res.state;
                             if let ExpressionDestination::Register(r) = res.destination {
                                 let addr_reg = state.get_temp().unwrap();
                                 out.extend(load_address_to(addr, addr_reg, Register::M));
@@ -271,12 +296,9 @@ pub(super) fn compile_block(
                     lhs: ast::Expression::BinOp(Box::new(lhs), Box::new(index), ast::BinOp::Add),
                     rhs,
                 };
-                out.extend(compile_block(
-                    ctx,
-                    scope.child(),
-                    vec![new_statement],
-                    state.clone(),
-                )?);
+                let res = compile_block(ctx, scope.child(), vec![new_statement], state.clone())?;
+                out.extend(res.instructions);
+                state = res.state;
             }
             ast::Statement::AssignDeref { lhs, rhs } => {
                 // TODO: check we can assign
@@ -286,7 +308,7 @@ pub(super) fn compile_block(
                     let res_value = compile_expression(ctx, &mut scope, &rhs, res_addr.state)?;
                     out.extend(res_addr.instructions);
                     out.extend(res_value.instructions);
-                    let mut state = res_value.state;
+                    state = res_value.state;
                     if res_addr.destination == ExpressionDestination::Stack
                         && res_value.destination == ExpressionDestination::Stack
                     {
@@ -309,13 +331,25 @@ pub(super) fn compile_block(
                             if let ExpressionDestination::Register(r) = res_addr.destination {
                                 r
                             } else {
-                                state.get_temp().unwrap()
+                                let temp = state.get_temp().unwrap();
+                                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                                    temp,
+                                    Register::SP,
+                                    StackOp::Pop,
+                                )));
+                                temp
                             };
                         let reg_value =
                             if let ExpressionDestination::Register(r) = res_value.destination {
                                 r
                             } else {
-                                state.get_temp().unwrap()
+                                let temp = state.get_temp().unwrap();
+                                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                                    temp,
+                                    Register::SP,
+                                    StackOp::Pop,
+                                )));
+                                temp
                             };
                         write_value(&mut out, &pointed_type, reg_value, reg_addr);
                     }
@@ -324,9 +358,10 @@ pub(super) fn compile_block(
                 }
             }
             ast::Statement::AssignStructField { fields, rhs } => {
-                // println!("asssign struct field: {fields:?} = {rhs}");
+                debug!("asssign struct field: {fields:?} = {rhs}");
                 let compiled_expr = compile_expression(ctx, &mut scope, &rhs, state.clone())?;
                 out.extend(compiled_expr.instructions);
+                state = compiled_expr.state;
                 if fields.is_empty() {
                     panic!("unreachable");
                 }
@@ -361,6 +396,7 @@ pub(super) fn compile_block(
             ast::Statement::Return(expr) => {
                 let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
                 out.extend(res.instructions);
+                state = res.state;
                 // return in the A register
                 if let ExpressionDestination::Register(r) = res.destination {
                     if r != Register::A {
@@ -381,6 +417,7 @@ pub(super) fn compile_block(
             ast::Statement::Expression(expr) => {
                 let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
                 out.extend(res.instructions);
+                state = res.state;
                 if ExpressionDestination::Stack == res.destination {
                     // forget what we just did
                     out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -392,7 +429,10 @@ pub(super) fn compile_block(
             }
         }
     }
-    Ok(out)
+    Ok(CompiledBlock {
+        instructions: out,
+        state: state,
+    })
 }
 
 pub(super) fn compile_body(
@@ -415,10 +455,10 @@ pub(super) fn compile_body(
         .instructions
         .push(UnresolvedInstruction::AddImm(Register::SP, local_count_sym));
     let cell = Rc::new(RefCell::new(block));
-    let mut compiled = compile_block(ctx, BlockScope::new(cell.clone()), statements, state)?;
+    let res = compile_block(ctx, BlockScope::new(cell.clone()), statements, state)?;
     {
         let mut block = cell.take();
-        block.instructions.append(&mut compiled);
+        block.instructions.extend(res.instructions);
         // function exit
         // load return address -> C
         block.instructions.push(UnresolvedInstruction::Instruction(
@@ -462,10 +502,15 @@ pub(super) fn compile_body(
 }
 
 fn update_variable_register(name: &str, new_reg: Register, state: &mut State) {
+    debug!("update var {name} register: {new_reg}");
     if let Some(current_reg) = state.get_variable_register(name) {
         if new_reg != current_reg {
+            debug!("update var {name} register: invalidate {current_reg}");
             state.invalidate(current_reg);
         }
     }
-    state.set_variable_register(name, new_reg).unwrap();
+    state.invalidate(new_reg);
+    state
+        .set_variable_register(name, new_reg)
+        .expect(&format!("update var name={name}, reg={new_reg}"));
 }

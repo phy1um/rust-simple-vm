@@ -1,3 +1,5 @@
+use simplelog::*;
+
 use lang::compile::compile;
 use lang::language::*;
 
@@ -11,6 +13,13 @@ use std::path::Path;
 const LOADED_PROGRAM_OFFSET: u32 = 0x0;
 
 fn main() -> Result<(), String> {
+    TermLogger::init(
+        LevelFilter::Trace,
+        Config::default(),
+        TerminalMode::Stderr,
+        ColorChoice::Auto,
+    )
+    .unwrap();
     let args = process_cli(&env::args().collect::<Vec<_>>())
         .map_err(|x| format!("processing cli: {x}"))?;
     if !args.validate() {
