@@ -74,13 +74,13 @@ pub fn run_program(program: &str) -> Result<Machine, String> {
 
 fn error_with_context(vm: &Machine, s: &str) -> String {
     format!(
-        "!! VM ERROR !!: {s} @ {}\nA: {} | B: {} | C: {} | M: {} |\n PC: {} | BP: {} | SP: {}",
+        "!! VM ERROR !!: {s} @ {}\nA: {} | B: {} | C: {} | D: {} \nM: {} | BP: {} | SP: {}",
         vm.get_program_counter(),
         vm.get_register(Register::A),
         vm.get_register(Register::B),
         vm.get_register(Register::C),
+        vm.get_register(Register::D),
         vm.get_register(Register::M),
-        vm.get_register(Register::PC),
         vm.get_register(Register::BP),
         vm.get_register(Register::SP),
     )
