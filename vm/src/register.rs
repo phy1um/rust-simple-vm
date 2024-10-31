@@ -22,7 +22,7 @@ pub enum Register {
     C,
     M,
     SP,
-    PC,
+    D,
     BP,
 }
 
@@ -36,7 +36,7 @@ pub enum Register {
     C,
     M,
     SP,
-    PC,
+    D,
     BP,
 }
 
@@ -48,7 +48,7 @@ impl Register {
             x if x == Register::C as u8 => Some(Register::C),
             x if x == Register::M as u8 => Some(Register::M),
             x if x == Register::SP as u8 => Some(Register::SP),
-            x if x == Register::PC as u8 => Some(Register::PC),
+            x if x == Register::D as u8 => Some(Register::D),
             x if x == Register::BP as u8 => Some(Register::BP),
             x if x == Register::Zero as u8 => Some(Register::Zero),
             _ => None,
@@ -89,7 +89,7 @@ impl fmt::Display for Register {
             Self::M => write!(f, "M"),
             Self::SP => write!(f, "SP"),
             Self::BP => write!(f, "BP"),
-            Self::PC => write!(f, "PC"),
+            Self::D => write!(f, "D"),
             Self::Zero => write!(f, "Zero"),
         }
     }
@@ -105,7 +105,7 @@ impl FromStr for Register {
             "M" => Ok(Register::M),
             "SP" => Ok(Register::SP),
             "BP" => Ok(Register::BP),
-            "PC" => Ok(Register::PC),
+            "D" => Ok(Register::D),
             "Zero" => Ok(Register::Zero),
             _ => Err(format!("unknown register {}", s)),
         }
@@ -124,7 +124,7 @@ mod test {
         assert_eq!(Register::C as u16, 3);
         assert_eq!(Register::M as u16, 4);
         assert_eq!(Register::SP as u16, 5);
-        assert_eq!(Register::PC as u16, 6);
+        assert_eq!(Register::D as u16, 6);
         assert_eq!(Register::BP as u16, 7);
     }
 }

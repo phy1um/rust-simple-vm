@@ -112,15 +112,15 @@ impl VM {
 
     pub fn state(&self) -> String {
         format!(
-            "A: {} | B: {} | C: {} | M: {}
-SP: {} | PC: {} | BP: {}
+            "A: {} | B: {} | C: {} | D: {}
+SP: {} | M: {} | BP: {}
 PC @ {}, Flags: {:016b}",
             self.get_register(Register::A),
             self.get_register(Register::B),
             self.get_register(Register::C),
+            self.get_register(Register::D),
             self.get_register(Register::M),
             self.get_register(Register::SP),
-            self.get_register(Register::PC),
             self.get_register(Register::BP),
             self.get_program_counter(),
             self.flags,
