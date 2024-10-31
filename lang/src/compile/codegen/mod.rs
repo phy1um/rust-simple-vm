@@ -1,5 +1,6 @@
 mod block;
 mod expression;
+mod optimize;
 mod toplevel;
 mod util;
 

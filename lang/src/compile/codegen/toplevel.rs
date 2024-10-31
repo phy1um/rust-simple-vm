@@ -1,4 +1,5 @@
 use crate::compile::codegen::block::compile_body;
+use crate::compile::codegen::optimize::optimize_function;
 
 use std::collections::HashMap;
 
@@ -210,6 +211,7 @@ pub fn compile(
                 program_offset += 1;
             }
         }
+        optimize_function(block);
         let block_size: u32 = block.instructions.iter().map(|x| x.size()).sum();
         offsets.insert(name.to_string(), program_offset);
         block.offset = program_offset;
