@@ -209,16 +209,16 @@ pub fn compile_expression(
                     StackOp::Push,
                 )),
                 UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::PC,
+                    Register::Zero,
                     Register::SP,
-                    StackOp::Push,
+                    StackOp::PushPC,
                 )),
                 UnresolvedInstruction::Instruction(Instruction::Add(
                     Register::BP,
                     Register::SP,
                     Register::Zero,
                 )),
-                UnresolvedInstruction::Imm(Register::PC, id.0.to_string()),
+                UnresolvedInstruction::Jump(id.0.to_string()),
                 // functions return in register A, so push this
                 UnresolvedInstruction::Instruction(Instruction::Stack(
                     Register::A,

@@ -156,12 +156,14 @@ impl Context {
         let mut out = Vec::new();
         for (_, func) in &self.functions {
             let mut function_instructions = Vec::new();
-            for ins in &func.instructions {
+            let mut ins_offset = 0;
+            for ins in func.instructions.iter() {
                 if let Some(c) = ins
-                    .resolve(&self.symbols)
+                    .resolve(ins_offset + func.offset, &self.symbols)
                     .map_err(|e| CompilerError::InstructionResolve(format!("{e:?}")))?
                 {
                     function_instructions.push(c);
+                    ins_offset += 2;
                 }
             }
             out.push((func.offset, function_instructions));

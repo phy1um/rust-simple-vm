@@ -5,7 +5,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use simplevm::{
-    resolve::UnresolvedInstruction, Instruction, Literal7Bit, Nibble, Register, StackOp, TestOp,
+    resolve::UnresolvedInstruction, Instruction, Literal10Bit, Literal7Bit, Nibble, Register,
+    StackOp, TestOp,
 };
 
 use crate::ast;
@@ -25,14 +26,14 @@ pub(super) fn compile_block(
         match s {
             ast::Statement::Break => {
                 if let Some(LoopLabels { ref bottom, .. }) = scope.loop_labels {
-                    out.push(UnresolvedInstruction::Imm(Register::PC, bottom.to_string()));
+                    out.push(UnresolvedInstruction::Branch(bottom.to_string()));
                 } else {
                     return Err(CompilerError::BreakNotInLoop);
                 }
             }
             ast::Statement::Continue => {
                 if let Some(LoopLabels { ref top, .. }) = scope.loop_labels {
-                    out.push(UnresolvedInstruction::Imm(Register::PC, top.to_string()));
+                    out.push(UnresolvedInstruction::Branch(top.to_string()));
                 } else {
                     return Err(CompilerError::ContinueNotInLoop);
                 }
@@ -54,21 +55,13 @@ pub(super) fn compile_block(
                     Register::Zero,
                     TestOp::EitherNonZero,
                 )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::AddIf(
-                    Register::PC,
-                    Register::PC,
-                    Nibble::new_checked(2).unwrap(),
+                out.push(UnresolvedInstruction::Instruction(Instruction::BranchIf(
+                    Literal10Bit::new_checked(4).unwrap(),
                 )));
-                out.push(UnresolvedInstruction::Imm(
-                    Register::PC,
-                    label_out.to_string(),
-                ));
+                out.push(UnresolvedInstruction::Branch(label_out.to_string()));
                 let child_scope = scope.child_in_loop(label_test.clone(), label_out.clone());
                 out.append(&mut compile_block(ctx, child_scope, body)?);
-                out.push(UnresolvedInstruction::Imm(
-                    Register::PC,
-                    label_test.to_string(),
-                ));
+                out.push(UnresolvedInstruction::Branch(label_test.to_string()));
                 out.push(UnresolvedInstruction::Label(label_out.to_string()));
             }
             ast::Statement::If {
@@ -92,32 +85,21 @@ pub(super) fn compile_block(
                     Register::Zero,
                     TestOp::BothZero,
                 )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::AddIf(
-                    Register::PC,
-                    Register::PC,
-                    Nibble::new_checked(2).unwrap(),
+                out.push(UnresolvedInstruction::Instruction(Instruction::BranchIf(
+                    Literal10Bit::new_checked(4).unwrap(),
                 )));
-                out.push(UnresolvedInstruction::Imm(
-                    Register::PC,
-                    label_true.to_string(),
-                ));
+                out.push(UnresolvedInstruction::Branch(label_true.to_string()));
                 // condition == FALSE
                 if let Some(b) = else_body {
                     let child_scope = scope.child();
                     out.append(&mut compile_block(ctx, child_scope, b)?);
                 };
-                out.push(UnresolvedInstruction::Imm(
-                    Register::PC,
-                    label_out.to_string(),
-                ));
+                out.push(UnresolvedInstruction::Branch(label_out.to_string()));
                 // condition == TRUE
                 out.push(UnresolvedInstruction::Label(label_true.to_string()));
                 let child_scope = scope.child();
                 out.append(&mut compile_block(ctx, child_scope, body)?);
-                out.push(UnresolvedInstruction::Imm(
-                    Register::PC,
-                    label_out.to_string(),
-                ));
+                out.push(UnresolvedInstruction::Branch(label_out.to_string()));
                 out.push(UnresolvedInstruction::Label(label_out.to_string()));
             }
             ast::Statement::Declare(id, t, Some(expr)) => {
@@ -373,13 +355,9 @@ pub(super) fn compile_body(
                 Register::C,
                 Literal7Bit::new_checked(6).unwrap(),
             )));
-        block
-            .instructions
-            .push(UnresolvedInstruction::Instruction(Instruction::Add(
-                Register::PC,
-                Register::C,
-                Register::Zero,
-            )));
+        block.instructions.push(UnresolvedInstruction::Instruction(
+            Instruction::JumpRegister(Register::Zero, Register::C),
+        ));
         Ok(block)
     }
 }

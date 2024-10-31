@@ -36,16 +36,16 @@ pub fn compile(
             StackOp::Push,
         )),
         UnresolvedInstruction::Instruction(Instruction::Stack(
-            Register::PC,
+            Register::Zero,
             Register::SP,
-            StackOp::Push,
+            StackOp::PushPC,
         )),
         UnresolvedInstruction::Instruction(Instruction::Add(
             Register::BP,
             Register::SP,
             Register::Zero,
         )),
-        UnresolvedInstruction::Imm(Register::PC, "main".to_string()),
+        UnresolvedInstruction::Jump("main".to_string()),
         UnresolvedInstruction::Instruction(Instruction::Imm(
             Register::C,
             Literal12Bit::new_checked(0xf0).unwrap(),
@@ -181,13 +181,9 @@ pub fn compile(
                         Register::C,
                         Literal7Bit::new_checked(6).unwrap(),
                     )));
-                block
-                    .instructions
-                    .push(UnresolvedInstruction::Instruction(Instruction::Add(
-                        Register::PC,
-                        Register::C,
-                        Register::Zero,
-                    )));
+                block.instructions.push(UnresolvedInstruction::Instruction(
+                    Instruction::JumpRegister(Register::Zero, Register::C),
+                ));
 
                 // TODO: copy this for function defs rather than lookup in compile_body
                 for (name, arg_type) in args {
@@ -220,7 +216,7 @@ pub fn compile(
         program_offset += block_size;
     }
     for (_, block) in ctx.functions.clone() {
-        block.register_labels(&mut ctx, program_offset);
+        block.register_labels(&mut ctx, block.offset);
     }
     for (name, offset) in offsets {
         ctx.define(&Symbol::new(&name), offset);
