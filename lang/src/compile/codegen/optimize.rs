@@ -68,21 +68,21 @@ fn remove_noops(block: &mut Block) {
                 }
             }
             UnresolvedInstruction::Instruction(Instruction::ShiftLeft(tgt, a, n)) => {
-                if (tgt == a && n.value == 0) {
+                if tgt == a && n.value == 0 {
                     None
                 } else {
                     Some(instruction)
                 }
             }
             UnresolvedInstruction::Instruction(Instruction::ShiftRightLogical(tgt, a, n)) => {
-                if (tgt == a && n.value == 0) {
+                if tgt == a && n.value == 0 {
                     None
                 } else {
                     Some(instruction)
                 }
             }
             UnresolvedInstruction::Instruction(Instruction::ShiftRightArithmetic(tgt, a, n)) => {
-                if (tgt == a && n.value == 0) {
+                if tgt == a && n.value == 0 {
                     None
                 } else {
                     Some(instruction)
