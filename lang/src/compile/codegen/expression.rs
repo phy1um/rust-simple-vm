@@ -102,6 +102,7 @@ impl State {
     }
 
     pub(crate) fn set_intermediate(&mut self, r: Register) {
+        // TODO: check for temp?
         self.registers.insert(r, RegisterState::Intermediate);
     }
 
@@ -118,6 +119,7 @@ impl State {
         name: &str,
         r: Register,
     ) -> Result<(), RegisterStateError> {
+        trace!("try set variable {name} in register {r}: {self}");
         match self.registers.get(&r) {
             Some(RegisterState::Free) => {
                 self.registers
@@ -129,7 +131,10 @@ impl State {
                     .insert(r, RegisterState::Variable(name.to_string()));
                 Ok(())
             }
-            Some(RegisterState::Temporary) => Ok(()),
+            Some(RegisterState::Temporary) => {
+                trace!("register {r} is temp, no set {name}");
+                Ok(())
+            }
             Some(RegisterState::Variable(other)) => {
                 trace!("set register state {r}: variable {other} => {name}");
                 if name != other {
@@ -155,6 +160,7 @@ impl State {
     }
 
     pub(crate) fn reserve_temporaries(&mut self, n: u32) {
+        return;
         let temp_count: u32 = self
             .registers
             .values()
@@ -486,6 +492,12 @@ pub fn compile_expression(
             }
             let mut out = Vec::new();
             let mut state = state;
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                Register::A,
+                Register::SP,
+                StackOp::Push,
+            )));
+
             // TODO: check # args correct
             for a in args.iter().rev() {
                 let res = compile_expression(ctx, scope, a, state.clone())?;
@@ -499,8 +511,9 @@ pub fn compile_expression(
                 }
                 state = res.state;
             }
+            let a_state = state.registers.get(&Register::A).unwrap().clone();
             state.invalidate_all();
-            out.append(&mut vec![
+            out.extend(vec![
                 UnresolvedInstruction::Instruction(Instruction::Stack(
                     Register::BP,
                     Register::SP,
@@ -517,13 +530,24 @@ pub fn compile_expression(
                     Register::Zero,
                 )),
                 UnresolvedInstruction::Jump(id.0.to_string()),
+                UnresolvedInstruction::Instruction(Instruction::Stack(
+                    Register::A,
+                    Register::SP,
+                    StackOp::Push,
+                )),
+                UnresolvedInstruction::Instruction(Instruction::Stack(
+                    Register::Zero,
+                    Register::SP,
+                    StackOp::Swap,
+                )),
+                UnresolvedInstruction::Instruction(Instruction::Stack(
+                    Register::A,
+                    Register::SP,
+                    StackOp::Pop,
+                )),
             ]);
-            state.set_intermediate(Register::A);
-            Ok(ExprRes::from_instructions(
-                out,
-                state,
-                ExpressionDestination::Register(Register::A),
-            ))
+            state.registers.insert(Register::A, a_state);
+            Ok(ExprRes::from_instructions_stack(out, state))
         }
         ast::Expression::BinOp(e0, e1, op) => {
             let res_rhs = compile_expression(ctx, scope, e1, state.clone())?;

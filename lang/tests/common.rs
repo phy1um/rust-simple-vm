@@ -44,6 +44,9 @@ pub fn build_machine(program: &str) -> Result<Machine, String> {
     vm.define_handler(SIGHALT, signal_halt);
 
     let prog = parse_ast(program).unwrap();
+    for p in &prog {
+        println!("{p}");
+    }
     let res = compile(prog, 0).unwrap();
     println!("{res}");
     let bin = res.to_binary()?;
