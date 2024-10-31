@@ -33,7 +33,7 @@ impl State {
                 (Register::B, RegisterState::default()),
                 // we must have at least 1 temporary register
                 (Register::C, RegisterState::Temporary),
-                (Register::M, RegisterState::Temporary),
+                (Register::D, RegisterState::Temporary),
             ]),
         }
     }
