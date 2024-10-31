@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use simplevm::{
     resolve::UnresolvedInstruction, Instruction, Literal12Bit, Literal7Bit, Nibble, Register,
-    StackOp,
+    StackOp, TestOp,
 };
 
 use crate::ast;
@@ -197,7 +197,7 @@ pub struct ExprRes {
 }
 
 impl ExprRes {
-    fn from_instructions(
+    pub(crate) fn from_instructions(
         instructions: Vec<UnresolvedInstruction>,
         state: State,
         destination: ExpressionDestination,
@@ -209,7 +209,10 @@ impl ExprRes {
         }
     }
 
-    fn from_instructions_stack(instructions: Vec<UnresolvedInstruction>, state: State) -> Self {
+    pub(crate) fn from_instructions_stack(
+        instructions: Vec<UnresolvedInstruction>,
+        state: State,
+    ) -> Self {
         Self {
             instructions,
             state,
@@ -428,6 +431,13 @@ pub fn compile_expression(
             for a in args.iter().rev() {
                 let res = compile_expression(ctx, scope, a, state.clone())?;
                 out.extend(res.instructions);
+                if let ExpressionDestination::Register(r) = res.destination {
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        r,
+                        Register::SP,
+                        StackOp::Push,
+                    )));
+                }
                 state = res.state;
             }
             out.append(&mut vec![
@@ -488,16 +498,13 @@ pub fn compile_expression(
                     binop_mul(out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state.clone())
                 }
                 ast::BinOp::LessThanEqual => {
-                    // binop_compare(Register::B, Register::C, TestOp::Lte)
-                    todo!("needs 2 temp registers");
+                    binop_compare(out, &res_rhs, &res_lhs, TestOp::Lte, state.clone())
                 }
                 ast::BinOp::GreaterThan => {
-                    //  binop_compare(Register::B, Register::C, TestOp::Gt)
-                    todo!("needs 2 temp registers");
+                    binop_compare(out, &res_rhs, &res_lhs, TestOp::Gt, state.clone())
                 }
                 ast::BinOp::LessThan => {
-                    // binop_compare(Register::B, Register::C, TestOp::Lt)
-                    todo!("needs 2 temp registers");
+                    binop_compare(out, &res_rhs, &res_lhs, TestOp::Lt, state.clone())
                 }
                 _ => panic!("unimplemented binop {op}"),
             }
@@ -523,17 +530,18 @@ pub fn compile_expression(
             // get addr of field
             get_stack_field_offset(&mut out, fields, var_type, &head_var, Register::C)?;
 
+            let t0 = state.get_temp().unwrap();
             // deref
             if expr_type.size_bytes() == 1 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadByte(
-                    Register::C,
-                    Register::C,
+                    t0,
+                    t0,
                     Register::Zero,
                 )));
             } else if expr_type.size_bytes() == 2 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
-                    Register::C,
-                    Register::C,
+                    t0,
+                    t0,
                     Register::Zero,
                 )));
             } else {
@@ -542,7 +550,7 @@ pub fn compile_expression(
 
             // push
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
+                t0,
                 Register::SP,
                 StackOp::Push,
             )));
@@ -675,18 +683,53 @@ fn binop_arith(
 }
 
 fn binop_mul(
-    mut _out: Vec<UnresolvedInstruction>,
+    mut out: Vec<UnresolvedInstruction>,
     rhs: &ExprRes,
     lhs: &ExprRes,
     _lhs_type: &Type,
     _rhs_type: &Type,
     mut state: State,
 ) -> Result<ExprRes, CompilerError> {
-    let mut out = Vec::new();
     let ops_on_stack = rhs.destination == ExpressionDestination::Stack
         && lhs.destination == ExpressionDestination::Stack;
     if ops_on_stack {
-        todo!("need 2 temp registers");
+        state.reserve_temporaries(2);
+        let (t0, t1) = state.get_temp_pair().unwrap();
+        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+            t0,
+            Register::SP,
+            StackOp::Pop,
+        )));
+        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+            t1,
+            Register::SP,
+            StackOp::Pop,
+        )));
+        state.reserve_temporaries(1);
+        if let Some(rt) = state.get_free() {
+            out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
+                rt, t0, t1,
+            )));
+            Ok(ExprRes::from_instructions(
+                out,
+                state,
+                ExpressionDestination::Register(rt),
+            ))
+        } else {
+            out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
+                t0, t0, t1,
+            )));
+            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                t0,
+                Register::SP,
+                StackOp::Push,
+            )));
+            Ok(ExprRes::from_instructions(
+                out,
+                state,
+                ExpressionDestination::Stack,
+            ))
+        }
     } else {
         let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
             r
@@ -710,7 +753,6 @@ fn binop_mul(
             )));
             r
         };
-        let _rt = state.get_temp().unwrap();
         out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
             r0, r0, r1,
         )));

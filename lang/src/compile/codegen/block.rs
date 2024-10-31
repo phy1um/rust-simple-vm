@@ -75,19 +75,28 @@ pub(super) fn compile_block(
                 let block_identifier = gensym(rand::thread_rng());
                 let label_true = Symbol::new(&(block_identifier.to_string() + "_if_lbl_true"));
                 let label_out = Symbol::new(&(block_identifier + "_if_lbl_out"));
-                let mut compiled_cond = compile_expression(ctx, &mut scope, &cond, state.clone())?;
-                out.append(&mut compiled_cond.instructions);
+                let res = compile_expression(ctx, &mut scope, &cond, state.clone())?;
+                out.extend(res.instructions);
                 // test if condition is FALSY
-                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::C,
-                    Register::SP,
-                    StackOp::Pop,
-                )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::Test(
-                    Register::C,
-                    Register::Zero,
-                    TestOp::BothZero,
-                )));
+                if let ExpressionDestination::Register(r) = res.destination {
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Test(
+                        r,
+                        Register::Zero,
+                        TestOp::BothZero,
+                    )));
+                } else {
+                    let temp_reg = res.state.get_temp().unwrap();
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        temp_reg,
+                        Register::SP,
+                        StackOp::Pop,
+                    )));
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Test(
+                        temp_reg,
+                        Register::Zero,
+                        TestOp::BothZero,
+                    )));
+                }
                 out.push(UnresolvedInstruction::Instruction(Instruction::BranchIf(
                     Literal10Bit::new_checked(4).unwrap(),
                 )));
