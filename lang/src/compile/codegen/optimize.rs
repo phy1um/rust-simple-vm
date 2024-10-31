@@ -8,26 +8,50 @@ pub(crate) fn optimize_function(block: &mut Block) {
 
 fn stack_shuffle(block: &mut Block) {
     let mut new_instructions = Vec::new();
-    let mut last_push = None;
+    let mut last_push: Option<(Register, Register)> = None;
     for instruction in &block.instructions {
         if let UnresolvedInstruction::Instruction(Instruction::Stack(tgt, sp, op)) = instruction {
             if *op == StackOp::Push {
-                last_push = Some((tgt, sp));
+                if let Some((pt, psp)) = last_push {
+                    new_instructions.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        pt,
+                        psp,
+                        StackOp::Push,
+                    )));
+                }
+                last_push = Some((*tgt, *sp));
             } else if *op == StackOp::Pop {
                 if let Some((prev_tgt, prev_sp)) = last_push {
-                    if prev_tgt != tgt || prev_sp != sp {
+                    if prev_tgt != *tgt || prev_sp != *sp {
                         new_instructions.push(UnresolvedInstruction::Instruction(
-                            Instruction::Stack(*prev_tgt, *prev_sp, StackOp::Push),
+                            Instruction::Stack(prev_tgt, prev_sp, StackOp::Push),
                         ));
                         new_instructions.push(instruction.clone());
                     }
                     last_push = None;
+                } else {
+                    last_push = None;
+                    new_instructions.push(instruction.clone());
                 }
             } else {
+                if let Some((pt, psp)) = last_push {
+                    new_instructions.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        pt,
+                        psp,
+                        StackOp::Push,
+                    )));
+                }
                 last_push = None;
                 new_instructions.push(instruction.clone());
             }
         } else {
+            if let Some((pt, psp)) = last_push {
+                new_instructions.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                    pt,
+                    psp,
+                    StackOp::Push,
+                )));
+            }
             last_push = None;
             new_instructions.push(instruction.clone());
         }
