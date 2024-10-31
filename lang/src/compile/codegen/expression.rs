@@ -35,6 +35,12 @@ impl State {
         }
     }
 
+    fn invalidate_all(&mut self) {
+        for reg in self.registers.clone().keys() {
+            self.invalidate(*reg)
+        }
+    }
+
     pub(crate) fn invalidate(&mut self, r: Register) {
         match self.registers.get(&r) {
             Some(RegisterState::Temporary) => {}
@@ -155,7 +161,12 @@ impl State {
                 if let Some(r) = self.get_free() {
                     self.set_temp(r, true);
                 } else {
-                    todo!("out of free");
+                    self.invalidate_all();
+                    if let Some(r) = self.get_free() {
+                        self.set_temp(r, true);
+                    } else {
+                        panic!("out of free registers");
+                    }
                 }
             }
         }
@@ -355,34 +366,40 @@ pub fn compile_expression(
                 return Err(CompilerError::DerefInvalidType(inner_type));
             }
             let mut out = Vec::new();
-            let res = compile_expression(ctx, scope, e, state)?;
+            let res = compile_expression(ctx, scope, e, state.clone())?;
             out.extend(res.instructions);
-            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
-                Register::SP,
-                StackOp::Pop,
-            )));
+            let temp_reg = if let ExpressionDestination::Register(r) = res.destination {
+                r
+            } else {
+                let t0 = res.state.get_free().unwrap();
+                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                    t0,
+                    Register::SP,
+                    StackOp::Pop,
+                )));
+                t0
+            };
             let pointed_type = match inner_type {
                 Type::Pointer(p) => p,
                 _ => panic!("we already asserted this was a pointer"),
             };
             if pointed_type.size_bytes() == 1 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadByte(
-                    Register::C,
-                    Register::C,
+                    temp_reg,
+                    temp_reg,
                     Register::Zero,
                 )));
             } else if pointed_type.size_bytes() == 2 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadWord(
-                    Register::C,
-                    Register::C,
+                    temp_reg,
+                    temp_reg,
                     Register::Zero,
                 )));
             } else {
                 todo!("i don't know how to handle this case");
             }
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
+                temp_reg,
                 Register::SP,
                 StackOp::Push,
             )));
@@ -475,37 +492,24 @@ pub fn compile_expression(
             // stack = [rv0, rv1]
             let lhs_type = type_of(ctx, scope, e0);
             let rhs_type = type_of(ctx, scope, e1);
+            let state = res_lhs.state.clone();
             match op {
-                ast::BinOp::Add => binop_arith(
-                    true,
-                    out,
-                    &res_rhs,
-                    &res_lhs,
-                    &lhs_type,
-                    &rhs_type,
-                    state.clone(),
-                ),
-                ast::BinOp::Subtract => binop_arith(
-                    false,
-                    out,
-                    &res_rhs,
-                    &res_lhs,
-                    &lhs_type,
-                    &rhs_type,
-                    state.clone(),
-                ),
+                ast::BinOp::Add => {
+                    binop_arith(true, out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state)
+                }
+                ast::BinOp::Subtract => {
+                    binop_arith(false, out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state)
+                }
                 ast::BinOp::Multiply => {
-                    binop_mul(out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state.clone())
+                    binop_mul(out, &res_rhs, &res_lhs, &lhs_type, &rhs_type, state)
                 }
                 ast::BinOp::LessThanEqual => {
-                    binop_compare(out, &res_rhs, &res_lhs, TestOp::Lte, state.clone())
+                    binop_compare(out, &res_rhs, &res_lhs, TestOp::Lte, state)
                 }
                 ast::BinOp::GreaterThan => {
-                    binop_compare(out, &res_rhs, &res_lhs, TestOp::Gt, state.clone())
+                    binop_compare(out, &res_rhs, &res_lhs, TestOp::Gt, state)
                 }
-                ast::BinOp::LessThan => {
-                    binop_compare(out, &res_rhs, &res_lhs, TestOp::Lt, state.clone())
-                }
+                ast::BinOp::LessThan => binop_compare(out, &res_rhs, &res_lhs, TestOp::Lt, state),
                 _ => panic!("unimplemented binop {op}"),
             }
         }
@@ -528,9 +532,9 @@ pub fn compile_expression(
             };
 
             // get addr of field
-            get_stack_field_offset(&mut out, fields, var_type, &head_var, Register::C)?;
-
             let t0 = state.get_temp().unwrap();
+            get_stack_field_offset(&mut out, fields, var_type, &head_var, t0)?;
+
             // deref
             if expr_type.size_bytes() == 1 {
                 out.push(UnresolvedInstruction::Instruction(Instruction::LoadByte(
@@ -589,31 +593,31 @@ fn binop_arith(
     if ops_on_stack {
         if let Type::Pointer(t) = lhs_type {
             let size = t.size_bytes();
-            // println!("pointer arith: += *sizeof({t}) (== {size})");
+            state.reserve_temporaries(2);
+            let (t0, t1) = state.get_temp_pair().unwrap();
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
+                Register::Zero,
                 Register::SP,
                 StackOp::Swap,
             )));
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
+                t0,
                 Register::SP,
                 StackOp::Pop,
             )));
             out.push(UnresolvedInstruction::Instruction(Instruction::Imm(
-                Register::B,
+                t1,
                 Literal12Bit::new_checked(size as u16).unwrap(),
             )));
             out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
-                Register::C,
-                Register::C,
-                Register::B,
+                t0, t0, t1,
             )));
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
+                t0,
                 Register::SP,
                 StackOp::Push,
             )));
+            state.reserve_temporaries(1);
         }
         if is_add {
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
@@ -630,29 +634,33 @@ fn binop_arith(
         }
         Ok(ExprRes::from_instructions_stack(out, state))
     } else {
+        state.reserve_temporaries(2);
+        let (t0, rt) = state.get_temp_pair().unwrap();
+        let mut reg_out = Register::Zero;
         let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
+            reg_out = r;
             r
         } else {
-            let r = state.get_temp().unwrap();
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                r,
+                t0,
                 Register::SP,
                 StackOp::Pop,
             )));
-            r
+            t0
         };
         let r1 = if let ExpressionDestination::Register(r) = lhs.destination {
+            if reg_out != Register::Zero {
+                reg_out = r;
+            }
             r
         } else {
-            let r = state.get_temp().unwrap();
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                r,
+                t0,
                 Register::SP,
                 StackOp::Pop,
             )));
-            r
+            t0
         };
-        let rt = state.get_temp().unwrap();
         if let Type::Pointer(t) = lhs_type {
             let size = t.size_bytes();
             out.push(UnresolvedInstruction::Instruction(Instruction::Imm(
@@ -660,24 +668,24 @@ fn binop_arith(
                 Literal12Bit::new_checked(size as u16).unwrap(),
             )));
             out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
-                r0, r0, rt,
+                reg_out, r0, rt,
             )));
-            state.invalidate(r0);
+            state.invalidate(reg_out);
         };
         if is_add {
             out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                r0, r0, r1,
+                reg_out, r0, r1,
             )));
         } else {
             out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
-                r0, r0, r1,
+                reg_out, r0, r1,
             )));
         }
-        state.set_intermediate(r0);
+        state.set_intermediate(reg_out);
         Ok(ExprRes::from_instructions(
             out,
             state,
-            ExpressionDestination::Register(r0),
+            ExpressionDestination::Register(reg_out),
         ))
     }
 }
@@ -710,6 +718,7 @@ fn binop_mul(
             out.push(UnresolvedInstruction::Instruction(Instruction::Mul(
                 rt, t0, t1,
             )));
+            state.set_intermediate(rt);
             Ok(ExprRes::from_instructions(
                 out,
                 state,

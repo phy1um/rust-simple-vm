@@ -46,18 +46,27 @@ pub(super) fn compile_block(
                 let label_test = Symbol::new(&(block_identifier.to_string() + "_while_lbl_test"));
                 let label_out = Symbol::new(&(block_identifier + "_while_lbl_out"));
                 out.push(UnresolvedInstruction::Label(label_test.to_string()));
-                let mut compiled_cond = compile_expression(ctx, &mut scope, &cond, state.clone())?;
-                out.append(&mut compiled_cond.instructions);
-                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::C,
-                    Register::SP,
-                    StackOp::Pop,
-                )));
-                out.push(UnresolvedInstruction::Instruction(Instruction::Test(
-                    Register::C,
-                    Register::Zero,
-                    TestOp::EitherNonZero,
-                )));
+                let res = compile_expression(ctx, &mut scope, &cond, state.clone())?;
+                out.extend(res.instructions);
+                if let ExpressionDestination::Register(r) = res.destination {
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Test(
+                        r,
+                        Register::Zero,
+                        TestOp::EitherNonZero,
+                    )));
+                } else {
+                    let t0 = state.get_temp().unwrap();
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        t0,
+                        Register::SP,
+                        StackOp::Pop,
+                    )));
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Test(
+                        t0,
+                        Register::Zero,
+                        TestOp::EitherNonZero,
+                    )));
+                }
                 out.push(UnresolvedInstruction::Instruction(Instruction::BranchIf(
                     Literal10Bit::new_checked(4).unwrap(),
                 )));
@@ -273,21 +282,43 @@ pub(super) fn compile_block(
                 // TODO: check we can assign
                 let lhs_type = type_of(ctx, &scope, &lhs);
                 if let Type::Pointer(pointed_type) = lhs_type {
-                    let compiled_addr = compile_expression(ctx, &mut scope, &lhs, state.clone())?;
-                    let compiled_value = compile_expression(ctx, &mut scope, &rhs, state.clone())?;
-                    out.extend(compiled_addr.instructions);
-                    out.extend(compiled_value.instructions);
-                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                        Register::B,
-                        Register::SP,
-                        StackOp::Pop,
-                    )));
-                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                        Register::C,
-                        Register::SP,
-                        StackOp::Pop,
-                    )));
-                    write_value(&mut out, &pointed_type, Register::B, Register::C);
+                    let res_addr = compile_expression(ctx, &mut scope, &lhs, state.clone())?;
+                    let res_value = compile_expression(ctx, &mut scope, &rhs, res_addr.state)?;
+                    out.extend(res_addr.instructions);
+                    out.extend(res_value.instructions);
+                    let mut state = res_value.state;
+                    if res_addr.destination == ExpressionDestination::Stack
+                        && res_value.destination == ExpressionDestination::Stack
+                    {
+                        state.reserve_temporaries(2);
+                        let (t0, t1) = state.get_temp_pair().unwrap();
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                            t0,
+                            Register::SP,
+                            StackOp::Pop,
+                        )));
+                        out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                            t1,
+                            Register::SP,
+                            StackOp::Pop,
+                        )));
+                        write_value(&mut out, &pointed_type, t0, t1);
+                        state.reserve_temporaries(1);
+                    } else {
+                        let reg_addr =
+                            if let ExpressionDestination::Register(r) = res_addr.destination {
+                                r
+                            } else {
+                                state.get_temp().unwrap()
+                            };
+                        let reg_value =
+                            if let ExpressionDestination::Register(r) = res_value.destination {
+                                r
+                            } else {
+                                state.get_temp().unwrap()
+                            };
+                        write_value(&mut out, &pointed_type, reg_value, reg_addr);
+                    }
                 } else {
                     return Err(CompilerError::DerefInvalidType(lhs_type));
                 }
