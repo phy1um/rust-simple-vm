@@ -90,7 +90,7 @@ fn compile_block(
                 // state = res.state;
                 out.push(UnresolvedInstruction::Branch(label_test.to_string()));
                 out.push(UnresolvedInstruction::Label(label_out.to_string()));
-                state = while_res.state;
+                state.invalidate_all();
             }
             ast::Statement::If {
                 cond,
@@ -212,6 +212,7 @@ fn compile_block(
                         BlockVariable::Local(offset, ty) => {
                             let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
                             state = res.state;
+                            trace!("compiled RHS of assignment (local), state = {state}");
                             out.extend(res.instructions);
                             if let ExpressionDestination::Register(r) = res.destination {
                                 assign_from_register_to_local(
@@ -244,6 +245,7 @@ fn compile_block(
                             }
                             let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
                             state = res.state;
+                            trace!("compiled RHS of assignment (arg), state = {state}");
                             out.extend(res.instructions);
                             if let ExpressionDestination::Register(r) = res.destination {
                                 assign_from_register_to_arg(&mut out, index as u8, r, &mut state);
@@ -268,6 +270,7 @@ fn compile_block(
                             let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
                             out.extend(res.instructions);
                             state = res.state;
+                            trace!("compiled RHS of assignment (global), state = {state}");
                             if let ExpressionDestination::Register(r) = res.destination {
                                 let addr_reg = state.get_temp().unwrap();
                                 out.extend(load_address_to(addr, addr_reg, Register::M));
@@ -377,21 +380,27 @@ fn compile_block(
                     BlockVariable::Const(_) => &Type::Int,
                 };
 
-                get_stack_field_offset(&mut out, &fields, var_type, &head_var, Register::C)?;
+                if let ExpressionDestination::Register(reg) = compiled_expr.destination {
+                    let temp = state.get_temp().unwrap();
+                    get_stack_field_offset(&mut out, &fields, var_type, &head_var, temp)?;
 
-                // 2. pop value to write from stack
-                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::B,
-                    Register::SP,
-                    StackOp::Pop,
-                )));
-                // 3. write value
-                write_value(
-                    &mut out,
-                    &type_of(ctx, &scope, &rhs),
-                    Register::B,
-                    Register::C,
-                );
+                    write_value(&mut out, &type_of(ctx, &scope, &rhs), reg, temp);
+                } else {
+                    state.reserve_temporaries(2);
+                    let (t0, t1) = state.get_temp_pair().unwrap();
+                    state.reserve_temporaries(1);
+
+                    get_stack_field_offset(&mut out, &fields, var_type, &head_var, t0)?;
+
+                    // 2. pop value to write from stack
+                    out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                        t1,
+                        Register::SP,
+                        StackOp::Pop,
+                    )));
+                    // 3. write value
+                    write_value(&mut out, &type_of(ctx, &scope, &rhs), t1, t0);
+                }
             }
             ast::Statement::Return(expr) => {
                 let res = compile_expression(ctx, &mut scope, &expr, state.clone())?;
@@ -428,10 +437,11 @@ fn compile_block(
                 }
             }
         }
+        state.clear_intermediates();
     }
     Ok(CompiledBlock {
         instructions: out,
-        state: state,
+        state,
     })
 }
 
@@ -512,5 +522,5 @@ fn update_variable_register(name: &str, new_reg: Register, state: &mut State) {
     state.invalidate(new_reg);
     state
         .set_variable_register(name, new_reg)
-        .expect(&format!("update var name={name}, reg={new_reg}"));
+        .unwrap_or_else(|_| panic!("update var name={name}, reg={new_reg}"));
 }

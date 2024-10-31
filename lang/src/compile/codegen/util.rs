@@ -3,6 +3,8 @@ use simplevm::{
     StackOp, TestOp,
 };
 
+use log::trace;
+
 use crate::ast;
 use crate::compile::block::BlockVariable;
 use crate::compile::codegen::expression::{ExprRes, ExpressionDestination, State};
@@ -200,6 +202,9 @@ pub fn assign_from_register_to_local(
     state: &mut State,
 ) {
     let addr_reg = state.get_temp().unwrap();
+    trace!(
+        "assign from register to local: local_offset={offset}, from_reg={reg}, addr_reg={addr_reg}"
+    );
     out.push(UnresolvedInstruction::Instruction(Instruction::Add(
         addr_reg,
         Register::BP,

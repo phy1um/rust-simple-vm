@@ -1,6 +1,6 @@
 use crate::compile::codegen::util::*;
 use log::{debug, trace};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt;
 
 use simplevm::{
@@ -22,17 +22,18 @@ pub enum RegisterStateError {
 
 #[derive(Debug, Clone)]
 pub struct State {
-    registers: HashMap<Register, RegisterState>,
+    registers: BTreeMap<Register, RegisterState>,
 }
 
 impl State {
     pub(crate) fn new() -> Self {
         Self {
-            registers: HashMap::from([
+            registers: BTreeMap::from([
                 (Register::A, RegisterState::default()),
                 (Register::B, RegisterState::default()),
                 // we must have at least 1 temporary register
                 (Register::C, RegisterState::Temporary),
+                (Register::M, RegisterState::Temporary),
             ]),
         }
     }
@@ -104,6 +105,14 @@ impl State {
         self.registers.insert(r, RegisterState::Intermediate);
     }
 
+    pub(crate) fn clear_intermediates(&mut self) {
+        for (_reg, state) in self.registers.iter_mut() {
+            if *state == RegisterState::Intermediate {
+                *state = RegisterState::Free;
+            }
+        }
+    }
+
     pub(crate) fn set_variable_register(
         &mut self,
         name: &str,
@@ -164,6 +173,7 @@ impl State {
                 if let Some(r) = self.get_free() {
                     self.set_temp(r, true);
                 } else {
+                    trace!("not enough free registers, doing something whacky");
                     self.invalidate_all();
                     if let Some(r) = self.get_free() {
                         self.set_temp(r, true);
@@ -364,9 +374,10 @@ pub fn compile_expression(
             if addr > 0xfff {
                 todo!("address too big: {addr}");
             }
-            out.extend(load_address_to(addr as usize, Register::C, Register::M));
+            let tmp = state.get_temp().unwrap();
+            out.extend(load_address_to(addr as usize, tmp, Register::M));
             out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                Register::C,
+                tmp,
                 Register::SP,
                 StackOp::Push,
             )));
@@ -488,6 +499,7 @@ pub fn compile_expression(
                 }
                 state = res.state;
             }
+            state.invalidate_all();
             out.append(&mut vec![
                 UnresolvedInstruction::Instruction(Instruction::Stack(
                     Register::BP,
@@ -505,14 +517,13 @@ pub fn compile_expression(
                     Register::Zero,
                 )),
                 UnresolvedInstruction::Jump(id.0.to_string()),
-                // functions return in register A, so push this
-                UnresolvedInstruction::Instruction(Instruction::Stack(
-                    Register::A,
-                    Register::SP,
-                    StackOp::Push,
-                )),
             ]);
-            Ok(ExprRes::from_instructions_stack(out, state))
+            state.set_intermediate(Register::A);
+            Ok(ExprRes::from_instructions(
+                out,
+                state,
+                ExpressionDestination::Register(Register::A),
+            ))
         }
         ast::Expression::BinOp(e0, e1, op) => {
             let res_rhs = compile_expression(ctx, scope, e1, state.clone())?;
@@ -616,7 +627,7 @@ pub fn compile_expression(
                 debug!("var load {name}: in {reg}");
                 state
                     .set_variable_register(&name, reg)
-                    .map_err(|e| CompilerError::RegisterState(e))?;
+                    .map_err(CompilerError::RegisterState)?;
                 Ok(ExprRes::from_instructions(
                     out,
                     state,
@@ -654,6 +665,8 @@ fn binop_arith(
 ) -> Result<ExprRes, CompilerError> {
     let ops_on_stack = rhs.destination == ExpressionDestination::Stack
         && lhs.destination == ExpressionDestination::Stack;
+    let ops_in_reg = matches!(rhs.destination, ExpressionDestination::Register(_))
+        && matches!(lhs.destination, ExpressionDestination::Register(_));
     if ops_on_stack {
         if let Type::Pointer(t) = lhs_type {
             let size = t.size_bytes();
@@ -698,33 +711,49 @@ fn binop_arith(
         }
         Ok(ExprRes::from_instructions_stack(out, state))
     } else {
-        state.reserve_temporaries(2);
-        let (t0, rt) = state.get_temp_pair().unwrap();
-        let mut reg_out_opt: Option<Register> = None;
-        let r1 = if let ExpressionDestination::Register(r) = lhs.destination {
-            reg_out_opt = Some(r);
-            r
+        let (r0, r1, rt, reg_out) = if ops_in_reg {
+            let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
+                r
+            } else {
+                panic!("unreachable");
+            };
+            let r1 = if let ExpressionDestination::Register(r) = lhs.destination {
+                r
+            } else {
+                panic!("unreachable");
+            };
+            (r0, r1, state.get_temp().unwrap(), r0)
         } else {
-            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                t0,
-                Register::SP,
-                StackOp::Pop,
-            )));
-            t0
-        };
-        let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
-            reg_out_opt = Some(r);
-            r
-        } else {
-            out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
-                t0,
-                Register::SP,
-                StackOp::Pop,
-            )));
-            t0
-        };
+            state.reserve_temporaries(2);
+            let (t0, rt) = state.get_temp_pair().unwrap();
+            let mut reg_out_opt: Option<Register> = None;
+            let r1 = if let ExpressionDestination::Register(r) = lhs.destination {
+                reg_out_opt = Some(r);
+                r
+            } else {
+                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                    t0,
+                    Register::SP,
+                    StackOp::Pop,
+                )));
+                t0
+            };
+            let r0 = if let ExpressionDestination::Register(r) = rhs.destination {
+                reg_out_opt = Some(r);
+                r
+            } else {
+                out.push(UnresolvedInstruction::Instruction(Instruction::Stack(
+                    t0,
+                    Register::SP,
+                    StackOp::Pop,
+                )));
+                t0
+            };
 
-        let reg_out = reg_out_opt.unwrap();
+            let reg_out = reg_out_opt.unwrap();
+            (r0, r1, rt, reg_out)
+        };
+        trace!("arith binop registers: r0={r0}, r1={r1}, rtmp={rt}, rout={reg_out}");
 
         if let Type::Pointer(t) = lhs_type {
             let size = t.size_bytes();
@@ -744,16 +773,15 @@ fn binop_arith(
                     reg_out, r1, rt,
                 )));
             }
+        } else if is_add {
+            out.push(UnresolvedInstruction::Instruction(Instruction::Add(
+                reg_out, r0, r1,
+            )));
         } else {
-            if is_add {
-                out.push(UnresolvedInstruction::Instruction(Instruction::Add(
-                    reg_out, r0, r1,
-                )));
-            } else {
-                out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
-                    reg_out, r0, r1,
-                )));
-            }
+            out.push(UnresolvedInstruction::Instruction(Instruction::Sub(
+                // r1 = LHS, r0 = RHS
+                reg_out, r1, r0,
+            )));
         };
         state.set_intermediate(reg_out);
         debug!("arith op: using {reg_out} as intermediate");
