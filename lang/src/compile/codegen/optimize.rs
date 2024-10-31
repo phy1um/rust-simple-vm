@@ -1,12 +1,41 @@
 use crate::compile::block::Block;
-use log::trace;
-use simplevm::{resolve::UnresolvedInstruction, Instruction, Register};
+use simplevm::{resolve::UnresolvedInstruction, Instruction, Register, StackOp};
 
 pub(crate) fn optimize_function(block: &mut Block) {
     remove_noops(block);
+    stack_shuffle(block);
 }
 
-pub(crate) fn remove_noops(block: &mut Block) {
+fn stack_shuffle(block: &mut Block) {
+    let mut new_instructions = Vec::new();
+    let mut last_push = None;
+    for instruction in &block.instructions {
+        if let UnresolvedInstruction::Instruction(Instruction::Stack(tgt, sp, op)) = instruction {
+            if *op == StackOp::Push {
+                last_push = Some((tgt, sp));
+            } else if *op == StackOp::Pop {
+                if let Some((prev_tgt, prev_sp)) = last_push {
+                    if prev_tgt != tgt || prev_sp != sp {
+                        new_instructions.push(UnresolvedInstruction::Instruction(
+                            Instruction::Stack(*prev_tgt, *prev_sp, StackOp::Push),
+                        ));
+                        new_instructions.push(instruction.clone());
+                    }
+                    last_push = None;
+                }
+            } else {
+                last_push = None;
+                new_instructions.push(instruction.clone());
+            }
+        } else {
+            last_push = None;
+            new_instructions.push(instruction.clone());
+        }
+    }
+    block.instructions = new_instructions;
+}
+
+fn remove_noops(block: &mut Block) {
     let mut new_instructions = Vec::new();
     for instruction in &block.instructions {
         if let Some(i) = match instruction {
