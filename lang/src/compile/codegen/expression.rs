@@ -1,5 +1,5 @@
 use crate::compile::codegen::util::*;
-use log::{debug, error, trace};
+use log::{debug, trace};
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -164,35 +164,7 @@ impl State {
     }
 
     pub(crate) fn reserve_temporaries(&mut self, n: u32) {
-        return;
-        let temp_count: u32 = self
-            .registers
-            .values()
-            .map(|v| match v {
-                RegisterState::Temporary => 1,
-                _ => 0,
-            })
-            .sum();
-        if temp_count > n {
-            for _ in 0..(temp_count - n) {
-                let r = self.get_temp().unwrap();
-                self.set_temp(r, false);
-            }
-        } else if temp_count < n {
-            for _ in 0..(n - temp_count) {
-                if let Some(r) = self.get_free() {
-                    self.set_temp(r, true);
-                } else {
-                    trace!("not enough free registers, doing something whacky");
-                    self.invalidate_all();
-                    if let Some(r) = self.get_free() {
-                        self.set_temp(r, true);
-                    } else {
-                        panic!("out of free registers");
-                    }
-                }
-            }
-        }
+        ()
     }
 
     fn set_temp(&mut self, r: Register, state: bool) {

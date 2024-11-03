@@ -1,5 +1,4 @@
 use crate::language::*;
-use log::trace;
 
 use std::str::FromStr;
 
@@ -52,20 +51,6 @@ fn precedence_climb_iterative(
             }
         }
         return Ok((state, lhs));
-    }
-}
-
-fn precedence_climb_recursive(
-    res: ast::Expression,
-    input: State,
-) -> CResult<State, ast::Expression> {
-    let (mut s0, op) = binop(input)?;
-    if op.get_precedence() >= s0.expr_precedence {
-        s0.expr_precedence = op.get_precedence() + if op.is_left_associative() { 1 } else { 0 };
-        let (s1, rhs) = expression(s0).map_err(ConfidenceError::elevate)?;
-        Ok((s1, ast::Expression::BinOp(Box::new(res), Box::new(rhs), op)))
-    } else {
-        Ok((s0, res))
     }
 }
 
