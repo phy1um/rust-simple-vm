@@ -55,7 +55,7 @@ pub fn main() -> Result<(), String> {
     bin.load_to_vm(&mut vm)?;
     vm.set_program_counter(bin.entrypoint.into());
     vm.set_register(Register::SP, 0x1000);
-    vm.define_handler(0xf0, signal_halt);
+    vm.define_handler(0xf, signal_halt);
     while !vm.is_halt() {
         println!("{}", vm.state());
         vm.step()?;
