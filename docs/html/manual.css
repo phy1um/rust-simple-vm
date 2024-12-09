@@ -1,0 +1,57 @@
+@font-face {
+  font-family: "CutiveMono";
+  src: url('./CutiveMono-Regular.ttf') format('truetype');
+}
+
+table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+#opstable > thead th:nth-child(1) {
+  width: 10%;
+}
+
+#opstable > thead th:nth-child(2) {
+  width: 20%;
+}
+
+#opstable > thead th:nth-child(3) {
+  width: 15%;
+}
+
+#opstable > thead th:nth-child(4) {
+  width: 40%;
+}
+
+.testoptable {
+  width: 50%;
+}
+
+.tstable > thead th:nth-child(1) {
+  width: 10%;
+}
+
+.tstable > thead th:nth-child(2) {
+  width: 10%;
+}
+
+.stackoptable {
+  width: 80%;
+}
+
+.tstable > thead th:nth-child(1) {
+  width: 10%;
+}
+
+.tstable > thead th:nth-child(2) {
+  width: 50%;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,td {
+  padding: 20px;
+}

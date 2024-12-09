@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TomVM Docs</title>
+<meta name="description" content="">
+<meta name="author" content="">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="manual.css">
+<script src="toc.js"></script>
+<style>
+  /* from https://github.com/Zachtreis/bettermotherfuckingwebsite */
+  body{
+    margin:40px auto;
+    max-width:1050px;
+    line-height:1.6;
+    font-size:18px;
+    color:#444;
+    padding:0 10px;
+    font-family: "Arial";
+  }
+
+  .funfont {
+    font-family: "CutiveMono";
+  }
+
+  pre code {
+    font-size:18px;
+    color:#444;
+  }
+
+  h1,h2,h3{line-height:1.2}
+
+  @media print {
+    button {
+      display: none;
+    }
+  }
+</style>
+</head>
+
+<body class="funfont">
+  <h1>TomVM User Manual</h1>
+  <button onclick="toggleFunFont()">fun font toggle</button>
+  <p><em>Note: this document is still a WIP. Do not read yet unless I told you to!</em></p>
+  <nav><!-- autopopulated --></nav>
+  </section>
+  <section>
+    <h2>Features</h2>
+    <p>
+      <ul>
+        <li>8x 16-bit General Purpose Registers</li>
+        <li>32-bit Address Space</li>
+        <li>8KB of RAM, with options for expansion</li>
+        <li>Lightning fast memory-mapped device I/O</li>
+      </ul>
+    </p>
+  </section>
+
+  <section>
+    <h2>Instructions</h2>
+    <table id="opstable">
+      <thead>
+        <tr>
+          <th scope="col">Opname</th>
+          <th scope="col">Usage</th>
+          <th scope="col">Restrictions</th>
+          <th scope="col">Description</th>
+        </tr>
+      </thead>
+      <tr>
+        <th scope="row">IMM</th>
+        <td>IMM R, i</td>
+        <td>0 &lt;= <em>i</em> &lt;= 4095</td>
+        <td>Set reigster <b>R</b> to immediate value <em>i</em></td>
+      </tr>
+      <tr>
+        <th scope="row">ADDIMM</td>
+        <td>ADDIMM R, i</td>
+        <td>0 &lt;= <em>i</em> &lt;= 127</td>
+        <td>Add unsigned immediate value <em>i</em> to register <b>R</b></td>
+      </tr>
+      <tr>
+        <th scope="row">ADDIMMS</td>
+        <td>ADDIMMS R, i</td>
+        <td>-64 &lt;= <em>i</em> &lt;= 63</td>
+        <td>Add unsigned immediate value <em>i</em> to register <b>R</b></td>
+      </tr>
+
+      <tr>
+        <th scope="row">ADD</td>
+        <td>ADD TGT, A, B</td>
+        <td></td>
+        <td>Add values in registers <b>A</b> and <b>B</b>, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">SUB</td>
+        <td>SUB TGT, A, B</td>
+        <td></td>
+        <td>Subtract values in registers <b>B</b> from register <b>A</b>, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">MUL</td>
+        <td>MUL TGT, A, B</td>
+        <td></td>
+        <td>Multiply values in registers <b>A</b> and <b>B</b>, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">AND</td>
+        <td>AND TGT, A, B</td>
+        <td></td>
+        <td>Perform logical AND on values in registers <b>A</b> and <b>B</b>, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">OR</td>
+        <td>OR TGT, A, B</td>
+        <td></td>
+        <td>Perform logical OR on values in registers <b>A</b> and <b>B</b>, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">XOR</td>
+        <td>XOR TGT, A, B</td>
+        <td></td>
+        <td>Perform logical XOR on values in registers <b>A</b> and <b>B</b>, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">MOD</td>
+        <td>MOD TGT, A, B</td>
+        <td></td>
+        <td>Calculate the value in register <b>A</b> modulo the value in register <b>B</b>, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">SHIFTL</td>
+        <td>SHIFTL TGT, R, i</td>
+        <td>0 &lt;= i &lt;= 15</td>
+        <td>Shift the value in register <b>R</b> left by <em>i</em> bits, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">SHIFTRG </td>
+        <td>SHIFTRG TGT, R, i</td>
+        <td>0 &lt;= i &lt;= 15</td>
+        <td>Shift the value in register <b>R</b> right by <em>i</em> bits, store result in register <b>TGT</b></td>
+      </tr>
+      <tr>
+        <th scope="row">SHIFTRA</td>
+        <td>SHIFTRA TGT, R, i</td>
+        <td>0 &lt;= i &lt;= 15</td>
+        <td>Shift the value in register <b>R</b> right by <em>i</em> bits, store result in register <b>TGT</b>.
+          if the high bit of register <b>R</b> is set, then it is sign extended.</td>
+      </tr>
+      <tr>
+        <th scope="row">LOADWORD</td>
+        <td>LOADWORD TGT, A, M</td>
+        <td></td>
+        <td>Load a word from memory at the 32-bit address taken by combining the value of registers <b>A</b> and <b>M</b>,
+          where <b>M</b> is treated as bits 31-16 and <b>A</b> is treated as bits 15-0. Store result in register <b>TGT</b></td>
+      </tr>
+       <tr>
+        <th scope="row">STOREWORD</td>
+        <td>STOREWORD V, A, M</td>
+        <td></td>
+        <td>Store the value of register <b>V</b> in memory at the 32-bit address taken by combining the value of registers <b>A</b> and <b>M</b>,
+          where <b>M</b> is treated as bits 31-16 and <b>A</b> is treated as bits 15-0</td>
+      </tr>
+      <tr>
+        <th scope="row">LOADBYTE</td>
+        <td>LOADBYTE TGT, A, M</td>
+        <td></td>
+        <td>Load a byte from memory at the 32-bit address taken by combining the value of registers <b>A</b> and <b>M</b>,
+          where <b>M</b> is treated as bits 31-16 and <b>A</b> is treated as bits 15-0. Store result in register <b>TGT</b>.
+          This always sets the upper 8-bits of register <b>TGT</b> to zero.</td>
+      </tr>
+       <tr>
+        <th scope="row">STOREBYTE</td>
+        <td>STOREBYTE V, A, M</td>
+        <td></td>
+        <td>Store the lower 8-bits of the value of register <b>V</b> in memory at the 32-bit address taken by combining the value of registers <b>A</b> and <b>M</b>,
+          where <b>M</b> is treated as bits 31-16 and <b>A</b> is treated as bits 15-0</td>
+      </tr>
+      <tr>
+        <th scope="row">TEST</td>
+        <td>TEST A, B, T</td>
+        <td></td>
+        <td>Perform a testop <b>T</b> on the values of registers <b>A</b> and <b>B</b>. If the testop passes, set the 
+          TEST flag to 1. See <a href="#section-testops">TestOps</a> for a list of all valid testops.</td>
+      </tr>
+      <tr>
+        <th scope="row">ADDIF</td>
+        <td>ADDIF A, B, i</td>
+        <td>0 &lt;= i &lt;= 15</td>
+        <td>If the TEST flag is set, then A = B+i and unset the TEST flag.</td>
+      </tr>
+      <tr>
+        <th scope="row">STACK</td>
+        <td>STACK A, SP, OP</td>
+        <td></td>
+        <td>Perform a <a href="#section-stackops">stackop</a> on a stack located at the address in <b>SP</b>, with 
+            an argument in, or destination of, reigster <b>A</b></td>
+      </tr>
+      <tr>
+        <th scope="row">LOADSTACK</td>
+        <td>LOADSTACK A, SP, i</td>
+        <td>0 &lt;= i &lt;= 15</td>
+        <td>Load a word from a stack located in memory at <b>SP</b>, <b>i</b> places from the top.</td>
+      </tr>
+      <tr>
+        <th scope="row">JUMP</td>
+        <td>JUMP i</td>
+        <td>i = 0 or 16 &lt;= i &lt;= 16284</td>
+        <td>Set the program counter to i. The value stored in <b>i</b> is in the range [0, 1024], and is left shifted by 4.</td>
+      </tr>
+      <tr>
+        <th scope="row">JUMPR</td>
+        <td>JUMPR A, M</td>
+        <td></td>
+        <td>Set the program counter to the 32-bit address created by combining the value of registers <b>A</b> and <b>M</b>,
+            where <b>M</b> is treated as bits 31-16, and <b>A</b> is treated as bits 15-0.</td>
+      </tr>
+      <tr>
+        <th scope="row">BRANCH</td>
+        <td>BRANCH i</td>
+        <td>0 &lt;= i &lt;= 1023</td>
+        <td>Set the program counter to <b>PC</b>+<b>i</b></td>
+      </tr>
+      <tr>
+        <th scope="row">BRANCHIF</td>
+        <td>BRANCHIF i</td>
+        <td>0 &lt;= i &lt;= 1023</td>
+        <td>If the TEST flag is set, set the program counter to <b>PC</b>+<b>i</b> and unset the TEST flag.</td>
+      </tr>
+      <tr>
+        <th scope="row">BRANCHIFR</td>
+        <td>BRANCHIFR A</td>
+        <td></td>
+        <td>If the TEST flag is set, set the program counter to <b>PC</b>+ the value of register <b>A</b> and unset the TEST flag.</td>
+      </tr>
+      <tr>
+        <th scope="row">SYSTEM</td>
+        <td>SYSTEM Zero, A, i</td>
+        <td>0 &lt;= i &lt;= 15</td>
+        <td>Call the <a href="#section-system-signals">system signal</a> index <b>i</b>, with <b>A</b> as the argument.
+            This signal can perform any action, modifying memory and changing registers.</td>
+      </tr>
+      <tr>
+        <th scope="row">SYSTEM</td>
+        <td>SYSTEM S, _, i</td>
+        <td>0 &lt;= i &lt;= 15</td>
+        <td>Call the <a href="#section-system-signals">system signal</a> index <b>S</b>, with <b>i</b> as the argument.
+            This signal can perform any action, modifying memory and changing registers.</td>
+      </tr>
+    </table>
+    <section>
+      <h3>TestOps</h3>
+      <p>TestOps perform a comparison between two registers. The result of a TestOp is used to set the TEST flag
+      of the processor. If the condition is true then the flag is set, otherwise it is unset. Every <b>TEST</b>
+      instruction operates on 2 register operands, in this table referred to as A and B.
+      </p>
+      <table class="testoptable">
+        <thead>
+          <th scope="col">Name</th>
+          <th scope="col">Condition</th>
+        </thead>
+        <tr>
+          <th scope="row">Eq</th>
+          <td>A == B</td>
+        </tr>
+        <tr>
+          <th scope="row">Neq</th>
+          <td>A != B</td>
+        </tr>
+        <tr>
+          <th scope="row">Lt</th>
+          <td>A &lt; B</td>
+        </tr>
+        <tr>
+          <th scope="row">Lte</th>
+          <td>A &lt;= B</td>
+        </tr>
+        <tr>
+          <th scope="row">Gt</th>
+          <td>A &gt; B</td>
+        </tr>
+        <tr>
+          <th scope="row">Gte</th>
+          <td>A &gt;= B</td>
+        </tr>        
+        <tr>
+          <th scope="row">BothZero</th>
+          <td>A == B &amp;&amp; A == 0</td>
+        </tr>
+        <tr>
+          <th scope="row">EitherNonZero</th>
+          <td>A != 0 || B != 0</td>
+        </tr>
+        <tr>
+          <th scope="row">BothNonZero</th>
+          <td>A != 0 &amp;&amp; B != 0</td>
+        </tr>
+      </table>
+    </section>
+
+    <section>
+      <h3>StackOps</h3>
+      <p>
+      StackOps are the stack manipulation operations that the <b>STACK</b> instruction
+      performs. Each stackop operates on 2 registers, which are operands of the <b>STACK</b>
+      instruction. In the instruction <b>STACK TGT SP OP</b> these register values represent
+      the target of the operation, and the <b>SP</b> or "stack pointer" - this is the the address 
+      the machine's memory where the stack operation is performed. This means that multiple stacks can be operated on,
+      and their values can reside in any general purpose register. This machine <em>does not use 
+        a dedicated register for the value of the stack pointer</em>, however by convention
+      the register <b>R5</b> is used as the stack pointer, and it is given the name <b>SP</b> in the assembler.
+      </p>
+      <table class="stackoptable">
+        <thead>
+          <th scope="col">StackOp</th>
+          <th scope="col">Action</th>
+        </thead>
+        <tr>
+          <th scope="row">Pop</th>
+          <td>SP -= 2; TGT = MEM[SP]</td>
+        </tr>
+        <tr>
+          <th scope="row">Push</th>
+          <td>MEM[SP] = TGT; SP += 2</td>
+        </tr>
+        <tr>
+          <th scope="row">Peep</th>
+          <td>TGT = MEM[SP-2]</td>
+        </tr>
+        <tr>
+          <th scope="row">Swap</th>
+          <td>tmp = MEM[SP-2]; MEM[SP-2] = MEM[SP-4]; MEP[SP-4] = tmp</td>
+        </tr>
+        <tr>
+          <th scope="row">Dup</th>
+          <td>MEM[SP] = MEM[SP-2]; SP += 2</td>
+        </tr>
+        <tr>
+          <th scope="row">Rot</th>
+          <td>tmp = MEM[SP-2]; MEM[SP-2] = MEM[SP-4]; MEM[SP-4] = MEM[SP-6]; MEM[SP-6] = tmp</td>
+        </tr>
+        <tr>
+          <th scope="row">Add</th>
+          <td>MEM[SP-4] = MEM[SP-2] + MEM[SP-4]; SP -= 2</td>
+        </tr>
+        <tr>
+          <th scope="row">Sub</th>
+          <td>MEM[SP-4] = MEM[SP-4] - MEM[SP-2]; SP -= 2</td>
+        </tr>
+        <tr>
+          <th scope="row">PushPC</th>
+          <td>MEM[SP] = PC; SP += 2</td>
+        </tr>
+      </table>
+    </section>
+  </section>
+
+
+  <section>
+    <h2>System Signals</h2>
+    <p>
+    The <b>SIGNAL</b> instruction raises a signal that must be handled by the system. These signals can
+    interface with hardware that is not exposed through regular instructions. This table is the set of
+    default signals that the VM will respond to, however hardware devices can define new signal handlers.
+    See the documentation of each hardware device for the signals that it defines.
+    </p>
+
+    <p>
+    <i>Note: only HALT (0xF) is currently implemented</i>
+    </p>
+
+    <table class="signals">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Arg</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tr>
+        <td>0x1</td>
+        <td>INTERRUPT</td>
+        <td>interrupt value</td>
+        <td>Trigger a user interrupt, jump to the interrupt handler vector, indexed by the interrupt value</td>
+      </tr>
+      <tr>
+        <td>0x2</td>
+        <td>SET INTERRUPT ENABLED</td>
+        <td>true/false</td>
+        <td>If arg is 1, enable user interrupts. Otherwise, disable user interrupts</td>
+      <tr>
+        <td>0xA</td>
+        <td>SET FAULT HANDLER</td>
+        <td>address</td>
+        <td>When a system fault occurs, setup a <a href="#section-fault">fault context</a> and jump to the handler address.</td>
+      </tr>
+      <tr>
+        <td>0xB</td>
+        <td>SET INT VECTOR</td>
+        <td>address</td>
+        <td>When a system interrupt is triggered, setup a <a href="#section-interrupt">interrupt context</a> and jump to the handler address.</td>
+      </tr>
+      <tr>
+        <td>0xF</td>
+        <td>HALT</td>
+        <td>(ignored)</td>
+        <td>Set the HALT status of the system to true. This ends execution.</td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Assembler Syntax</h2>
+    <p>
+    The program TVM-ASM assembles programs for the machine, and outputs files in the <a href="#section-binary-format">SBF</a>
+    format.
+    </p>
+
+    <p>
+    Instructions are written in the form <code>INSTRUCTION A B C</code>, without commas between the operands. For example,
+    this program reads 2 bytes from a serial input device mapped to address 0xE001, and sums them.
+    </p>
+    <pre class=asmprog>
+IMM D $E00
+# D = $E001, but we can only load 12-bit immediates
+SHIFTL D D 4
+ADDIMM D 1
+LOADBYTE A D Zero
+LOADBYTE B D Zero
+ADD A A B
+    </pre>
+    <p>
+    The assembler also has support for variables, labels, and a basic macro system.
+    </p>
+
+    <section>
+      <h3>Labels and Variables</h3>
+      <p>
+        A label is like a bookmark in the assembly code. When a label is encountered, the assembler calculates the offset of
+        this label in the final program, and other places can reference this offset. A label is defined using the <b>:</b> 
+        character, with a name for the label. In this example, we branch to a label and skip over loading 20 into the <b>A</b>
+        register. When this program halts, A = 10.
+      </p>
+      <pre class=asmprog>
+IMM A 10
+BRANCH !SKIP
+IMM A 20
+:SKIP
+SYSTEM Zero Zero $f
+      </pre>
+      <p>
+        To reference a label, we use its name with the <b>!</b> prefix. This applies to labels, as well as any variables
+        that are defined. Variables are defined by using the <code>defvar</code> macro. In this example, we define a variable for the 
+        HALT signal handler index.
+      </p>
+      <pre class=asmprog>
+.defvar SIG_HALT $f
+IMM A 10
+SYSTEM Zero Zero !SIG_HALT
+      </pre>
+    </section>
+
+  </section>
+
+  <section>
+    <h2>Binary Format</h2>
+    This machine defines its own binary format, SBF (simple binary format) for loading programs and data. These files follow
+    a simple specification one main header followed by <i>section</i> headers, the finally the data referenced by each
+    section header.
+
+    <section>
+      <h3>Binary Header</h3>
+      The main header contains the following fields, in order:
+      <ul>
+        <li>Version (2 bytes)</li>
+        <li>Entrypoint (2 bytes) - note the entrypoint must be in the first ~65kb of memory</li>
+        <li>Hardware Configuration (4 bytes) - the expected hardware this binary wants to run against</li>
+        <li>Section count (2 bytes)</li>
+        <li>Reserved space (12 bytes)</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>Section Header</h3>
+      The section headers immediately follow the main binary header. Each section header defines
+      data that will loaded into memory, or some information for the loader to configure memory.
+      The total size of the section headers is 12 bytes × section count. Each section header 
+      contains the following fields, in order:
+
+      <ul>
+        <li>Size (2 bytes) - number of bytes in this section</li>
+        <li>Mode (2 bytes) - one of the <a href="#section-section-modes">section modes</a></li>
+        <li>Address (4 bytes) - target address in memory</li>
+        <li>File offset (4 bytes) - offset of the start of the section data in the binary file</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>Section Modes</h3>
+      Each section has a mode which determines how it is handled by the loader.
+
+      <ul>
+        <li>RO (0) - this data is mapped read only, and causes a fault if written to</li>
+        <li>RW (1) - this data can be read and written to in memory</li>
+        <li>Heap (2) - tells the loader to map a region of memory for general use by the program. File offest is ignored, 
+          the range specified by [address, address+size] is 0-initialized.</li>
+      </ul>
+    </section>
+  </section>
+
+  <script>
+    const nav = document.getElementsByTagName("nav")[0];
+    populateTOC(nav);
+    function toggleFunFont() {
+      if (document.body.classList.contains("funfont")) {
+        document.body.classList.remove("funfont");
+      } else {
+        document.body.classList.add("funfont");
+      }
+    }
+    for (let numbered of document.getElementsByClassName("asmprog")) {
+      const oldBody = numbered.innerText;
+      const newLines = [];
+      let i = 0;
+      for (let b of oldBody.split("\n")) {
+        const bt = b.trim();
+        if (bt.length === 0) {
+          continue;
+        }
+        if (bt[0] === "#" || bt[0] === ":") {
+          newLines.push(b);
+          continue;
+        }
+        const pad = ("000"+i).slice(-4);
+        newLines.push(`${pad}: ${b}`);
+        i += 1;
+      }
+      numbered.innerText = newLines.join("\n");
+    }
+  </script>
+</body>
+</html>
