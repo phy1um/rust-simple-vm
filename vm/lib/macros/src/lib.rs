@@ -108,8 +108,10 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
             field_to_string.extend(quote! {
                 Self::#name => write!(f, stringify!(#name)),
             });
+            let name_s = name.to_string();
+            let name_upper = name_s.to_uppercase();
             field_from_str.extend(quote! {
-                stringify!(#name) => {
+                #name_upper => {
                     assert_length(&parts, 1).map_err(|x| Self::Err::Fail(x))?;
                     Ok(Self::#name)
                 }
@@ -282,8 +284,10 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
             }
 
             let types_len = types.len();
+            let name_s = name.to_string();
+            let name_upper = name_s.to_uppercase();
             field_from_str.extend(quote! {
-                stringify!(#name) => {
+                #name_upper => {
                     assert_length(&parts, #types_len + 1).map_err(|x| Self::Err::Fail(x))?;
                     #part_stringers
                     Ok(#name_matcher)
@@ -420,7 +424,9 @@ fn impl_opcode_struct(ast: &syn::ItemEnum) -> Result<proc_macro2::TokenStream, S
                 if parts.len() == 0 {
                     return Err(Self::Err::NoContent);
                 }
-                match parts[0] {
+
+                let part_upper = parts[0].to_uppercase();
+                match part_upper.as_str() {
                     #field_from_str
                     _ => Err(Self::Err::Fail(format!("unknown op {}", parts[0]))),
                 }

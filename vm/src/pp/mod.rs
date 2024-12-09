@@ -225,6 +225,26 @@ impl PreProcessor {
         Ok(out)
     }
 
+    fn dealias_instruction(h: ProcessedLinePart) -> ProcessedLinePart {
+        if let ProcessedLinePart::Body(ins) = h {
+            ProcessedLinePart::Body(
+                match ins.to_uppercase().as_str() {
+                    "ADDIMMS" => "ADDIMMSIGNED",
+                    "SHIFTL" => "SHIFTLEFT",
+                    "SHIFTRG" => "SHIFTRIGHTLOGICAL",
+                    "SHIFTRA" => "SHIFTRIGHTARITHMETIC",
+                    "LOADSTACK" => "LOADSTACKOFFSET",
+                    "JUMPR" => "JUMPREGISTER",
+                    "BRANCHIFR" => "BRANCHREGISTERIF",
+                    x => x,
+                }
+                .to_string(),
+            )
+        } else {
+            h
+        }
+    }
+
     fn try_parse_unresolved_instruction(
         first: &ProcessedLinePart,
         parts: &[ProcessedLinePart],
@@ -292,9 +312,11 @@ impl PreProcessor {
                             // skip comments
                             Ok(None)
                         } else if p.len() > 1 {
-                            if let Some(ur) =
-                                Self::try_parse_unresolved_instruction(head, p.get(1..).unwrap())
-                            {
+                            let dealiased = Self::dealias_instruction(head.clone());
+                            if let Some(ur) = Self::try_parse_unresolved_instruction(
+                                &dealiased,
+                                p.get(1..).unwrap(),
+                            ) {
                                 Ok(Some(ur))
                             } else {
                                 let instruction_str = p

@@ -1,3 +1,5 @@
+#![feature(trace_macros)]
+
 pub mod binfmt;
 pub mod io;
 pub mod memory;
@@ -7,6 +9,8 @@ pub mod pp;
 pub mod register;
 pub mod resolve;
 pub mod vm;
+
+trace_macros!(true);
 
 pub use crate::io::*;
 pub use crate::memory::*;
