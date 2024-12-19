@@ -1,56 +1,63 @@
 <!doctype html>
 <html lang="en-US">
-  <head>
-    <meta charset="utf-8" /> <title>tom's simple vm</title>
-  </head>
-  <body>
-    <h1>Help</h1>
-    <h2>Memory Map</h2>
-    <pre>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Programstate help page.">
+  <title>tom's simple vm</title>
+</head>
+
+<body>
+  <h1>Help</h1>
+  <h2>Memory Map</h2>
+  <pre>
 Main memory: 0x0 -&gt; 0x8000
 Terminal (default): 0xe000 (write), 0xe001 (read)
     </pre>
-    <h2>System Handlers</h2>
-    <pre>
+  <h2>System Handlers</h2>
+  <pre>
 0x01: Write arg to console.log
 0xf0: Halt the system
     </pre>
-    <h2>Assembler Syntax</h2>
-    <ul>
-      <li>Comments start with ";", these lines are ignored</li>
-      <li>Labels start with ":" and must go on their own line. They become variables equal to the 
-        value of the offset of the next instruction.</li>
-      <li>Variable references are prefixed with "!", eg "!n" to substitute the variable "n".
-        This includes labels, jumping to label <code>foo</code> is done with
-        <code>Imm PC !foo</code></li>
-      <li>Macro invocations start with "."
-        <ul>
-          <li>`.defvar` defines a variable that can be referenced later</li>
-          <li>`.defmacro` defines a substitution macro. Instructions are separated by `/`, and tokens
-            of the form `!0`, `!1`, ... represent the first, second, etc arguments when invoked. 
-            <br>
-            For example, a macro for loading the sum of 2 numbers to the top of the stack:
-            <pre>.defmacro AddOnStack Imm A !0 / Imm B !1 / Stack A SP Push / Stack B SP Push / Stack Zero SP Add</pre> 
-            Which could be used:
-            <pre>.AddOnStack 17 33</pre>
-          </li>
-        </ul>
-      </li>
-      <li>All other lines must be a valid instruction of the form "Name [X] [Y] [Z]", where X, Y and Z
-        may be numbers, register names. In a Stack instruction Z must be a Stack Op. In a Test instruction,
-        Z must be a Test Op. See the <a href="https://github.com/phy1um/rust-simple-vm">repo</a> for more
-        details.
-      </li>
-    </ul>
-    <h2>Virtual Devices</h2>
-    <h3>Terminal I/O</h3>
-    <ul>
-      <li>A simple byte-stream I/O device for reading and writing text</li>
-      <li>Writing to 0xe000 (default) will print an ascii character in the output area</li>
-      <li>Reading from 0xe001 (default) will give the next character from the input, or 0</li>
-    </ul>
-    <h3>Monitor</h3>
-    <p>Virtual pixel monitor coming soon</p>
-    <a href="./">Back</a>
-  </body>
+  <h2>Assembler Syntax</h2>
+  <ul>
+    <li>Comments start with ";", these lines are ignored</li>
+    <li>Labels start with ":" and must go on their own line. They become variables equal to the
+      value of the offset of the next instruction.</li>
+    <li>Variable references are prefixed with "!", eg "!n" to substitute the variable "n".
+      This includes labels, jumping to label <code>foo</code> is done with
+      <code>Imm PC !foo</code>
+    </li>
+    <li>Macro invocations start with "."
+      <ul>
+        <li>`.defvar` defines a variable that can be referenced later</li>
+        <li>`.defmacro` defines a substitution macro. Instructions are separated by `/`, and tokens
+          of the form `!0`, `!1`, ... represent the first, second, etc arguments when invoked.
+          <br>
+          For example, a macro for loading the sum of 2 numbers to the top of the stack:
+          <pre>.defmacro AddOnStack Imm A !0 / Imm B !1 / Stack A SP Push / Stack B SP Push / Stack Zero SP Add</pre>
+          Which could be used:
+          <pre>.AddOnStack 17 33</pre>
+        </li>
+      </ul>
+    </li>
+    <li>All other lines must be a valid instruction of the form "Name [X] [Y] [Z]", where X, Y and Z
+      may be numbers, register names. In a Stack instruction Z must be a Stack Op. In a Test instruction,
+      Z must be a Test Op. See the <a href="https://github.com/phy1um/rust-simple-vm">repo</a> for more
+      details.
+    </li>
+  </ul>
+  <h2>Virtual Devices</h2>
+  <h3>Terminal I/O</h3>
+  <ul>
+    <li>A simple byte-stream I/O device for reading and writing text</li>
+    <li>Writing to 0xe000 (default) will print an ascii character in the output area</li>
+    <li>Reading from 0xe001 (default) will give the next character from the input, or 0</li>
+  </ul>
+  <h3>Monitor</h3>
+  <p>Virtual pixel monitor coming soon</p>
+  <a href="./">Back</a>
+</body>
+
 </html>
